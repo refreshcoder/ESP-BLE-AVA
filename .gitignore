@@ -1,0 +1,14 @@
+# build output & IDF state
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.ci
+
+# generated at configure time from main/www/index.html
+main/www/index.html.gz
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
