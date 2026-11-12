@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest an improvement or a new capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        Items already on the roadmap (see README/DESIGN → Limitations):
+
+        - extended advertising (>31 byte payloads)
+        - active scanning (scan-response device names)
+        - OTA update endpoint
+        - dual-chip mode for guaranteed simultaneous scan + advertise

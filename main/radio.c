@@ -46,7 +46,7 @@ esp_err_t radio_sniff(void)
     if (!s_mtx) return ESP_ERR_INVALID_STATE;
 
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    /* 互斥：先彻底停广播，再开扫描 */
+    /* Exclusive: fully stop advertising before starting the scan */
     beacon_adv_stop();
 
     cfg_lock();
@@ -68,11 +68,11 @@ esp_err_t radio_clone(void)
     if (!s_mtx) return ESP_ERR_INVALID_STATE;
 
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    /* 互斥：先彻底停扫描（也顺带避免扫到自己发的包） */
+    /* Exclusive: fully stop scanning first (also avoids capturing our own packets) */
     blescan_stop();
 
     cfg_lock();
-    beacon_cfg_t snap = *cfg_get();      /* 拷贝 700B 左右，别持锁做射频操作 */
+    beacon_cfg_t snap = *cfg_get();      /* ~700 B copy; never do RF work under the lock */
     cfg_unlock();
 
     esp_err_t e = beacon_adv_apply(&snap);
@@ -92,7 +92,7 @@ void radio_on_ble_ready(void)
     int  active  = cfg_get()->active;
     cfg_unlock();
 
-    /* 默认进监听模式（本产品的主动作是"先抓再复刻"）；关了扫描就直接复刻 */
+    /* Default to sniffing (capture first, then clone); clone directly if scanning is off */
     if (scan_en)                 radio_sniff();
     else if (active >= 0)        radio_clone();
     else                         radio_stop();

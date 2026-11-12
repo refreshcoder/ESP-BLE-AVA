@@ -3,24 +3,26 @@
 #include "esp_err.h"
 
 /*
- * 射频模式仲裁：捕获(SNIFF) 与 广播(CLONE) 互斥，同一时刻只有一种在跑。
- * 所有模式切换都必须经过本模块，避免"扫描没停就去广播"或反过来的竞态。
+ * RF mode arbiter. SNIFF (capture) and CLONE (advertise) are mutually exclusive:
+ * only one of them runs at a time. Every mode change must go through this module
+ * so that "start advertising without stopping the scan" (and the reverse) cannot
+ * happen.
  */
 
 typedef enum {
-    RMODE_IDLE = 0,   /* 射频空闲（只开 AP 管理页） */
-    RMODE_SNIFF,      /* 扫监听，记录原始广播数据 */
-    RMODE_CLONE,      /* 广播复刻当前 active 配置 */
+    RMODE_IDLE = 0,   /* radio off, only the SoftAP/UI is up */
+    RMODE_SNIFF,      /* scan only, records raw advertising data */
+    RMODE_CLONE,      /* advertise only, replays the active profile */
 } rmode_t;
 
 esp_err_t   radio_init(void);
 
-esp_err_t   radio_sniff(void);   /* 停广播 → 开扫描 */
-esp_err_t   radio_clone(void);   /* 停扫描 → 按 active 配置广播 */
-esp_err_t   radio_stop(void);    /* 两者都停 */
+esp_err_t   radio_sniff(void);   /* stop advertising -> start scanning */
+esp_err_t   radio_clone(void);   /* stop scanning -> advertise the active profile */
+esp_err_t   radio_stop(void);    /* stop both */
 
 rmode_t     radio_mode(void);
 const char *radio_mode_str(rmode_t m);
 
-/* BLE host 同步完成后由 main 调用：按配置决定首个模式 */
+/* Called by main once the BLE host is synced: picks the initial mode */
 void        radio_on_ble_ready(void);

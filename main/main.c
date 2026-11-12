@@ -29,7 +29,7 @@ static const char *reset_reason_str(esp_reset_reason_t r)
     case ESP_RST_INT_WDT:  return "int_wdt";
     case ESP_RST_TASK_WDT: return "task_wdt";
     case ESP_RST_WDT:      return "wdt";
-    case ESP_RST_BROWNOUT: return "brownout";     /* ← 供电不足 */
+    case ESP_RST_BROWNOUT: return "brownout";     /* supply is too weak */
     case ESP_RST_SDIO:     return "sdio";
     default:               return "unknown";
     }
@@ -44,7 +44,7 @@ static void update_led(void)
 
     switch (radio_mode()) {
     case RMODE_CLONE:
-        /* 有人连着管理页时用绿色区分，方便现场判断"是不是有人在动配置" */
+        /* Green when somebody is on the web UI, so the field operator can tell */
         status_led_set(net_ap_sta_count() > 0 ? LED_ADV_CLIENT : LED_ADV);
         break;
     case RMODE_SNIFF:
@@ -56,25 +56,25 @@ static void update_led(void)
     }
 }
 
-/* 按当前 active 配置重新进入复刻模式（受 radio 互斥保护） */
+/* Re-enter clone mode with the current active profile (arbitrated by radio.c) */
 esp_err_t app_apply_active(void)
 {
-    if (!s_ble_synced) return ESP_OK;      /* 还没同步，等 radio_on_ble_ready 再进模式 */
+    if (!s_ble_synced) return ESP_OK;      /* not synced yet; radio_on_ble_ready() will do it */
     esp_err_t e = radio_clone();
     if (e != ESP_OK) status_led_set(LED_ERROR);
     update_led();
     return e;
 }
 
-/* ---------------- 按键：短按切广播 / 长按恢复出厂 ---------------- */
+/* ---------------- button: single = toggle mode, long = factory reset ---------------- */
 
-/* 单击：监听 ⇄ 复刻 切换（现场最常用的动作） */
+/* Single click: sniff <-> clone (the most common field action) */
 static void on_btn_short(void)
 {
     if (radio_mode() == RMODE_CLONE) {
         radio_sniff();
     } else {
-        /* 没有 active 配置时退化为选择第一个可用配置 */
+        /* With no active profile, fall back to the first enabled one */
         cfg_lock();
         if (cfg_get()->active < 0) {
             for (int i = 0; i < cfg_get()->count; i++) {
@@ -88,7 +88,7 @@ static void on_btn_short(void)
     applog_add(LOG_T_ACT, 0, "btn 1x: mode=%s", radio_mode_str(radio_mode()));
 }
 
-/* 双击：停止射频（只留 AP 管理页） */
+/* Double click: stop the radio, keep the web UI */
 static void on_btn_double(void)
 {
     radio_stop();
@@ -113,12 +113,12 @@ static void on_btn_long(void)
 void app_on_ble_sync(void)
 {
     s_ble_synced = true;
-    radio_on_ble_ready();        /* 默认进监听模式，等着被抓的信号 */
+    radio_on_ble_ready();        /* default to sniffing, waiting for a signal to copy */
     applog_add(LOG_T_ACT, 0, "ble ready -> mode=%s", radio_mode_str(radio_mode()));
     update_led();
 }
 
-/* 1s tick：自动轮换 */
+/* 1 s tick: optional rotation */
 static uint32_t s_rot_tick;
 
 static void tick_cb(void *arg)
@@ -175,16 +175,16 @@ void app_main(void)
              (unsigned)cfg_stat_get("boots"), (unsigned)cfg_stat_get("brownout"));
     applog_add(LOG_T_BOOT, 0, "boot v%s reset=%s", APP_VER, reset_reason_str(rr));
     if (rr == ESP_RST_BROWNOUT) {
-        applog_add(LOG_T_ERR, 0, "BROWNOUT: 供电不足(换短线/加电容/换电源)");
+        applog_add(LOG_T_ERR, 0, "BROWNOUT: weak supply (short cable / add bulk cap / better PSU)");
     }
 
     ESP_ERROR_CHECK(blescan_init());
     ESP_ERROR_CHECK(radio_init());
     status_led_init();
     btn_init(on_btn_short, on_btn_double, on_btn_long);
-    ESP_ERROR_CHECK(net_ap_start());       /* WiFi 先起，共存参数在 BLE 初始化时生效 */
+    ESP_ERROR_CHECK(net_ap_start());       /* Wi-Fi first; coexistence params latch at BLE init */
     ESP_ERROR_CHECK(web_start());
-    ESP_ERROR_CHECK(beacon_stack_init());  /* 异步：sync 后回调 app_on_ble_sync */
+    ESP_ERROR_CHECK(beacon_stack_init());  /* async: sync_cb -> app_on_ble_sync */
 
     const esp_timer_create_args_t ta = { .callback = tick_cb, .name = "tick" };
     esp_timer_handle_t tick;

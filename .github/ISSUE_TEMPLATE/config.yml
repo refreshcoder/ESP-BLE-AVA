@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the design notes first
+    url: https://github.com/refreshcoder/ESP-BLE-AVA/blob/main/DESIGN.md
+    about: Platform limits, coexistence analysis, storage and API decisions are documented there.
+  - name: Legal / acceptable use
+    url: https://github.com/refreshcoder/ESP-BLE-AVA/blob/main/README.md#legal-notice
+    about: This tool can impersonate other beacons. Use it only on devices you own or are authorized to test.

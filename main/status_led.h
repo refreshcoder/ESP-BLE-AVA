@@ -1,13 +1,13 @@
 #pragma once
 
-/* 灯语：单色灯用"闪法"区分，WS2812 板额外用颜色区分（见 status_led.c） */
+/* LED patterns: a mono LED is distinguished by blink rhythm, WS2812 boards also by colour */
 typedef enum {
-    LED_NO_CFG = 0,     /* 常亮        ：没有任何配置 */
-    LED_IDLE,           /* 每 3s 一闪  ：模式 idle（射频停） */
-    LED_ADV,            /* 1Hz 慢闪    ：复刻/广播中 */
-    LED_ADV_CLIENT,     /* 三连快闪    ：复刻中 + 有人连着管理页 */
-    LED_SNIFF,          /* 双闪        ：监听捕获中 */
-    LED_ERROR,          /* 6 连急闪    ：射频错误 */
+    LED_NO_CFG = 0,     /* solid          : no profile at all */
+    LED_IDLE,           /* one blink / 3 s: idle, radio off */
+    LED_ADV,            /* 1 Hz blink     : advertising / cloning */
+    LED_ADV_CLIENT,     /* triple fast    : cloning and a client is on the UI */
+    LED_SNIFF,          /* double blink   : sniffing */
+    LED_ERROR,          /* six rapid      : radio error */
 } led_state_t;
 
 void status_led_init(void);

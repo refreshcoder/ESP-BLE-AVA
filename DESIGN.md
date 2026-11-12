@@ -325,7 +325,7 @@ Design decisions worth keeping:
    archive below it is the persistent one — so nobody mistakes one for the other.
 4. **No silent eviction.** When the 3rd slot is recycled, the API reports `replaced: true`
    and the UI says so.
-5. **Human error messages**: `409 → "配置已满…"`, `404 → "no longer in the capture table, scan again"`, `401 → re-login`.
+5. **Human error messages**: `409 → "all profile slots are used"`, `404 → "no longer in the capture table, scan again"`, `401 → re-login`.
 6. Dark, high-contrast theme (warehouses, outdoors), no web fonts, no CDN, works offline.
 7. 2.5 s polling rather than WebSockets: fewer moving parts, tables are ≤16 rows.
 

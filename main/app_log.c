@@ -7,7 +7,7 @@
 #include "esp_timer.h"
 
 static logrec_t          s_ring[LOG_RING_SZ];
-static int               s_head;      /* 下一个写入位置 */
+static int               s_head;      /* next write position */
 static int               s_count;
 static uint32_t          s_seq;
 static SemaphoreHandle_t s_mtx;
@@ -26,7 +26,7 @@ void applog_init(void)
 void applog_add(uint8_t type, int8_t rssi, const char *fmt, ...)
 {
     if (!s_mtx) return;
-    /* 在栈上先格式化，临界区里只做拷贝 —— 缩短持锁时间 */
+    /* Format on the stack, then only copy inside the critical section */
     char msg[LOG_MSG_MAX];
     va_list ap;
     va_start(ap, fmt);

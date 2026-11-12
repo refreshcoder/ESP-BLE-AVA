@@ -6,22 +6,25 @@
 #include "beacon_scan.h"
 
 /*
- * 捕获归档（掉电保留）
+ * Capture archive (survives power loss)
  *
- * 位置：storage 分区（832K，FATFS + 磨损均衡），文件 /data/cap.bin
- * 结构：12 字节头 + 32 个定长记录，环形覆盖写
- * 为什么不用 JSON/NVS：
- *   - NVS 是小键值库，不适合"整段记录 + 环形覆盖"，且频繁写会吃掉 24K 分区
- *   - 定长二进制 50B/条，写入量固定（每次点"复制"写 1 条 + 12B 头），
- *     不产生文件增长/GC，掉电最坏只丢最后一条
+ * Location: storage partition (832K, FATFS + wear levelling), file /data/cap.bin
+ * Layout  : 12-byte header + 32 fixed-size records, ring-buffer overwrite
+ *
+ * Why not JSON/NVS:
+ *   - NVS is a small key/value store; it fits neither multi-field records nor ring
+ *     overwrite, and frequent writes would chew through the 24K partition
+ *   - a fixed 70 B binary record means a constant write volume (one record +
+ *     the 12 B header per clone), no file growth, no garbage collection, and at
+ *     worst the newest record is lost on power failure
  */
 
 #define CAP_SLOTS 32
 
 typedef struct {
-    uint32_t magic;          /* 0xCA9E0001，用于识别空槽/垃圾 */
-    uint32_t uptime_s;       /* 捕获时的运行秒数（设备无 RTC，用启动序号+运行时长表达时间） */
-    uint32_t boot_seq;       /* 第几次启动 */
+    uint32_t magic;          /* 0xCA9E0001: tells a valid record from an empty/garbage slot */
+    uint32_t uptime_s;       /* seconds since boot at capture time (no RTC; time = boot_seq + uptime_s) */
+    uint32_t boot_seq;       /* which boot this was */
     uint8_t  is_ibeacon;
     uint8_t  addr[6];
     uint8_t  addr_type;
@@ -38,13 +41,13 @@ typedef struct {
 esp_err_t   storage_init(void);
 bool        storage_ready(void);
 
-/* 追加一条捕获（环形覆盖最旧），boot_seq 用于区分不同启动批次 */
+/* Append one capture (overwrites the oldest slot); boot_seq distinguishes boot sessions */
 esp_err_t   storage_capture_add(const detection_t *d, uint32_t boot_seq);
 
-/* 读出最多 max 条，**新的在前**；返回条数 */
+/* Read up to max records, **newest first**; returns the count */
 int         storage_capture_list(cap_rec_t *out, int max);
 
 esp_err_t   storage_capture_clear(void);
 
-/* 供 /api/status 显示，如 "12/32"，失败返回 "off" */
+/* For /api/status, e.g. "12/32"; returns "off" when unavailable */
 const char *storage_stat_str(char *buf, size_t len);

@@ -75,7 +75,7 @@ esp_err_t net_ap_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &c));
     ESP_ERROR_CHECK(esp_wifi_start());
-    /* 省电模式对小流量管理页无收益，关掉可降低延迟 */
+    /* Power save buys nothing for a low-traffic UI and only adds latency */
     esp_wifi_set_ps(WIFI_PS_NONE);
     ESP_LOGI(TAG, "SSID='%s' auth=%d", ssid, c.ap.authmode);
     return ESP_OK;
@@ -89,7 +89,7 @@ esp_err_t net_ap_set_creds(const char *ssid, const char *pass)
 {
     if (!ssid || strlen(ssid) < 1 || strlen(ssid) > CFG_SSID_MAX) return ESP_ERR_INVALID_ARG;
     if (!pass || strlen(pass) > CFG_PASS_MAX) return ESP_ERR_INVALID_ARG;
-    if (strlen(pass) > 0 && strlen(pass) < 8) return ESP_ERR_INVALID_ARG;   /* WPA2 最短 8 位 */
+    if (strlen(pass) > 0 && strlen(pass) < 8) return ESP_ERR_INVALID_ARG;   /* WPA2 minimum 8 chars */
 
     cfg_lock();
     strncpy(cfg_get()->ap.ssid, ssid, CFG_SSID_MAX);

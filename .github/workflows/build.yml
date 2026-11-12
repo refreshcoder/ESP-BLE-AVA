@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ESP-IDF ${{ matrix.idf }} / board ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1 = ESP32-C6-DevKitC-1, 2 = Seeed XIAO ESP32-C6 (default), 3 = Waveshare C6-Zero
+        board: [1, 2]
+        idf: [release-v5.5]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Info
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py --version
+          python --version
+
+      - name: Build (esp32c6, APP_BOARD=${{ matrix.board }})
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32c6
+          idf.py -DAPP_BOARD=${{ matrix.board }} build
+
+      - name: Size report
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py size | tee size.txt
+          idf.py size-components > /dev/null
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-board${{ matrix.board }}-${{ matrix.idf }}
+          path: |
+            build/beacon_gw.bin
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/ota_data_initial.bin
+            size.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  lint-main:
+    name: Frontend syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract and check the SPA script
+        run: |
+          python3 - <<'PY'
+          import re, pathlib
+          html = pathlib.Path("main/www/index.html").read_text()
+          m = re.search(r"<script>(.*)</script>", html, re.S)
+          assert m, "no <script> block found"
+          pathlib.Path("/tmp/ui.js").write_text(m.group(1))
+          PY
+          node --check /tmp/ui.js
+          echo "SPA script parses"

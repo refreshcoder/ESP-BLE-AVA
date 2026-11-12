@@ -1,6 +1,12 @@
 # ESP32-C6 BLE Beacon Cloner
 
+[![build](https://github.com/refreshcoder/ESP-BLE-AVA/actions/workflows/build.yml/badge.svg)](https://github.com/refreshcoder/ESP-BLE-AVA/actions/workflows/build.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Scan nearby BLE advertisements, then **replicate them byte-for-byte**.
+
+> Documentation: [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
+> decisions) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna, console).
 
 Built for a single **ESP32-C6** running ESP-IDF. Capturing and broadcasting are
 **mutually exclusive** modes — that removes self-capture feedback loops and radio
@@ -292,7 +298,21 @@ main/
 ├── net_ap.[ch]        SoftAP + station accounting
 ├── web_server.[ch]    REST API + embedded SPA + bearer auth
 └── www/index.html     single-page UI (gzipped at build time)
+
+docs/hardware.md       pinout, power options, antenna and console notes
+.github/workflows      CI: builds both board presets on ESP-IDF v5.5
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. Before sending a PR:
+
+```bash
+idf.py -DAPP_BOARD=1 build && idf.py -DAPP_BOARD=2 build    # both presets must pass
+```
+
+CI runs the same two builds on every push. Keep changes to `main/www/index.html`
+self-contained (no CDN, no external fonts) — the device has no internet access.
 
 ## License
 

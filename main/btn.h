@@ -1,13 +1,13 @@
 #pragma once
 
 /*
- * 单按键（BOOT/GPIO9）人机交互：
- *   单击  → 监听 ⇄ 复刻 切换（主操作）
- *   双击  → 停止射频（idle）
- *   长按  → 恢复出厂 + 重启（≥5s，物理逃生门）
+ * Single-button (BOOT / GPIO9) user interface:
+ *   single click  -> toggle sniff <-> clone (primary action)
+ *   double click  -> stop the radio (idle)
+ *   long press    -> factory reset + reboot (>=5 s, the physical escape hatch)
  *
- * XIAO ESP32-C6 上只有一个可用按键（另一个是 RESET，固件读不到），
- * 所以用"单击/双击/长按"三种手势覆盖全部功能。
+ * The XIAO ESP32-C6 exposes only one usable button (the other is RESET and is
+ * invisible to firmware), so three gestures cover the whole feature set.
  */
 typedef void (*btn_single_cb_t)(void);
 typedef void (*btn_double_cb_t)(void);

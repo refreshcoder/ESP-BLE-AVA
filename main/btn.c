@@ -36,7 +36,7 @@ static void btn_task(void *arg)
         uint32_t t = now_ms();
 
         if (pressed && !down) {
-            /* 按下：20ms 去抖 */
+            /* pressed: 20 ms debounce */
             vTaskDelay(pdMS_TO_TICKS(20));
             if (raw_pressed()) {
                 down = true;
@@ -44,15 +44,15 @@ static void btn_task(void *arg)
                 t_down = now_ms();
             }
         } else if (down && pressed) {
-            /* 按住：判长按（只触发一次） */
+            /* held: detect long press (fires once) */
             if (!long_fired && (t - t_down) >= BOARD_BTN_LONG_MS) {
                 long_fired = true;
-                clicks = 0;                       /* 长按吃掉之前的连击 */
+                clicks = 0;                       /* long press swallows pending clicks */
                 ESP_LOGW(TAG, "long press %ums -> factory reset", (unsigned)(t - t_down));
                 if (s_long) s_long();
             }
         } else if (down && !pressed) {
-            /* 松开：累计一次点击 */
+            /* released: count one click */
             down = false;
             uint32_t dur = t - t_down;
             if (!long_fired && dur >= BOARD_BTN_SHORT_MS && dur <= BOARD_BTN_SHORT_MAX_MS) {
@@ -62,7 +62,7 @@ static void btn_task(void *arg)
             }
         }
 
-        /* 连击窗口结束后分发 */
+        /* dispatch once the multi-click window expires */
         if (!down && clicks > 0 && (t - t_last_click) >= BOARD_BTN_MULTI_MS) {
             if (clicks == 1) {
                 ESP_LOGI(TAG, "single click");
@@ -87,7 +87,7 @@ void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_long_cb_
     gpio_config_t io = {
         .pin_bit_mask = 1ULL << BOARD_BTN_GPIO,
         .mode         = GPIO_MODE_INPUT,
-        /* BOOT 脚板上已有外部上拉；这里开内部上拉做冗余 */
+        /* The BOOT pin already has an external pull-up; internal pull-up is belt and braces */
         .pull_up_en   = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type    = GPIO_INTR_DISABLE,

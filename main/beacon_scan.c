@@ -15,12 +15,12 @@ static int               s_used;
 static SemaphoreHandle_t s_mtx;
 static volatile bool     s_running;
 static uint16_t          s_itvl_ms = 300, s_win_ms = 60;
-static uint32_t          s_pkts;        /* 累计收到的广播包 */
-static uint32_t          s_since_ms;    /* 本次扫描开始时间 */
+static uint32_t          s_pkts;        /* advertising packets received */
+static uint32_t          s_since_ms;    /* scan start timestamp */
 
 static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
-/* 解析 AD 结构；对非 iBeacon 包也会填 name / adv_len */
+/* Walk the AD structures; fills name/adv_len for non-iBeacon packets too */
 static void parse_adv(const uint8_t *d, uint8_t len, detection_t *r)
 {
     uint8_t i = 0;
@@ -70,7 +70,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
     if (!slot) {
         if (s_used < SCAN_TAB_MAX) {
             slot = &s_tab[s_used++];
-        } else {                       /* LRU 淘汰最久未见 */
+        } else {                       /* LRU: evict the one not seen for longest */
             int oldest = 0;
             for (int i = 1; i < SCAN_TAB_MAX; i++)
                 if (s_tab[i].last_ms < s_tab[oldest].last_ms) oldest = i;
@@ -86,7 +86,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
         was_new = true;
     }
 
-    /* 估计广播间隔：用相邻包间隔做 EMA（只吃 20ms..10s 的合理值） */
+    /* Estimate the advertising interval with an EMA over gaps (20 ms .. 10 s only) */
     if (slot->count > 0) {
         uint32_t gap = t - slot->last_ms;
         if (gap >= 20 && gap <= 10000) {
@@ -99,9 +99,9 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
     slot->last_ms = t;
     slot->rssi_last = desc->rssi;
     if (desc->rssi > slot->rssi_max) slot->rssi_max = desc->rssi;
-    slot->rssi_avg = (int8_t)((slot->rssi_avg * 7 + desc->rssi) / 8);   /* IIR 平滑 */
+    slot->rssi_avg = (int8_t)((slot->rssi_avg * 7 + desc->rssi) / 8);   /* IIR smoothing */
 
-    /* 原始字节：复刻时逐字节照搬，不依赖上层解析 */
+    /* Raw bytes: replayed verbatim, independent of any parsing above */
     uint8_t n = desc->length_data;
     if (n > SCAN_RAW_MAX) n = SCAN_RAW_MAX;
     memcpy(slot->raw, desc->data, n);
@@ -109,7 +109,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
 
     parse_adv(desc->data, desc->length_data, slot);
 
-    /* 同一 MAC 5 分钟内只记一条日志，避免日志环被刷爆 */
+    /* Throttle logging to one line per device per 5 minutes */
     if (was_new || (t - slot->last_log_ms) > 300000u) {
         slot->last_log_ms = t;
         do_log = true;
@@ -139,7 +139,7 @@ static int disc_event(struct ble_gap_event *ev, void *arg)
 {
     switch (ev->type) {
     case BLE_GAP_EVENT_DISC:
-        aggregate(&ev->disc);          /* 只做解析+入表，禁止 IO */
+        aggregate(&ev->disc);          /* parse + insert only, never do I/O here */
         break;
     case BLE_GAP_EVENT_DISC_COMPLETE:
         s_running = false;
@@ -181,7 +181,7 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     uint32_t win  = sc->win_ms  < 2  ? 2  : sc->win_ms;
     if (win > itvl) win = itvl;
 
-    /* 捕获与广播互斥，占空比上限放宽到 50%（再高会把 SoftAP 饿死） */
+    /* Capture and advertising are exclusive, so the duty cap can be 50% (higher starves the SoftAP) */
     uint32_t cap = itvl / 2;
     if (cap < 2) cap = 2;
     if (win > cap) {
@@ -192,7 +192,7 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     s_itvl_ms = (uint16_t)itvl;
     s_win_ms  = (uint16_t)win;
 
-    uint32_t u_itvl = itvl * 8 / 5;                 /* ms -> 0.625ms 单位 */
+    uint32_t u_itvl = itvl * 8 / 5;                 /* ms -> 0.625 ms units */
     uint32_t u_win  = win * 8 / 5;
     if (u_itvl < 4) u_itvl = 4;
     if (u_itvl > 0x4000) u_itvl = 0x4000;
@@ -202,8 +202,8 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     struct ble_gap_disc_params p = {0};
     p.itvl              = (uint16_t)u_itvl;
     p.window            = (uint16_t)u_win;
-    p.passive           = 1;        /* 被动扫描：不发 SCAN_REQ，最省电 */
-    p.filter_duplicates = 0;        /* 自己做聚合，控制器去重会吃掉计数 */
+    p.passive           = 1;        /* passive scan: no SCAN_REQ, lowest power */
+    p.filter_duplicates = 0;        /* we aggregate ourselves; controller de-dup eats counts */
 
     int rc = ble_gap_disc(BLE_OWN_ADDR_PUBLIC, BLE_HS_FOREVER, &p, disc_event, NULL);
     if (rc != 0) {
@@ -245,7 +245,7 @@ int blescan_snapshot(detection_t *out, int max)
     memcpy(out, s_tab, sizeof(detection_t) * (size_t)n);
     xSemaphoreGive(s_mtx);
 
-    /* 按最后出现时间倒序（插入排序，n<=32） */
+    /* Newest first (insertion sort, n <= 32) */
     for (int i = 1; i < n; i++) {
         detection_t k = out[i];
         int j = i - 1;

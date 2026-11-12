@@ -23,12 +23,12 @@
 static const char *TAG = "web";
 static httpd_handle_t s_srv;
 
-/* 内嵌单页前端(见 main/www/index.html) */
-/* 前端在构建期 gzip 后内嵌（26.6KB -> ~9KB） */
+/* The SPA (main/www/index.html) is gzipped at build time and embedded:
+ * 26.6 KB of HTML becomes ~10 KB of rodata. */
 extern const uint8_t index_html_gz_start[] asm("_binary_index_html_gz_start");
 extern const uint8_t index_html_gz_end[]   asm("_binary_index_html_gz_end");
 
-/* ------------------------- 通用工具 ------------------------- */
+/* ------------------------- helpers ------------------------- */
 
 static esp_err_t send_json(httpd_req_t *req, cJSON *root)
 {
@@ -59,7 +59,8 @@ static esp_err_t ok_msg(httpd_req_t *req, const char *msg)
     return send_json(req, o);
 }
 
-/* Bearer token 鉴权；AP 密码是唯一"钥匙"，token 首启随机生成 */
+/* Bearer-token auth. The AP password is the only key; the token is generated
+ * randomly on first boot and stored in NVS. */
 static bool auth_ok(httpd_req_t *req)
 {
     char v[80];
@@ -104,7 +105,7 @@ static int uri_last_id(const char *uri)
 
 static double est_distance(int8_t ref_rssi, int8_t rssi)
 {
-    /* log-distance 路径损耗模型; n=2.5 室内典型值。仅供排序参考 */
+    /* Log-distance path-loss model, n = 2.5 (typical indoors). Ordering hint only. */
     const double n = 2.5;
     double d = pow(10.0, ((double)ref_rssi - (double)rssi) / (10.0 * n));
     if (d < 0.1) d = 0.1;
@@ -128,7 +129,7 @@ static const char *reset_reason_str(esp_reset_reason_t r)
     }
 }
 
-/* 当前应该显示的灯语（与 main.c:update_led 保持一致） */
+/* LED state that should be showing (kept in sync with main.c:update_led) */
 static const char *led_state_name(rmode_t m, uint8_t sta)
 {
     if (m == RMODE_CLONE) return sta > 0 ? "clone+client" : "clone";
@@ -136,7 +137,7 @@ static const char *led_state_name(rmode_t m, uint8_t sta)
     return "idle";
 }
 
-/* ------------------------- 静态页 ------------------------- */
+/* ------------------------- static page ------------------------- */
 
 static esp_err_t h_index(httpd_req_t *req)
 {
@@ -147,7 +148,7 @@ static esp_err_t h_index(httpd_req_t *req)
     return httpd_resp_send(req, (const char *)index_html_gz_start, (ssize_t)len);
 }
 
-/* ------------------------- 会话 ------------------------- */
+/* ------------------------- session ------------------------- */
 
 static esp_err_t h_session(httpd_req_t *req)
 {
@@ -171,7 +172,7 @@ static esp_err_t h_session(httpd_req_t *req)
     return send_json(req, o);
 }
 
-/* ------------------------- 状态 ------------------------- */
+/* ------------------------- status ------------------------- */
 
 static esp_err_t h_status(httpd_req_t *req)
 {
@@ -192,7 +193,7 @@ static esp_err_t h_status(httpd_req_t *req)
     cJSON_AddNumberToObject(o, "scan_win_ms", c->scan.win_ms);
     cfg_unlock();
 
-    /* ---- 无串口诊断区：Lightning 手机/无电脑现场靠这些字段定位 ---- */
+    /* ---- serial-free diagnostics: enough to triage from a phone browser ---- */
     esp_reset_reason_t rr = esp_reset_reason();
     cJSON_AddStringToObject(o, "reset_reason", reset_reason_str(rr));
     cJSON_AddNumberToObject(o, "boots", cfg_stat_get("boots"));
@@ -236,7 +237,7 @@ static esp_err_t h_status(httpd_req_t *req)
     return send_json(req, o);
 }
 
-/* ------------------------- 配置 CRUD ------------------------- */
+/* ------------------------- profiles CRUD ------------------------- */
 
 static esp_err_t h_profiles_get(httpd_req_t *req)
 {
@@ -343,7 +344,7 @@ static esp_err_t h_profiles_delete(httpd_req_t *req)
     return ok_msg(req, "deleted");
 }
 
-/* ------------------------- 激活 / 轮换 ------------------------- */
+/* ------------------------- activate / rotation ------------------------- */
 
 static esp_err_t h_active(httpd_req_t *req)
 {
@@ -402,7 +403,7 @@ static esp_err_t h_rotation(httpd_req_t *req)
     return ok_msg(req, "rotation updated");
 }
 
-/* ------------------------- 扫描 ------------------------- */
+/* ------------------------- scan ------------------------- */
 
 static esp_err_t h_scan_get(httpd_req_t *req)
 {
@@ -501,7 +502,7 @@ static esp_err_t h_scan_delete(httpd_req_t *req)
     return ok_msg(req, "cleared");
 }
 
-/* ------------------------- 捕获归档（掉电保留） ------------------------- */
+/* ------------------------- capture archive (persistent) ------------------------- */
 
 static esp_err_t h_history_get(httpd_req_t *req)
 {
@@ -551,9 +552,9 @@ static esp_err_t h_history_delete(httpd_req_t *req)
     return ok_msg(req, "history cleared");
 }
 
-/* ------------------------- 一键复刻 ------------------------- */
+/* ------------------------- one-tap clone ------------------------- */
 
-#define ADDR_TYPE_RANDOM 1   /* BLE_ADDR_RANDOM, 有意避免在 HTTP 层引入 nimble 头 */
+#define ADDR_TYPE_RANDOM 1   /* BLE_ADDR_RANDOM; keeps nimble headers out of the HTTP layer */
 
 static esp_err_t h_clone(httpd_req_t *req)
 {
@@ -579,24 +580,24 @@ static esp_err_t h_clone(httpd_req_t *req)
     int id = -1;
     bool replaced = false;
     uint16_t itvl = d.itvl_ms;
-    if (itvl < 20)    itvl = 100;      /* 只收到 1 个包，用保守默认值 */
+    if (itvl < 20)    itvl = 100;      /* only one packet seen: conservative default */
     if (itvl > 10240) itvl = 10240;
 
     cfg_lock();
     beacon_cfg_t *c = cfg_get();
-    int slot = cfg_pick_slot(c);       /* 空槽优先，否则覆盖最久未用的非激活配置 */
+    int slot = cfg_pick_slot(c);       /* free slot first, else evict the LRU idle profile */
     if (slot >= 0) {
         replaced = (slot < c->count);
         beacon_profile_t *p = &c->p[slot];
         memset(p, 0, sizeof(*p));
         if (d.is_ibeacon)
-            snprintf(p->name, sizeof(p->name), "复制-%u/%u", d.major, d.minor);
+            snprintf(p->name, sizeof(p->name), "copy-%u/%u", d.major, d.minor);
         else if (d.name[0])
-            snprintf(p->name, sizeof(p->name), "复制-%.11s", d.name);
+            snprintf(p->name, sizeof(p->name), "copy-%.11s", d.name);
         else
-            snprintf(p->name, sizeof(p->name), "复制-%02X%02X%02X", addr[3], addr[4], addr[5]);
+            snprintf(p->name, sizeof(p->name), "copy-%02X%02X%02X", addr[3], addr[4], addr[5]);
 
-        p->kind     = PROFILE_KIND_RAW;     /* 原样照搬，任何广播都能复刻 */
+        p->kind     = PROFILE_KIND_RAW;     /* verbatim: replicating anything */
         p->enabled  = true;
         memcpy(p->raw, d.raw, d.raw_len);
         p->raw_len  = d.raw_len;
@@ -612,9 +613,11 @@ static esp_err_t h_clone(httpd_req_t *req)
         }
         p->radio_dbm   = 9;
         p->adv_itvl_ms = itvl;
-        /* 源包若可扫描(ADV_IND/ADV_SCAN_IND)则保持可扫描；否则不可连接不可扫描 */
+        /* Keep scannability when the source was ADV_IND/ADV_SCAN_IND, otherwise
+         * advertise non-connectable and non-scannable. */
         p->scannable   = (d.adv_type == 0x00 || d.adv_type == 0x02);
-        /* 地址：随机地址可字节级克隆；公共地址只能以随机类型发相同字节 */
+        /* Address: a random address clones exactly; a public one can only be sent as
+         * the same bytes under the random type. */
         if (d.addr_type == ADDR_TYPE_RANDOM) {
             memcpy(p->rand_addr, addr, 6);
             p->rand_addr[5] |= 0xC0;
@@ -636,9 +639,9 @@ static esp_err_t h_clone(httpd_req_t *req)
 
     if (id < 0)
         return fail(req, "409 Conflict",
-                    "配置已满且只剩激活的一套，先删一条再复制");
+                    "config full and only the active profile is left; delete one first");
 
-    /* 掉电归档：只在这里写 1 条，频率极低 */
+    /* Persistent archive: exactly one write here, so the rate is negligible */
     storage_capture_add(&d, cfg_stat_get("boots"));
 
     esp_err_t e = radio_clone();
@@ -680,7 +683,7 @@ static esp_err_t h_mode(httpd_req_t *req)
     return send_json(req, o);
 }
 
-/* ------------------------- 日志 ------------------------- */
+/* ------------------------- log ------------------------- */
 
 typedef struct { cJSON *arr; } log_ctx_t;
 
@@ -729,7 +732,7 @@ static esp_err_t h_log_delete(httpd_req_t *req)
     return ok_msg(req, "cleared");
 }
 
-/* ------------------------- 导入 / 导出 ------------------------- */
+/* ------------------------- import / export ------------------------- */
 
 static esp_err_t h_export(httpd_req_t *req)
 {
@@ -768,7 +771,7 @@ static esp_err_t h_import(httpd_req_t *req)
     return ok_msg(req, "imported");
 }
 
-/* ------------------------- 网络 / 系统 ------------------------- */
+/* ------------------------- network / system ------------------------- */
 
 static esp_err_t h_ap(httpd_req_t *req)
 {
@@ -810,7 +813,7 @@ static esp_err_t h_factory(httpd_req_t *req)
     return ok_msg(req, "factory reset done, reboot to apply AP settings");
 }
 
-/* ------------------------- 注册 ------------------------- */
+/* ------------------------- registration ------------------------- */
 
 #define REG(u_, m_, h_) do {                                  \
         httpd_uri_t t = { .uri = (u_), .method = (m_),         \
@@ -822,7 +825,7 @@ esp_err_t web_start(void)
 {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.max_uri_handlers = 28;
-    cfg.stack_size       = 7168;      /* cJSON 序列化 + 深调用 */
+    cfg.stack_size       = 7168;      /* cJSON serialisation needs the depth */
     cfg.lru_purge_enable = true;
     cfg.uri_match_fn     = httpd_uri_match_wildcard;
     cfg.recv_wait_timeout = 10;

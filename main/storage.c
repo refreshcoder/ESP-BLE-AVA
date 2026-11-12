@@ -17,8 +17,8 @@ static const char *TAG = "store";
 
 typedef struct {
     uint32_t magic;
-    uint32_t count;      /* 有效记录数 0..CAP_SLOTS */
-    uint32_t head;       /* 下一个写入槽位 */
+    uint32_t count;      /* valid records, 0..CAP_SLOTS */
+    uint32_t head;       /* next slot to write */
 } cap_hdr_t;
 
 static wl_handle_t       s_wl = WL_INVALID_HANDLE;
@@ -43,7 +43,7 @@ static esp_err_t hdr_store(FILE *f, const cap_hdr_t *h)
     return ESP_OK;
 }
 
-/* 打开并确保文件结构正确（不一致就重建） */
+/* Open and make sure the layout is sane (rebuild when it is not) */
 static FILE *open_ready(void)
 {
     FILE *f = fopen(path(), "r+b");
@@ -57,10 +57,10 @@ static FILE *open_ready(void)
     if (!fresh) {
         cap_hdr_t h;
         if (hdr_load(f, &h) == ESP_OK) return f;
-        ESP_LOGW(TAG, "cap.bin 结构异常，重建");
+        ESP_LOGW(TAG, "cap.bin header invalid, rebuilding");
     }
 
-    /* 初始化：全零记录 + 头 */
+    /* Initialise: zeroed records + header */
     if (fseek(f, (long)sizeof(cap_hdr_t) + (long)sizeof(cap_rec_t) * CAP_SLOTS - 1, SEEK_SET) != 0) {
         fclose(f);
         return NULL;
@@ -86,19 +86,19 @@ esp_err_t storage_init(void)
     };
     esp_err_t e = esp_vfs_fat_spiflash_mount_rw_wl(MOUNT_POINT, PART_LABEL, &cfg, &s_wl);
     if (e != ESP_OK) {
-        ESP_LOGE(TAG, "挂载 %s 失败: %s（捕获归档不可用，其余功能正常）",
+        ESP_LOGE(TAG, "mount %s failed: %s (archive disabled, everything else still works)",
                  PART_LABEL, esp_err_to_name(e));
         return e;
     }
     s_ready = true;
 
-    /* 试探性打开一次，必要时创建 */
+    /* Probe once, creating the file if needed */
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     FILE *f = open_ready();
     xSemaphoreGive(s_mtx);
     if (f) {
         fclose(f);
-        ESP_LOGI(TAG, "storage 就绪: %s", CAP_FILE);
+        ESP_LOGI(TAG, "storage ready: %s", CAP_FILE);
     }
     return ESP_OK;
 }
@@ -146,7 +146,7 @@ esp_err_t storage_capture_add(const detection_t *d, uint32_t boot_seq)
     }
     xSemaphoreGive(s_mtx);
 
-    if (ret != ESP_OK) ESP_LOGW(TAG, "归档写入失败");
+    if (ret != ESP_OK) ESP_LOGW(TAG, "archive write failed");
     return ret;
 }
 
@@ -164,7 +164,7 @@ int storage_capture_list(cap_rec_t *out, int max)
         if (hdr_load(f, &h) == ESP_OK && h.count > 0) {
             int want = h.count < max ? (int)h.count : max;
             for (int i = 0; i < want; i++) {
-                /* 从最新的往回读：head-1, head-2, ... */
+                /* Walk backwards from the newest: head-1, head-2, ... */
                 int idx = ((int)h.head - 1 - i + CAP_SLOTS * 2) % CAP_SLOTS;
                 cap_rec_t r;
                 if (fseek(f, (long)sizeof(cap_hdr_t) + (long)sizeof(cap_rec_t) * idx, SEEK_SET) != 0) break;

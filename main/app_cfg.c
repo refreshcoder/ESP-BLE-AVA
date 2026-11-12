@@ -79,7 +79,7 @@ bool cfg_hex_from_str(const char *s, uint8_t *out, int n)
     return true;
 }
 
-/* ---------------- 默认配置 ---------------- */
+/* ---------------- defaults ---------------- */
 
 static int8_t clamp8(int v, int lo, int hi) { return (int8_t)(v < lo ? lo : v > hi ? hi : v); }
 
@@ -101,9 +101,10 @@ void cfg_defaults(beacon_cfg_t *c)
     snprintf(c->ap.pass, sizeof(c->ap.pass), "beacon%02x%02x", mac[4], mac[5]);
 
     beacon_profile_t *p = &c->p[0];
-    snprintf(p->name, sizeof(p->name), "默认信标");
+    snprintf(p->name, sizeof(p->name), "default beacon");
     p->enabled      = true;
-    /* 用 MAC 派生一个"看起来合法"的私有 UUID(v4 格式)，避免撞到真实厂商 UUID */
+    /* Derive a private, v4-shaped UUID from the MAC so we never collide with a
+     * real vendor identifier by accident. */
     uint8_t seed[6];
     memcpy(seed, mac, 6);
     for (int i = 0; i < CFG_UUID_LEN; i++) p->uuid[i] = (uint8_t)(seed[i % 6] * 31u + i * 97u + 0x5Au);
@@ -138,7 +139,7 @@ static const char *jstr(const cJSON *o, const char *k)
     return cJSON_IsString(i) ? i->valuestring : NULL;
 }
 
-/* 校验并填充一套配置；失败写 err */
+/* Validate and fill one profile; writes a message into err on failure */
 bool cfg_profile_from_json(const cJSON *j, beacon_profile_t *p, char *err, size_t errlen)
 {
     memset(p, 0, sizeof(*p));
@@ -163,7 +164,7 @@ bool cfg_profile_from_json(const cJSON *j, beacon_profile_t *p, char *err, size_
         if (!cfg_hex_from_str(s, p->raw, len)) { snprintf(err, errlen, "raw is not valid hex"); return false; }
         p->raw_len = (uint8_t)len;
         p->ref_rssi = -59;
-        /* 上行数据里若带 uuid 就顺手解析，便于展示；没有也合法 */
+        /* If the request also carries a uuid, parse it for display; optional. */
         cfg_uuid_from_str(jstr(j, "uuid"), p->uuid);
         p->major = (uint16_t)jint(j, "major", 0);
         p->minor = (uint16_t)jint(j, "minor", 0);
@@ -312,7 +313,7 @@ bool cfg_from_json(const char *js, beacon_cfg_t *c, char *err, size_t errlen)
         tmp.scan.enabled = true; tmp.scan.itvl_ms = 300; tmp.scan.win_ms = 60;
     }
 
-    /* AP 凭据：未提供时按 MAC 派生默认值；手机/浏览器要求 WPA2 密码 >=8 位 */
+    /* AP credentials: derived from the MAC when absent. WPA2 needs >=8 chars. */
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
     snprintf(tmp.ap.ssid, sizeof(tmp.ap.ssid), "BeaconGW-%02X%02X", mac[4], mac[5]);
@@ -420,13 +421,13 @@ int cfg_pick_slot(beacon_cfg_t *c)
     int slot = cfg_free_slot(c);
     if (slot >= 0) return slot;
 
-    /* 满了：挑 use_seq 最小的非激活配置覆盖 */
+    /* Full: evict the profile with the smallest use_seq that is not active */
     int victim = -1;
     for (int i = 0; i < c->count; i++) {
         if (i == c->active) continue;
         if (victim < 0 || c->p[i].use_seq < c->p[victim].use_seq) victim = i;
     }
-    return victim;   /* -1 表示只剩激活的那套，拒绝 */
+    return victim;   /* -1: only the active profile is left, refuse */
 }
 
 uint32_t cfg_stat_get(const char *key)

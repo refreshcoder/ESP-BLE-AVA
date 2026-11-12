@@ -23,7 +23,7 @@ const char *led_state_str(led_state_t st)
     return st <= LED_ERROR ? k_state[st] : "?";
 }
 
-/* ------------------------- 硬件层 ------------------------- */
+/* ------------------------- hardware layer ------------------------- */
 
 #if BOARD_LED_WS2812
 
@@ -61,7 +61,7 @@ static void hw_write(bool on, uint8_t r, uint8_t g, uint8_t b)
     }
 }
 
-#else  /* 单色 LED */
+#else  /* mono LED */
 
 static void hw_init(void)
 {
@@ -78,15 +78,15 @@ static void hw_init(void)
 
 static void hw_write(bool on, uint8_t r, uint8_t g, uint8_t b)
 {
-    (void)r; (void)g; (void)b;    /* 单色灯忽略颜色，靠闪法区分 */
+    (void)r; (void)g; (void)b;    /* a mono LED ignores colour; rhythm carries the meaning */
     gpio_set_level(BOARD_LED_GPIO, on ? BOARD_LED_ACTIVE_LEVEL : !BOARD_LED_ACTIVE_LEVEL);
 }
 
 #endif
 
-/* ------------------------- 灯语 ------------------------- */
+/* ------------------------- LED patterns ------------------------- */
 
-/* n=0 表示常亮；否则每周期内闪 n 次（on/gap 交替），剩余时间灭 */
+/* n=0 means solid on; otherwise n flashes (on/gap) per period, dark for the rest */
 typedef struct {
     uint8_t  r, g, b;
     uint8_t  n;
@@ -97,17 +97,17 @@ static pattern_t pattern_of(led_state_t st)
 {
     const uint8_t B = LED_BRIGHT_MAX;
     switch (st) {
-    /* 常亮（单色板）/ 红色（WS2812 板）——"需要你配置" */
+    /* solid on mono / red on WS2812 -- "needs to be configured" */
     case LED_NO_CFG:     return (pattern_t){ B, 0, 0, 0, 0, 0, 1000 };
-    /* 每 3s 一闪：空闲 */
+    /* one blink every 3 s: idle */
     case LED_IDLE:       return (pattern_t){ B, B / 3, 0, 1, 120, 0, 3000 };
-    /* 1Hz 慢闪：复刻中 —— 蓝 */
+    /* 1 Hz slow blink: cloning -- blue */
     case LED_ADV:        return (pattern_t){ 0, 0, B, 1, 500, 0, 1000 };
-    /* 三连快闪：复刻中且有人连管理页 —— 绿 */
+    /* triple fast blink: cloning with a client on the UI -- green */
     case LED_ADV_CLIENT: return (pattern_t){ 0, B, 0, 3, 100, 100, 2000 };
-    /* 双闪：监听中 —— 青 */
+    /* double blink: sniffing -- cyan */
     case LED_SNIFF:      return (pattern_t){ 0, B, B / 2, 2, 100, 120, 1600 };
-    /* 6 连急闪：错误 */
+    /* six rapid blinks: error */
     case LED_ERROR:      return (pattern_t){ B, 0, 0, 6, 60, 60, 1200 };
     default:             return (pattern_t){ B, 0, 0, 0, 0, 0, 1000 };
     }
@@ -115,7 +115,7 @@ static pattern_t pattern_of(led_state_t st)
 
 static bool pattern_on(const pattern_t *p, uint32_t t)
 {
-    if (p->n == 0) return true;                       /* 常亮 */
+    if (p->n == 0) return true;                       /* solid on */
     uint32_t local = t % p->period_ms;
     uint32_t slot  = (uint32_t)p->on_ms + p->gap_ms;
     for (uint8_t i = 0; i < p->n; i++) {
@@ -152,7 +152,7 @@ void status_led_init(void)
 #if BOARD_LED_WS2812
     esp_err_t e = ws2812_init();
     if (e != ESP_OK) {
-        ESP_LOGE(TAG, "ws2812 init failed: %s (检查 BOARD_LED_GPIO)", esp_err_to_name(e));
+        ESP_LOGE(TAG, "ws2812 init failed: %s (check BOARD_LED_GPIO)", esp_err_to_name(e));
     } else {
         hw_write(false, 0, 0, 0);
     }

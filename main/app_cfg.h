@@ -4,18 +4,18 @@
 #include <stddef.h>
 #include "esp_err.h"
 
-#define CFG_MAX_PROFILES 3    /* 产品定为 3 套；满了覆盖最久未用的一套 */
+#define CFG_MAX_PROFILES 3    /* product limit: 3 slots; the least-recently-used one is evicted when full */
 #define CFG_UUID_LEN     16
 #define CFG_NAME_MAX     24
 #define CFG_SSID_MAX     32
 #define CFG_PASS_MAX     63
-#define CFG_RAW_MAX      31    /* legacy advertising data 上限 */
+#define CFG_RAW_MAX      31    /* legacy advertising data limit */
 
-/* 复刻方式 */
-#define PROFILE_KIND_IBEACON 0 /* 结构化 iBeacon（UUID/Major/Minor 重建） */
-#define PROFILE_KIND_RAW     1 /* 原始字节照搬（任意 BLE 广播都能复刻） */
+/* replication kind */
+#define PROFILE_KIND_IBEACON 0 /* structured iBeacon (UUID/Major/Minor rebuilt) */
+#define PROFILE_KIND_RAW     1 /* verbatim bytes (replicates any BLE advertisement) */
 
-/* 一套信标配置 */
+/* one beacon profile */
 typedef struct {
     char     name[CFG_NAME_MAX];
     bool     enabled;
@@ -25,22 +25,22 @@ typedef struct {
     uint8_t  uuid[CFG_UUID_LEN];
     uint16_t major;
     uint16_t minor;
-    int8_t   ref_rssi;        /* iBeacon 第 30 字节: 1m 处标定 RSSI */
+    int8_t   ref_rssi;        /* iBeacon byte 30: calibrated RSSI at 1 m */
 
     /* ---- kind = RAW ---- */
     uint8_t  raw[CFG_RAW_MAX];
     uint8_t  raw_len;
 
-    /* ---- 公共 ---- */
-    int8_t   radio_dbm;       /* 射频发射功率 dBm */
-    uint16_t adv_itvl_ms;     /* 广播间隔 20..10240 */
+    /* ---- common ---- */
+    int8_t   radio_dbm;       /* radio TX power, dBm */
+    uint16_t adv_itvl_ms;     /* advertising interval, 20..10240 ms */
     bool     scannable;       /* true = ADV_SCAN_IND, false = ADV_NONCONN_IND */
     bool     use_rand_addr;
     uint8_t  rand_addr[6];
-    uint8_t  src_addr[6];     /* 拷贝来源地址（仅溯源用） */
-    uint8_t  src_adv_type;    /* 来源广播类型 BLE_HCI_ADV_RPT_EVTYPE_* */
+    uint8_t  src_addr[6];     /* provenance: address this profile was copied from */
+    uint8_t  src_adv_type;    /* source adv event type, BLE_HCI_ADV_RPT_EVTYPE_* */
 
-    uint32_t use_seq;         /* 最近一次被启用/覆盖时的单调序号（判"最久未用"） */
+    uint32_t use_seq;         /* monotonic stamp of last activation/overwrite (LRU key) */
 } beacon_profile_t;
 
 typedef struct {
@@ -57,10 +57,10 @@ typedef struct {
 typedef struct {
     uint16_t ver;
     int      count;
-    int      active;          /* -1 = 无激活配置 */
+    int      active;          /* -1 = nothing active */
     bool     rotation;
     uint16_t rotation_s;
-    uint32_t seq_gen;         /* use_seq 发生器，随配置一起持久化 */
+    uint32_t seq_gen;         /* use_seq generator, persisted with the config */
     scan_cfg_t scan;
     ap_cfg_t   ap;
     beacon_profile_t p[CFG_MAX_PROFILES];
@@ -74,12 +74,13 @@ esp_err_t      cfg_save(void);
 esp_err_t      cfg_factory_reset(void);
 void           cfg_defaults(beacon_cfg_t *c);
 int            cfg_free_slot(const beacon_cfg_t *c);
-/* 找一个"可覆盖"的槽位：优先空槽，其次 use_seq 最小且非 active 的；返回 -1 表示无（只剩 active） */
+/* Pick a slot to (over)write: a free slot first, else the smallest use_seq that is not active.
+ * Returns -1 when only the active profile is left. */
 int            cfg_pick_slot(beacon_cfg_t *c);
-/* 给 profile 打上新的 use_seq（调用方持锁） */
+/* Stamp a fresh use_seq on a profile (caller holds the lock) */
 void           cfg_touch(beacon_cfg_t *c, int idx);
 
-/* JSON 序列化/反序列化（web 层用） */
+/* JSON (de)serialisation, used by the web layer */
 struct cJSON;
 struct cJSON *cfg_to_json(const beacon_cfg_t *c);
 bool          cfg_from_json(const char *js, beacon_cfg_t *c, char *err, size_t errlen);
@@ -88,10 +89,10 @@ void          cfg_profile_to_json(const beacon_profile_t *p, struct cJSON *dst);
 
 bool           cfg_uuid_from_str(const char *s, uint8_t out[CFG_UUID_LEN]);
 void           cfg_uuid_to_str(const uint8_t u[CFG_UUID_LEN], char out[33]);
-void           cfg_hex_to_str(const uint8_t *in, int n, char *out);   /* out 需 2n+1 */
+void           cfg_hex_to_str(const uint8_t *in, int n, char *out);   /* out must hold 2n+1 chars */
 bool           cfg_hex_from_str(const char *s, uint8_t *out, int n);
 const char    *cfg_api_token(void);
 
-/* 轻量 NVS 计数器（启动次数 / 掉压次数等，用于无串口诊断） */
+/* Lightweight NVS counters (boots, brownouts, ...) for serial-free diagnostics */
 uint32_t       cfg_stat_get(const char *key);
 void           cfg_stat_bump(const char *key, uint32_t add);

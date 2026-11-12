@@ -19,7 +19,7 @@ typedef struct {
 void     applog_init(void);
 void     applog_add(uint8_t type, int8_t rssi, const char *fmt, ...);
 uint32_t applog_last_seq(void);
-/* 返回写入条数; emit 里不要阻塞 */
+/* returns the number of records; do not block inside emit */
 int      applog_snapshot(uint32_t since_seq, int max, void (*emit)(const logrec_t *, void *), void *ctx);
 void     applog_clear(void);
 const char *applog_type_str(uint8_t t);

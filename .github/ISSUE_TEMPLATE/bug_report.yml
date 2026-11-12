@@ -1,0 +1,76 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: this tool replicates BLE advertisements. Please confirm you are
+        testing **your own or authorized devices** (see the notice in the README).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Also say what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. flash with `idf.py -DAPP_BOARD=2 build`
+        2. join BeaconGW-xxxx, open 192.168.4.1
+        3. tap Clone on a captured device
+        4. ...
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: Board and APP_BOARD preset
+      placeholder: XIAO ESP32-C6, APP_BOARD=2
+    validations:
+      required: true
+
+  - type: input
+    id: idf
+    attributes:
+      label: ESP-IDF version
+      placeholder: v5.5.6
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of GET /api/status
+      description: Paste the JSON. This usually answers both questions at once.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Serial log or event log
+      description: Last 20 lines. Brownout messages are especially useful.
+      render: shell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: power
+    attributes:
+      label: How is the board powered?
+      options:
+        - USB from a computer
+        - USB charger / power bank
+        - Phone OTG
+        - Batteries
+        - Other
+    validations:
+      required: false

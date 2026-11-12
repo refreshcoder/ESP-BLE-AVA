@@ -1,20 +1,19 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<title>Beacon 复刻器</title>
+<title>BLE Beacon Cloner</title>
 <style>
 :root{--bg:#0f1115;--card:#181b22;--line:#262b36;--fg:#e8ebf1;--dim:#9aa3b6;--acc:#4c8dff;--ok:#37c98b;--warn:#f0b429;--err:#f2555a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;background:var(--bg);color:var(--fg);padding-bottom:76px}
+body{margin:0;font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);padding-bottom:76px}
 header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:8;flex-wrap:wrap}
 h1{font-size:15px;margin:0;font-weight:600}
 .pill{padding:3px 9px;border-radius:99px;font-size:11px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
 .pill.on{color:var(--ok);border-color:#1e5a44;background:#0f2a22}
 .pill.off{color:var(--err);border-color:#5a1e22;background:#2a0f11}
-.pill.warn{color:#0f1115;background:var(--warn);border-color:var(--warn);font-weight:700}
 nav{display:flex;gap:6px;padding:10px 10px 4px;overflow-x:auto;position:sticky;top:52px;background:var(--bg);z-index:7}
 nav button{flex:0 0 auto;background:#151a22;border:1px solid var(--line);color:var(--dim);padding:9px 15px;border-radius:10px;font-size:14px;cursor:pointer}
 nav button.active{color:#fff;background:#233044;border-color:#31425c;font-weight:600}
@@ -25,9 +24,7 @@ section{display:none}section.active{display:block}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .big{display:flex;flex-direction:column;gap:10px}
 .modebtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:58px;border-radius:14px;border:1px solid var(--line);background:#1b2029;color:var(--fg);font-size:16px;font-weight:600;cursor:pointer}
-.modebtn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 .modebtn.on{background:#12301f;border-color:#1e5a44;color:#7ce8b3}
-.modebtn:disabled{opacity:.45}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 th{color:var(--dim);font-weight:500;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
@@ -35,7 +32,6 @@ tbody tr:last-child td{border-bottom:none}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all}
 .dim{color:var(--dim)}
 button.btn{background:#222a36;border:1px solid var(--line);color:var(--fg);min-height:40px;padding:8px 14px;border-radius:10px;cursor:pointer;font-size:14px}
-button.btn:active{transform:scale(.98)}
 button.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 button.btn.dan{background:#3a1a1c;border-color:#5a2327;color:#ffb3b6}
 button.btn.sm{min-height:34px;padding:6px 11px;font-size:13px}
@@ -68,113 +64,113 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
 <body>
 
 <header>
-  <h1>Beacon 复刻器</h1>
+  <h1>BLE Beacon Cloner</h1>
   <span class="pill" id="p-mode">—</span>
   <span class="pill" id="p-adv">ADV —</span>
   <span class="pill" id="p-sta">AP —</span>
   <span class="spacer"></span>
-  <button class="btn sm" id="btn-lock">锁定</button>
+  <button class="btn sm" id="btn-lock">Lock</button>
 </header>
 
 <nav>
-  <button data-tab="home" class="active">状态</button>
-  <button data-tab="capture">捕获</button>
-  <button data-tab="profiles">配置</button>
-  <button data-tab="log">日志</button>
-  <button data-tab="settings">设置</button>
+  <button data-tab="home" class="active">Status</button>
+  <button data-tab="capture">Capture</button>
+  <button data-tab="profiles">Profiles</button>
+  <button data-tab="log">Log</button>
+  <button data-tab="settings">Settings</button>
 </nav>
 
 <main>
-  <!-- ========== 状态 ========== -->
+  <!-- ========== status ========== -->
   <section id="tab-home" class="active">
     <div class="card warnbox" id="pow-card" style="display:none"><div id="pow-warn" class="mono"></div></div>
 
     <div class="card">
-      <h2>当前模式</h2>
+      <h2>Current mode</h2>
       <div class="big">
         <div class="row" style="justify-content:space-between">
           <div style="font-size:22px;font-weight:700" id="mode-title">—</div>
-          <span class="dim mono" id="led-hint">灯语 —</span>
+          <span class="dim mono" id="led-hint">LED —</span>
         </div>
-        <button class="modebtn" id="m-sniff" onclick="setMode('sniff')">监听捕获</button>
-        <button class="modebtn" id="m-clone" onclick="setMode('clone')">广播复刻</button>
-        <button class="modebtn" id="m-idle" onclick="setMode('idle')">停止射频</button>
+        <button class="modebtn" id="m-sniff" onclick="setMode('sniff')">Sniff (capture)</button>
+        <button class="modebtn" id="m-clone" onclick="setMode('clone')">Clone (advertise)</button>
+        <button class="modebtn" id="m-idle" onclick="setMode('idle')">Stop radio</button>
       </div>
-      <div class="dim" style="margin-top:10px;font-size:12px">捕获与广播互斥运行：进监听会停广播，反之亦然。</div>
+      <div class="dim" style="margin-top:10px;font-size:12px">Capture and advertising are mutually exclusive: entering one stops the other.</div>
     </div>
 
-    <div class="card"><h2>运行状态</h2><div id="status-body" class="mono dim" style="white-space:pre-wrap">加载中…</div></div>
+    <div class="card"><h2>Runtime</h2><div id="status-body" class="mono dim" style="white-space:pre-wrap">loading…</div></div>
 
-    <div class="card"><h2>最近捕获（快捷复制）</h2><div id="quick" class="dim">—</div></div>
+    <div class="card"><h2>Latest captures (one-tap clone)</h2><div id="quick" class="dim">—</div></div>
 
     <div class="card">
-      <details><summary>灯语 / 按键说明</summary>
+      <details><summary>LED patterns / button gestures</summary>
         <table class="legend" style="margin-top:8px">
-          <tr><th>灯语</th><th>含义</th></tr>
-          <tr><td>双闪</td><td>监听捕获中</td></tr>
-          <tr><td>1Hz 慢闪</td><td>复刻/广播中</td></tr>
-          <tr><td>三连快闪</td><td>复刻中 + 有人连着管理页</td></tr>
-          <tr><td>每 3s 一闪</td><td>空闲（有配置但射频停）</td></tr>
-          <tr><td>常亮</td><td>没有任何配置</td></tr>
-          <tr><td>6 连急闪</td><td>射频错误</td></tr>
+          <tr><th>LED</th><th>Meaning</th></tr>
+          <tr><td>Double blink</td><td>Sniffing</td></tr>
+          <tr><td>1 Hz slow blink</td><td>Cloning / advertising</td></tr>
+          <tr><td>Triple fast blink</td><td>Cloning and a client is on this UI</td></tr>
+          <tr><td>One blink every 3 s</td><td>Idle (profiles exist, radio off)</td></tr>
+          <tr><td>Solid</td><td>No profile at all</td></tr>
+          <tr><td>Six rapid blinks</td><td>Radio error</td></tr>
         </table>
         <table class="legend" style="margin-top:10px">
-          <tr><th>按键（BOOT）</th><th>动作</th></tr>
-          <tr><td>单击</td><td>监听 ⇄ 复刻</td></tr>
-          <tr><td>双击</td><td>停止射频</td></tr>
-          <tr><td>长按 5s</td><td>恢复出厂 + 重启</td></tr>
+          <tr><th>Button (BOOT)</th><th>Action</th></tr>
+          <tr><td>Single click</td><td>Sniff ⇄ Clone</td></tr>
+          <tr><td>Double click</td><td>Stop radio</td></tr>
+          <tr><td>Long press 5 s</td><td>Factory reset + reboot</td></tr>
         </table>
       </details>
     </div>
   </section>
 
-  <!-- ========== 捕获 ========== -->
+  <!-- ========== capture ========== -->
   <section id="tab-capture">
     <div class="card">
-      <h2>本次捕获 <span class="dim" id="cap-stat"></span></h2>
+      <h2>This session <span class="dim" id="cap-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" id="btn-freeze" onclick="toggleFreeze()">冻结</button>
-        <button class="btn sm" onclick="loadCaptures()">刷新</button>
-        <button class="btn sm dan" onclick="clearCapture()">清空</button>
+        <button class="btn sm" id="btn-freeze" onclick="toggleFreeze()">Freeze</button>
+        <button class="btn sm" onclick="loadCaptures()">Refresh</button>
+        <button class="btn sm dan" onclick="clearCapture()">Clear</button>
       </div>
       <div class="chips" style="margin-bottom:8px">
-        <button class="chip on" data-filter="all" onclick="setFilter('all')">全部</button>
-        <button class="chip" data-filter="ibe" onclick="setFilter('ibe')">仅 iBeacon</button>
-        <button class="chip" data-filter="name" onclick="setFilter('name')">有名字</button>
-        <button class="chip" data-filter="rssi" onclick="setFilter('rssi')">按信号强</button>
+        <button class="chip on" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="chip" data-filter="ibe" onclick="setFilter('ibe')">iBeacon</button>
+        <button class="chip" data-filter="name" onclick="setFilter('name')">Named</button>
+        <button class="chip" data-filter="rssi" onclick="setFilter('rssi')">Strongest</button>
       </div>
-      <table><thead><tr><th>信号</th><th>RSSI</th><th>间隔</th><th></th></tr></thead>
+      <table><thead><tr><th>Signal</th><th>RSSI</th><th>Interval</th><th></th></tr></thead>
       <tbody id="cap-body"></tbody></table>
-      <div class="dim" style="margin-top:8px;font-size:12px">表格在内存里：重启丢失（点「复制」会自动归档到 flash，见下方「捕获归档」）。</div>
+      <div class="dim" style="margin-top:8px;font-size:12px">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
     </div>
 
     <div class="card">
-      <h2>捕获归档（掉电保留）<span class="dim" id="hist-stat"></span></h2>
+      <h2>Capture archive (survives reboot)<span class="dim" id="hist-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="loadHistory()">刷新</button>
-        <button class="btn sm dan" onclick="clearHistory()">清空归档</button>
+        <button class="btn sm" onclick="loadHistory()">Refresh</button>
+        <button class="btn sm dan" onclick="clearHistory()">Clear archive</button>
       </div>
       <div id="hist-body" class="dim">—</div>
     </div>
   </section>
 
-  <!-- ========== 配置 ========== -->
+  <!-- ========== profiles ========== -->
   <section id="tab-profiles">
     <div class="card">
-      <h2>配置（最多 3 套）</h2>
-      <div id="prof-body" class="dim">加载中…</div>
-      <div class="dim" style="margin-top:10px;font-size:12px">满了再复制会覆盖「最久未使用」且未在广播的那一套。</div>
+      <h2>Profiles (max 3)</h2>
+      <div id="prof-body" class="dim">loading…</div>
+      <div class="dim" style="margin-top:10px;font-size:12px">When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.</div>
     </div>
     <div class="card" id="form-card" style="display:none">
-      <h2 id="form-title">编辑</h2>
+      <h2 id="form-title">Edit</h2>
       <div class="grid2">
-        <div><label>名称</label><input id="f-name" maxlength="23"></div>
-        <div><label>广播间隔 ms</label><input id="f-itvl" type="number" min="20" max="10240"></div>
-        <div><label>射频功率 dBm</label><input id="f-tx" type="number" min="-15" max="20"></div>
-        <div><label>可扫描</label><input id="f-scan" type="checkbox"></div>
+        <div><label>Name</label><input id="f-name" maxlength="23"></div>
+        <div><label>Advertising interval (ms)</label><input id="f-itvl" type="number" min="20" max="10240"></div>
+        <div><label>TX power (dBm)</label><input id="f-tx" type="number" min="-15" max="20"></div>
+        <div><label>Scannable</label><input id="f-scan" type="checkbox"></div>
       </div>
       <div id="form-ibe">
-        <label>UUID</label><input id="f-uuid" class="mono" placeholder="32 位 hex，可带连字符">
+        <label>UUID</label><input id="f-uuid" class="mono" placeholder="32 hex chars, dashes optional">
         <div class="grid2">
           <div><label>Major</label><input id="f-major" type="number" min="0" max="65535"></div>
           <div><label>Minor</label><input id="f-minor" type="number" min="0" max="65535"></div>
@@ -182,73 +178,73 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       </div>
       <div id="form-raw" class="dim mono" style="display:none"></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn pri" onclick="saveForm()">保存</button>
-        <button class="btn" onclick="closeForm()">取消</button>
+        <button class="btn pri" onclick="saveForm()">Save</button>
+        <button class="btn" onclick="closeForm()">Cancel</button>
         <span class="dim" id="form-msg"></span>
       </div>
     </div>
   </section>
 
-  <!-- ========== 日志 ========== -->
+  <!-- ========== log ========== -->
   <section id="tab-log">
     <div class="card">
-      <h2>事件日志</h2>
+      <h2>Event log</h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="loadLog(true)">刷新</button>
-        <button class="btn sm dan" onclick="clearLog()">清空</button>
+        <button class="btn sm" onclick="loadLog(true)">Refresh</button>
+        <button class="btn sm dan" onclick="clearLog()">Clear</button>
         <span class="dim mono" id="log-hint"></span>
       </div>
       <div class="log" id="log-body"></div>
     </div>
   </section>
 
-  <!-- ========== 设置 ========== -->
+  <!-- ========== settings ========== -->
   <section id="tab-settings">
-    <div class="card"><h2>扫描参数</h2>
+    <div class="card"><h2>Scan parameters</h2>
       <div class="grid2">
-        <div><label>启用扫描</label><input id="s-en" type="checkbox"></div>
-        <div><label>间隔 itvl (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
-        <div><label>窗口 win (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
+        <div><label>Scanning enabled</label><input id="s-en" type="checkbox"></div>
+        <div><label>Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
+        <div><label>Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveScan()">保存</button></div>
-      <div class="dim" style="margin-top:8px;font-size:12px">窗口超过间隔的 50% 会被自动限幅（保护 WiFi 共存）。想更快抓到目标：400/500 更稳。</div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveScan()">Save</button></div>
+      <div class="dim" style="margin-top:8px;font-size:12px">A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.</div>
     </div>
-    <div class="card"><h2>热点（SoftAP）</h2>
+    <div class="card"><h2>SoftAP</h2>
       <div><label>SSID</label><input id="s-ssid" maxlength="32"></div>
-      <div><label>密码（≥8 位）</label><input id="s-pass" maxlength="63"></div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveAp()">保存</button></div>
+      <div><label>Password (≥8 chars)</label><input id="s-pass" maxlength="63"></div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveAp()">Save</button></div>
     </div>
-    <div class="card"><h2>自动轮换（可选）</h2>
+    <div class="card"><h2>Rotation (optional)</h2>
       <div class="grid2">
-        <div><label>启用</label><input id="s-rot" type="checkbox"></div>
-        <div><label>周期（秒）</label><input id="s-rot-s" type="number" min="5" max="3600"></div>
+        <div><label>Enabled</label><input id="s-rot" type="checkbox"></div>
+        <div><label>Period (s)</label><input id="s-rot-s" type="number" min="5" max="3600"></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveRotation()">保存</button></div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveRotation()">Save</button></div>
     </div>
-    <div class="card"><h2>导入 / 导出</h2>
+    <div class="card"><h2>Import / export</h2>
       <div class="row">
-        <button class="btn" onclick="doExport()">导出 JSON</button>
-        <label class="btn" style="margin:0;display:inline-flex;align-items:center">导入
+        <button class="btn" onclick="doExport()">Export JSON</button>
+        <label class="btn" style="margin:0;display:inline-flex;align-items:center">Import
           <input type="file" accept="application/json" style="display:none" onchange="doImport(this)">
         </label>
       </div>
     </div>
-    <div class="card"><h2>危险操作</h2>
+    <div class="card"><h2>Danger zone</h2>
       <div class="row">
-        <button class="btn dan" onclick="if(confirm('恢复出厂？'))post('/api/factory',{}).then(()=>post('/api/reboot',{}))">恢复出厂</button>
-        <button class="btn dan" onclick="if(confirm('重启设备？'))post('/api/reboot',{})">重启</button>
+        <button class="btn dan" onclick="if(confirm('Factory reset?'))post('/api/factory',{}).then(()=>post('/api/reboot',{}))">Factory reset</button>
+        <button class="btn dan" onclick="if(confirm('Reboot the device?'))post('/api/reboot',{})">Reboot</button>
       </div>
-      <div class="dim" style="margin-top:8px;font-size:12px">OTA 未实现：现场升级请用 USB-C 重新烧写。</div>
+      <div class="dim" style="margin-top:8px;font-size:12px">OTA is not implemented; update over USB-C.</div>
     </div>
   </section>
 </main>
 
 <div id="login">
   <div class="box card">
-    <h2>登录</h2>
-    <label>AP 密码</label>
-    <input id="l-pass" type="password" placeholder="默认 beaconXXXX（看板子丝印/串口）">
-    <div class="row" style="margin-top:12px"><button class="btn pri" id="l-btn">登录</button><span class="dim" id="l-msg"></span></div>
+    <h2>Sign in</h2>
+    <label>SoftAP password</label>
+    <input id="l-pass" type="password" placeholder="beaconXXXX by default (see silkscreen or serial log)">
+    <div class="row" style="margin-top:12px"><button class="btn pri" id="l-btn">Sign in</button><span class="dim" id="l-msg"></span></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -256,8 +252,8 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
 <script>
 "use strict";
 let token = localStorage.getItem("bgw_token") || "";
-let S = {};                 /* 最近一次 /api/status */
-let caps = [];              /* 本次捕获 */
+let S = {};                 /* latest /api/status */
+let caps = [];              /* this session's captures */
 let profiles = [];
 let frozen = false;
 let filter = "all";
@@ -284,7 +280,7 @@ async function api(path, opts) {
   try {
     r = await fetch(path, { method: opts.method || "GET", headers: h,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body) });
-  } catch (e) { toast("网络错误：" + e.message, true); throw e; }
+  } catch (e) { toast("Network error: " + e.message, true); throw e; }
   if (r.status === 401) { showLogin(); throw new Error("unauthorized"); }
   const txt = await r.text();
   let j = {};
@@ -297,7 +293,7 @@ const post = (p, b) => api(p, { method: "POST", body: b || {} });
 const put = (p, b) => api(p, { method: "PUT", body: b || {} });
 const del = p => api(p, { method: "DELETE" });
 
-/* ---------- 工具 ---------- */
+/* ---------- formatting ---------- */
 function fmtDur(s) {
   s = Math.floor(s || 0);
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
@@ -316,7 +312,7 @@ function hexPairs(h) {
   return h.match(/.{1,2}/g).join(" ");
 }
 
-/* ---------- 登录 ---------- */
+/* ---------- auth ---------- */
 function showLogin() { $("login").style.display = "flex"; $("l-pass").focus(); }
 function hideLogin() { $("login").style.display = "none"; }
 $("l-btn").onclick = async () => {
@@ -327,13 +323,13 @@ $("l-btn").onclick = async () => {
     if (j.ok && j.token) {
       token = j.token; localStorage.setItem("bgw_token", token);
       $("l-msg").textContent = ""; hideLogin(); boot();
-    } else $("l-msg").textContent = j.err || "密码错误";
-  } catch (e) { $("l-msg").textContent = "失败"; }
+    } else $("l-msg").textContent = j.err || "wrong password";
+  } catch (e) { $("l-msg").textContent = "failed"; }
 };
 $("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
 $("btn-lock").onclick = () => { token = ""; localStorage.removeItem("bgw_token"); showLogin(); };
 
-/* ---------- 导航 ---------- */
+/* ---------- navigation ---------- */
 document.querySelectorAll("nav button").forEach(b => {
   b.onclick = () => {
     document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
@@ -347,9 +343,9 @@ document.querySelectorAll("nav button").forEach(b => {
   };
 });
 
-/* ---------- 状态 ---------- */
-const MODE_TXT = { sniff: "监听中", clone: "复刻中", idle: "已停止" };
-const LED_TXT = { sniff: "双闪", clone: "1Hz 慢闪", "clone+client": "三连快闪", idle: "每 3s 一闪" };
+/* ---------- status ---------- */
+const MODE_TXT = { sniff: "Sniffing", clone: "Cloning", idle: "Radio off" };
+const LED_TXT = { sniff: "double blink", clone: "1 Hz blink", "clone+client": "triple fast", idle: "blink every 3 s" };
 
 async function refreshStatus() {
   let j;
@@ -359,13 +355,13 @@ async function refreshStatus() {
 
   $("p-mode").textContent = MODE_TXT[j.mode] || j.mode;
   $("p-mode").className = "pill " + (j.mode === "idle" ? "off" : "on");
-  $("p-adv").textContent = j.adv ? "广播 ON" : "广播 OFF";
+  $("p-adv").textContent = j.adv ? "ADV on" : "ADV off";
   $("p-adv").className = "pill " + (j.adv ? "on" : "off");
-  $("p-sta").textContent = "客户端 " + j.sta;
+  $("p-sta").textContent = "clients " + j.sta;
   $("p-sta").className = "pill " + (j.sta > 0 ? "on" : "");
 
   $("mode-title").textContent = MODE_TXT[j.mode] || j.mode;
-  $("led-hint").textContent = "灯语 " + (j.led || "—") + "（" + (LED_TXT[j.led] || "—") + "）";
+  $("led-hint").textContent = "LED " + (LED_TXT[j.led] || "—");
   $("m-sniff").className = "modebtn" + (j.mode === "sniff" ? " on" : "");
   $("m-clone").className = "modebtn" + (j.mode === "clone" ? " on" : "");
   $("m-idle").className = "modebtn" + (j.mode === "idle" ? " on" : "");
@@ -373,31 +369,31 @@ async function refreshStatus() {
   const bad = (j.brownouts > 0);
   $("pow-card").style.display = bad ? "block" : "none";
   if (bad) $("pow-warn").textContent =
-    "⚠ 掉压复位 " + j.brownouts + " 次（BROWNOUT）。这是供电不足，不是固件问题：换短粗 USB 线 / 换电源 / 3V3 并 220µF。";
+    "⚠ " + j.brownouts + " brownout reset(s) recorded. That is a weak supply, not a firmware bug: shorter/thicker USB cable, better PSU, or 220 µF across 3V3.";
 
   $("status-body").textContent =
-    "板型      : " + j.board + "\n" +
-    "版本      : " + j.ver + "    运行 " + fmtDur(j.uptime_s) + "\n" +
+    "board     : " + j.board + "\n" +
+    "version   : " + j.ver + "    uptime " + fmtDur(j.uptime_s) + "\n" +
     "IP        : " + j.ip + "\n" +
-    "激活配置  : " + (j.active < 0 ? "（无）" : "#" + j.active + " / 共 " + j.count + " 套") + "\n" +
-    "扫描      : " + j.scan_win_ms + "ms / " + j.scan_itvl_ms + "ms，本次收到 " + j.scan_pkts + " 包" +
-      (j.scan_running_ms ? "（" + fmtDur(j.scan_running_ms / 1000) + "）" : "") + "\n" +
-    "已探测    : " + j.detected + " 台    发射 " + j.tx_dbm + " dBm（累计启动广播 " + j.adv_starts + " 次）\n" +
-    "归档      : " + (j.storage || "?") + " 条（掉电保留）\n" +
-    "复位      : " + j.reset_reason + "，启动 " + j.boots + " 次\n" +
-    "内存      : " + j.heap + " B（最低 " + j.min_heap + " B）";
+    "profile   : " + (j.active < 0 ? "(none)" : "#" + j.active + " of " + j.count) + "\n" +
+    "scan      : " + j.scan_win_ms + "ms / " + j.scan_itvl_ms + "ms, " + j.scan_pkts + " packets" +
+      (j.scan_running_ms ? " (" + fmtDur(j.scan_running_ms / 1000) + ")" : "") + "\n" +
+    "detected  : " + j.detected + " devices    tx " + j.tx_dbm + " dBm (adv starts " + j.adv_starts + ")\n" +
+    "archive   : " + (j.storage || "?") + " records (persistent)\n" +
+    "reset     : " + j.reset_reason + ", boots " + j.boots + "\n" +
+    "memory    : " + j.heap + " B (min " + j.min_heap + " B)";
 
   return j;
 }
 
 async function setMode(mode) {
   const r = await post("/api/mode", { mode });
-  toast(r.ok ? "已切到 " + (MODE_TXT[r.mode] || r.mode) : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Mode: " + (MODE_TXT[r.mode] || r.mode) : (r.err || "failed"), !r.ok);
   refreshStatus();
   if (mode === "clone") loadProfiles();
 }
 
-/* ---------- 捕获 ---------- */
+/* ---------- capture ---------- */
 function setFilter(f) {
   filter = f;
   document.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c.dataset.filter === f));
@@ -405,13 +401,13 @@ function setFilter(f) {
 }
 function toggleFreeze() {
   frozen = !frozen;
-  $("btn-freeze").textContent = frozen ? "已冻结" : "冻结";
+  $("btn-freeze").textContent = frozen ? "Frozen" : "Freeze";
   $("btn-freeze").className = "btn sm" + (frozen ? " pri" : "");
   if (!frozen) loadCaptures();
 }
 async function clearCapture() {
   const r = await del("/api/scan");
-  toast(r.ok ? "已清空本次捕获" : "失败", !r.ok);
+  toast(r.ok ? "Session captures cleared" : "failed", !r.ok);
   loadCaptures();
 }
 async function loadCaptures() {
@@ -420,7 +416,7 @@ async function loadCaptures() {
   try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
   if (!j.ok) return;
   caps = j.items || [];
-  $("cap-stat").textContent = caps.length + " 台 / 收到 " + (S.scan_pkts || 0) + " 包";
+  $("cap-stat").textContent = caps.length + " devices / " + (S.scan_pkts || 0) + " packets";
   renderCaps();
 }
 function renderCaps() {
@@ -432,23 +428,23 @@ function renderCaps() {
   if (filter === "rssi") list.sort((a, b) => b.rssi - a.rssi);
 
   if (!list.length) {
-    tb.innerHTML = "<tr><td colspan='4' class='dim'>暂无数据。" +
-      (S.mode === "sniff" ? "正在监听，请稍候…" : "当前不在监听模式，点「状态」页的监听捕获。") + "</td></tr>";
+    tb.innerHTML = "<tr><td colspan='4' class='dim'>Nothing yet. " +
+      (S.mode === "sniff" ? "Listening, please wait…" : "Not sniffing: switch to Sniff on the Status tab.") + "</td></tr>";
     return;
   }
   list.forEach(d => {
     const title = d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
-                            : (d.name ? esc(d.name) : "BLE 广播");
+                            : (d.name ? esc(d.name) : "BLE advertisement");
     const sub = d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
     const tr = document.createElement("tr");
     tr.innerHTML =
       "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
         "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" +
-        "<details style='margin-top:4px'><summary>原始字节 " + d.adv_len + "B</summary>" +
+        "<details style='margin-top:4px'><summary>raw bytes, " + d.adv_len + "B</summary>" +
         "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details></td>" +
       "<td>" + d.rssi + "<div class='dim' style='font-size:11px'>avg " + d.rssi_avg + "</div></td>" +
-      "<td>" + (d.itvl_ms ? d.itvl_ms + "ms" : "—") + "<div class='dim' style='font-size:11px'>" + Math.round(d.age_ms / 1000) + "s 前</div></td>" +
-      "<td><button class='btn pri sm'>复制</button></td>";
+      "<td>" + (d.itvl_ms ? d.itvl_ms + "ms" : "—") + "<div class='dim' style='font-size:11px'>" + Math.round(d.age_ms / 1000) + "s ago</div></td>" +
+      "<td><button class='btn pri sm'>Clone</button></td>";
     tr.querySelector("button").onclick = () => cloneSignal(d.addr, tr.querySelector("button"));
     tb.appendChild(tr);
   });
@@ -458,52 +454,52 @@ async function cloneSignal(addr, btn) {
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
   const r = await post("/api/clone", { addr });
   if (!r.ok) {
-    if (btn) { btn.disabled = false; btn.textContent = "复制"; }
-    toast(r.err || "复制失败", true);
+    if (btn) { btn.disabled = false; btn.textContent = "Clone"; }
+    toast(r.err || "clone failed", true);
     return;
   }
-  toast("已复刻并开始广播（间隔 " + r.adv_itvl_ms + "ms" +
-        (r.replaced ? "，覆盖了最久未用的一套" : "") + "）");
+  toast("Cloning now (interval " + r.adv_itvl_ms + "ms" +
+        (r.replaced ? ", replaced the least recently used profile" : "") + ")");
   await refreshStatus();
   document.querySelector('nav button[data-tab="profiles"]').click();
 }
 
-/* ---------- 归档 ---------- */
+/* ---------- archive ---------- */
 async function loadHistory() {
   let j;
   try { j = await get("/api/history"); } catch (e) { return; }
   if (!j.ok) return;
-  $("hist-stat").textContent = j.available ? (" " + j.count + " 条") : " 不可用";
+  $("hist-stat").textContent = j.available ? (" " + j.count + " records") : " unavailable";
   const box = $("hist-body");
-  if (!j.available) { box.innerHTML = "<span class='dim'>存储分区未挂载</span>"; return; }
-  if (!j.count) { box.innerHTML = "<span class='dim'>暂无归档。点一次「复制」就会写入。</span>"; return; }
+  if (!j.available) { box.innerHTML = "<span class='dim'>Storage partition not mounted.</span>"; return; }
+  if (!j.count) { box.innerHTML = "<span class='dim'>Empty. One record is written each time you clone.</span>"; return; }
   box.innerHTML = "";
   (j.items || []).forEach(it => {
     const div = document.createElement("div");
     div.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0";
     div.innerHTML =
-      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : "BLE 广播") +
+      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : "BLE advertisement") +
         " <span class='dim mono'>" + it.rssi + "dBm · " + it.itvl_ms + "ms</span></div>" +
-      "<div class='mono dim'>" + fmtAddr(it.addr) + " · 第" + it.boot_seq + "次启动后" + fmtDur(it.uptime_s) + "</div>" +
+      "<div class='mono dim'>" + fmtAddr(it.addr) + " · boot #" + it.boot_seq + " +" + fmtDur(it.uptime_s) + "</div>" +
       "<div class='hexbox'>" + hexPairs(it.raw) + "</div>";
     box.appendChild(div);
   });
 }
 async function clearHistory() {
-  if (!confirm("清空归档？")) return;
+  if (!confirm("Clear the capture archive?")) return;
   const r = await del("/api/history");
-  toast(r.ok ? "归档已清空" : "失败", !r.ok);
+  toast(r.ok ? "Archive cleared" : "failed", !r.ok);
   loadHistory();
 }
 
-/* ---------- 配置 ---------- */
+/* ---------- profiles ---------- */
 async function loadProfiles() {
   const j = await get("/api/profiles");
   if (!j.ok) return;
   profiles = j.profiles || [];
   const box = $("prof-body");
   box.innerHTML = "";
-  if (!profiles.length) { box.innerHTML = "<span class='dim'>还没有配置。去「捕获」页抓一条，点「复制」即可。</span>"; return; }
+  if (!profiles.length) { box.innerHTML = "<span class='dim'>No profiles yet. Capture a signal and tap Clone.</span>"; return; }
 
   profiles.forEach((p, i) => {
     const active = (i === j.active);
@@ -511,23 +507,23 @@ async function loadProfiles() {
     card.style.cssText = "border:1px solid " + (active ? "#1e5a44" : "#262b36") +
       ";background:" + (active ? "#101c17" : "#141821") + ";border-radius:10px;padding:10px;margin-bottom:8px";
     const kind = p.kind === 1
-      ? "<span class='tag raw'>RAW 原样复刻</span>"
+      ? "<span class='tag raw'>RAW replay</span>"
       : "<span class='tag ibe'>iBeacon</span>";
     const rawSum = p.raw ? hexPairs(p.raw.slice(0, 16)) + (p.raw.length > 16 ? " …" : "") : "";
     card.innerHTML =
       "<div class='row' style='justify-content:space-between'>" +
         "<div><b>" + esc(p.name) + "</b> " + kind +
-        (active ? " <span class='tag on'>广播中</span>" : "") + "</div>" +
+        (active ? " <span class='tag on'>on air</span>" : "") + "</div>" +
         "<span class='dim mono'>#" + i + "</span></div>" +
       "<div class='mono dim' style='margin-top:6px'>" +
         (p.kind === 1 ? rawSum + "<br>" : fmtUuid(p.uuid) + "<br>" + p.major + "/" + p.minor + "<br>") +
         p.adv_itvl_ms + "ms · tx " + p.radio_dbm + "dBm" + (p.src ? " · src " + fmtAddr(p.src) : "") +
       "</div>" +
       "<div class='row' style='margin-top:8px'>" +
-        (active ? "<button class='btn sm' data-a='stop'>停止</button>"
-                : "<button class='btn pri sm' data-a='act'>激活</button>") +
-        "<button class='btn sm' data-a='edit'>高级编辑</button>" +
-        "<button class='btn sm dan' data-a='del'>删除</button>" +
+        (active ? "<button class='btn sm' data-a='stop'>Stop</button>"
+                : "<button class='btn pri sm' data-a='act'>Activate</button>") +
+        "<button class='btn sm' data-a='edit'>Advanced edit</button>" +
+        "<button class='btn sm dan' data-a='del'>Delete</button>" +
       "</div>";
     card.querySelectorAll("[data-a]").forEach(b => {
       b.onclick = () => {
@@ -540,23 +536,26 @@ async function loadProfiles() {
     });
     box.appendChild(card);
   });
+
+  const hint = $("hint-limit");
+  if (hint) hint.style.display = profiles.length >= 3 ? "block" : "none";
 }
 async function activate(i) {
   const r = await post("/api/active", { id: i });
-  toast(r.ok ? "已激活 #" + i : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Activated #" + i : (r.err || "failed"), !r.ok);
   refreshStatus(); loadProfiles();
 }
 async function removeProfile(i) {
-  if (!confirm("删除配置 #" + i + "「" + profiles[i].name + "」？")) return;
+  if (!confirm("Delete profile #" + i + " \"" + profiles[i].name + "\"?")) return;
   const r = await del("/api/profiles/" + i);
-  toast(r.ok ? "已删除" : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Deleted" : (r.err || "failed"), !r.ok);
   refreshStatus(); loadProfiles();
 }
 function openForm(i) {
   editId = i;
   const p = profiles[i];
   $("form-card").style.display = "block";
-  $("form-title").textContent = "编辑 #" + i + " " + p.name;
+  $("form-title").textContent = "Edit #" + i + " " + p.name;
   $("f-name").value = p.name;
   $("f-itvl").value = p.adv_itvl_ms;
   $("f-tx").value = p.radio_dbm;
@@ -565,7 +564,7 @@ function openForm(i) {
   $("form-ibe").style.display = isRaw ? "none" : "block";
   $("form-raw").style.display = isRaw ? "block" : "none";
   if (isRaw) {
-    $("form-raw").innerHTML = "原始字节（照搬，不改动）：<div class='hexbox'>" + hexPairs(p.raw) + "</div>";
+    $("form-raw").innerHTML = "Raw bytes (replayed verbatim, cannot be edited):<div class='hexbox'>" + hexPairs(p.raw) + "</div>";
   } else {
     $("f-uuid").value = fmtUuid(p.uuid);
     $("f-major").value = p.major;
@@ -588,11 +587,11 @@ async function saveForm() {
     body.ref_rssi = o.ref_rssi;
   }
   const r = await put("/api/profiles/" + editId, body);
-  if (!r.ok) { $("form-msg").textContent = r.err || "保存失败"; return; }
-  toast("已保存"); closeForm(); loadProfiles(); refreshStatus();
+  if (!r.ok) { $("form-msg").textContent = r.err || "save failed"; return; }
+  toast("Saved"); closeForm(); loadProfiles(); refreshStatus();
 }
 
-/* ---------- 日志 ---------- */
+/* ---------- log ---------- */
 async function loadLog(reset) {
   if (reset) { logSeq = 0; $("log-body").innerHTML = ""; }
   let j;
@@ -609,9 +608,9 @@ async function loadLog(reset) {
   box.scrollTop = box.scrollHeight;
   $("log-hint").textContent = "seq " + logSeq;
 }
-async function clearLog() { const r = await del("/api/log"); toast(r.ok ? "已清空" : "失败", !r.ok); loadLog(true); }
+async function clearLog() { const r = await del("/api/log"); toast(r.ok ? "Cleared" : "failed", !r.ok); loadLog(true); }
 
-/* ---------- 设置 ---------- */
+/* ---------- settings ---------- */
 async function loadSettings() {
   const j = await get("/api/profiles");
   if (!j.ok) return;
@@ -626,16 +625,16 @@ async function loadSettings() {
 async function saveScan() {
   const r = await post("/api/scan", {
     enabled: $("s-en").checked, itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value });
-  toast(r.ok ? "扫描参数已保存" : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Scan parameters saved" : (r.err || "failed"), !r.ok);
   refreshStatus();
 }
 async function saveAp() {
   const r = await post("/api/ap", { ssid: $("s-ssid").value.trim(), pass: $("s-pass").value });
-  toast(r.ok ? "已保存，请用新凭据重连" : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Saved - reconnect with the new credentials" : (r.err || "failed"), !r.ok);
 }
 async function saveRotation() {
   const r = await post("/api/rotation", { enabled: $("s-rot").checked, seconds: +$("s-rot-s").value });
-  toast(r.ok ? "已保存" : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Saved" : (r.err || "failed"), !r.ok);
 }
 async function doExport() {
   const r = await fetch("/api/export", { headers: { "Authorization": "Bearer " + token } });
@@ -647,13 +646,13 @@ async function doExport() {
 async function doImport(inp) {
   const f = inp.files[0]; if (!f) return;
   let body;
-  try { body = JSON.parse(await f.text()); } catch (e) { toast("不是合法 JSON", true); return; }
+  try { body = JSON.parse(await f.text()); } catch (e) { toast("Not valid JSON", true); return; }
   const r = await post("/api/import", body);
-  toast(r.ok ? "导入成功" : (r.err || "失败"), !r.ok);
+  toast(r.ok ? "Imported" : (r.err || "failed"), !r.ok);
   inp.value = ""; loadProfiles(); refreshStatus();
 }
 
-/* ---------- 启动 ---------- */
+/* ---------- boot ---------- */
 async function boot() {
   const j = await refreshStatus();
   if (!j) return;
@@ -676,7 +675,7 @@ async function loadQuick() {
   let j;
   try { j = await get("/api/scan?limit=3"); } catch (e) { return; }
   if (!j.ok || !(j.items || []).length) {
-    box.innerHTML = "<span class='dim'>暂无。切到「监听捕获」等几秒。</span>";
+    box.innerHTML = "<span class='dim'>Nothing yet. Switch to Sniff and wait a few seconds.</span>";
     return;
   }
   box.innerHTML = "";
@@ -685,9 +684,9 @@ async function loadQuick() {
     row.className = "row";
     row.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0;justify-content:space-between";
     row.innerHTML =
-      "<div><div>" + (d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor) : (d.name || "BLE 广播")) +
+      "<div><div>" + (d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor) : (d.name || "BLE advertisement")) +
       "</div><div class='mono dim'>" + d.rssi + "dBm · " + (d.itvl_ms || "?") + "ms</div></div>" +
-      "<button class='btn pri sm'>复制</button>";
+      "<button class='btn pri sm'>Clone</button>";
     row.querySelector("button").onclick = () => cloneSignal(d.addr, row.querySelector("button"));
     box.appendChild(row);
   });

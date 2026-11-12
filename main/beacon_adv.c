@@ -15,10 +15,10 @@ static const char *TAG = "adv";
 static uint8_t s_own_addr_type = BLE_OWN_ADDR_PUBLIC;
 static bool    s_synced;
 static volatile bool s_running;
-static uint32_t s_starts;        /* 累计进入广播的次数 */
-static int8_t   s_tx_dbm = 9;    /* 最近一次设置成功的射频功率 */
+static uint32_t s_starts;        /* number of times advertising was started */
+static int8_t   s_tx_dbm = 9;    /* last successfully applied TX power */
 
-/* iBeacon 厂商数据区(不含 AD 长度/类型字节): 25 字节
+/* iBeacon manufacturer data, excluding the AD length/type bytes: 25 bytes
    4C 00 | 02 15 | UUID(16) | major(2) | minor(2) | ref_rssi(1) */
 static uint8_t s_mfg[25];
 
@@ -84,7 +84,7 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
 {
     if (!s_synced) return ESP_ERR_INVALID_STATE;
 
-    /* 1) 必须先停：广播中改字段会返回 BLE_HS_EBUSY */
+    /* 1) Must stop first: changing fields while advertising returns BLE_HS_EBUSY */
     beacon_adv_stop();
 
     if (c->active < 0 || c->active >= c->count) {
@@ -97,12 +97,12 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
         return ESP_OK;
     }
 
-    /* 2) 射频功率 + 载荷 */
+    /* 2) TX power + payload */
     snap_tx_power(p->radio_dbm);
 
     int rc = 0;
     if (p->kind == PROFILE_KIND_RAW) {
-        /* 原样复刻：整段 AD 结构逐字节照搬，不做任何重排 */
+        /* Verbatim replay: the whole AD structure is copied byte for byte, no re-encoding */
         if (p->raw_len < 2 || p->raw_len > 31) {
             ESP_LOGE(TAG, "raw_len %u invalid (2..31)", p->raw_len);
             return ESP_ERR_INVALID_ARG;
@@ -127,17 +127,17 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
         }
     }
 
-    /* 3) 地址：可选 static-random（每个 profile 一套，便于下游区分设备） */
+    /* 3) Address: optional static-random, one per profile, so downstream can tell devices apart */
     uint8_t own = s_own_addr_type;
     if (p->use_rand_addr) {
         uint8_t a[6];
         memcpy(a, p->rand_addr, 6);
-        a[5] |= 0xC0;                       /* 高两位 = 11: static random */
+        a[5] |= 0xC0;                       /* top two bits = 11: static random */
         if (ble_hs_id_set_rnd(a) == 0) own = BLE_OWN_ADDR_RANDOM;
         else ESP_LOGW(TAG, "set_rnd failed, fallback to public");
     }
 
-    /* 4) 参数：间隔单位 0.625ms */
+    /* 4) Advertising parameters; interval unit is 0.625 ms */
     uint32_t itvl = (uint32_t)p->adv_itvl_ms * 8 / 5;
     if (itvl < 0x20)  itvl = 0x20;          /* 20ms */
     if (itvl > 0x4000) itvl = 0x4000;       /* 10240ms */
@@ -147,7 +147,7 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
     ap.disc_mode   = p->scannable ? BLE_GAP_DISC_MODE_GEN : BLE_GAP_DISC_MODE_NON;
     ap.itvl_min    = (uint16_t)itvl;
     ap.itvl_max    = (uint16_t)itvl;
-    ap.channel_map = 0x07;                  /* 37/38/39 全用 */
+    ap.channel_map = 0x07;                  /* channels 37/38/39 */
 
     rc = ble_gap_adv_start(own, NULL, BLE_HS_FOREVER, &ap, gap_event, NULL);
     if (rc != 0) {
@@ -200,14 +200,15 @@ static void host_task(void *param)
 
 esp_err_t beacon_stack_init(void)
 {
-    esp_err_t e = nimble_port_init();          /* 含 controller + HCI 初始化(IDF5.x) */
+    esp_err_t e = nimble_port_init();          /* controller + HCI init (IDF 5.x) */
     if (e != ESP_OK) return e;
 
     ble_hs_cfg.sync_cb  = on_sync;
     ble_hs_cfg.reset_cb = on_reset;
 
-    /* 注意：GAP/GATT 服务只在 CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y 时被编译进库。
-     * 本项目只做 broadcaster + observer，不建连接，因此不初始化任何 GAP 服务。 */
+    /* Note: the GAP/GATT services are only compiled into libbt.a when
+     * CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y. This project is broadcaster + observer
+     * only and never accepts connections, so no GAP service is initialised. */
     nimble_port_freertos_init(host_task);
     return ESP_OK;
 }
