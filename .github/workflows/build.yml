@@ -12,15 +12,19 @@ concurrency:
 
 jobs:
   build:
-    name: ESP-IDF ${{ matrix.idf }} / board ${{ matrix.board }}
+    name: ${{ matrix.target }} / board ${{ matrix.board }}
     runs-on: ubuntu-latest
     container: espressif/idf:release-v5.5
     strategy:
       fail-fast: false
       matrix:
-        # 1 = ESP32-C6-DevKitC-1, 2 = Seeed XIAO ESP32-C6 (default), 3 = Waveshare C6-Zero
-        board: [1, 2]
-        idf: [release-v5.5]
+        # board presets (see main/board.h):
+        #   1 = ESP32-C6-DevKitC-1, 2 = XIAO ESP32-C6, 3 = Waveshare C6-Zero
+        #   4 = ESP32-C3 SuperMini, 5 = ESP32-C3-DevKitM-1
+        include:
+          - { target: esp32c6, board: 1 }
+          - { target: esp32c6, board: 2 }
+          - { target: esp32c3, board: 4 }
     steps:
       - uses: actions/checkout@v4
 
@@ -30,10 +34,10 @@ jobs:
           idf.py --version
           python --version
 
-      - name: Build (esp32c6, APP_BOARD=${{ matrix.board }})
+      - name: Build (${{ matrix.target }}, APP_BOARD=${{ matrix.board }})
         run: |
           . $IDF_PATH/export.sh
-          idf.py set-target esp32c6
+          idf.py set-target ${{ matrix.target }}
           idf.py -DAPP_BOARD=${{ matrix.board }} build
 
       - name: Size report
@@ -45,7 +49,7 @@ jobs:
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-board${{ matrix.board }}-${{ matrix.idf }}
+          name: firmware-${{ matrix.target }}-board${{ matrix.board }}
           path: |
             build/beacon_gw.bin
             build/bootloader/bootloader.bin

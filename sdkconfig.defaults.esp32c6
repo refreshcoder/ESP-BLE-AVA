@@ -1,0 +1,10 @@
+# ESP32-C6 specific
+# The C6 radio can do Wi-Fi / BLE / 802.15.4 over one RF path. This project only
+# needs Wi-Fi + BLE, so 802.15.4 is disabled to save RAM/flash and remove a
+# coexistence contender.
+CONFIG_IEEE802154_ENABLED=n
+
+# Low power: CONFIG_BT_CTRL_MODEM_SLEEP does not exist on the C6 (it is C3-only).
+# For low-power advertising use CONFIG_PM_ENABLE + tickless idle, and the SoftAP
+# must stay off.
+# CONFIG_PM_ENABLE=n

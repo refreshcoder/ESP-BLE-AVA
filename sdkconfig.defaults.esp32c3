@@ -1,0 +1,6 @@
+# ESP32-C3 specific
+# The C3 has no 802.15.4 radio, nothing to disable there.
+
+# Modem sleep exists on the C3 only. Keep it off while the SoftAP is up: it is
+# incompatible with keeping Wi-Fi associated.
+CONFIG_BT_CTRL_MODEM_SLEEP=n

@@ -32,6 +32,20 @@ Everything else follows from those two sentences. What they eliminate:
 ESP32-C6: single RISC-V core @160 MHz (+ LP core), 512 KB SRAM, 4 MB flash,
 Wi-Fi 6 (2.4 GHz) + BLE 5.3 + 802.15.4 — **one RF path**, time-division multiplexed.
 
+**ESP32-C3 variant (also supported):** single RISC-V core @160 MHz, 400 KB SRAM,
+Wi-Fi 4 + BLE 5.0, no 802.15.4, native USB on GPIO18/19. The code is identical; the
+budget shifts as follows (both measured on v5.5.6):
+
+| | ESP32-C6 | ESP32-C3 |
+|---|---|---|
+| Image | 1144 KB | 973 KB |
+| Static RAM | 186,786 B (41.3 % of 452,112) | 151,520 B (47.2 % of 321,296) |
+| Heap headroom at startup | ~265 KB | ~166 KB |
+| Coexistence rating (official table) | `C1` for SoftAP×BLE | `C1` — identical |
+
+The tighter C3 heap is the only real constraint: fine for this firmware, but a reason to
+prefer the C6 if the UI or the archive grows substantially.
+
 Decisions taken because of this:
 
 - **802.15.4 disabled** (`# CONFIG_IEEE802154_ENABLED is not set`) — it is a third

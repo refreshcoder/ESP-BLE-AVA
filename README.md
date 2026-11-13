@@ -8,7 +8,7 @@ Scan nearby BLE advertisements, then **replicate them byte-for-byte**.
 > Documentation: [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
 > decisions) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna, console).
 
-Built for a single **ESP32-C6** running ESP-IDF. Capturing and broadcasting are
+Built for a single **ESP32-C6** (or **ESP32-C3**) running ESP-IDF. Capturing and broadcasting are
 **mutually exclusive** modes — that removes self-capture feedback loops and radio
 time-sharing contention on a single-radio SoC.
 
@@ -50,11 +50,16 @@ time-sharing contention on a single-radio SoC.
 
 ## Hardware
 
-| Board | Notes |
-|---|---|
-| **Seeed XIAO ESP32-C6** (default, `APP_BOARD=2`) | Single-colour user LED on **GPIO15**, BOOT button **GPIO9**, native USB-JTAG, battery pads + u.FL, 4 MB flash |
-| Espressif ESP32-C6-DevKitC-1 (`APP_BOARD=1`) | WS2812 RGB on **GPIO8**, BOOT **GPIO9**, two USB ports, documented schematic |
-| Waveshare ESP32-C6-Zero (`APP_BOARD=3`) | Verify silkscreen before trusting the defaults |
+| Board | `APP_BOARD` | Notes |
+|---|---|---|
+| **Seeed XIAO ESP32-C6** (default on C6) | `2` | Single-colour LED **GPIO15**, BOOT **GPIO9**, native USB-JTAG, battery pads + u.FL, 4 MB flash |
+| Espressif ESP32-C6-DevKitC-1 | `1` | WS2812 RGB **GPIO8**, BOOT **GPIO9**, two USB ports, documented schematic |
+| Waveshare ESP32-C6-Zero | `3` | Verify silkscreen before trusting the defaults |
+| **ESP32-C3 SuperMini** (default on C3) | `4` | Single-colour LED **GPIO8**, BOOT **GPIO9**, native USB-JTAG, ~¥9-15 |
+| Espressif ESP32-C3-DevKitM-1 | `5` | WS2812 RGB **GPIO8**, BOOT **GPIO9** |
+
+`BOARD_ID` follows the build target by default, so the same tree builds for both chips
+without editing anything.
 
 Only **two GPIOs** are used (LED + button), so any C6 board works after editing `main/board.h`.
 Native USB is **GPIO12/GPIO13** on the C6 (unlike the C3, which uses 18/19).
@@ -71,8 +76,9 @@ current spike). Use USB, a power bank, 3×AA (4.5 V) or a CR123A.
 # ESP-IDF >= v5.2 required (v5.5.6 verified)
 . $IDF_PATH/export.sh
 
-idf.py set-target esp32c6
-idf.py -DAPP_BOARD=2 build          # 2 = XIAO C6 (default if omitted)
+idf.py set-target esp32c6           # or esp32c3
+idf.py build                        # preset follows the target
+#   idf.py -DAPP_BOARD=1 build      # override: DevKitC-1
 idf.py -p /dev/ttyACM0 flash monitor
 ```
 
@@ -238,13 +244,17 @@ curl -H "Authorization: Bearer $T" -X POST http://192.168.4.1/api/clone -d '{"ad
 
 Verified locally with **ESP-IDF v5.5.6** / riscv32-esp-elf 14.2.0:
 
-| Item | Result |
-|---|---|
-| Build | ✅ clean, **zero warnings in project sources** |
-| Image | 1144 KB in a 1536 KB slot (392 KB headroom) |
-| Static RAM | 186,786 B / 452,112 B = **41.3 %** → ~265 KB dynamic heap |
-| Frontend | gzip-embedded, 10,216 B (26.6 KB raw) |
-| Presets | both `APP_BOARD=1` and `=2` build |
+| Item | ESP32-C6 | ESP32-C3 |
+|---|---|---|
+| Build | ✅ clean, zero warnings | ✅ clean, zero warnings |
+| Image | 1144 KB in a 1536 KB slot (392 KB headroom) | **973 KB** in the same slot (563 KB headroom) |
+| Static RAM | 186,786 / 452,112 B = **41.3 %** | 151,520 / 321,296 B = **47.2 %** |
+| Dynamic heap headroom | ~265 KB | **~166 KB** (tighter, still comfortable) |
+| Frontend | gzip-embedded, 10,216 B (26.6 KB raw) | same |
+| Presets | `APP_BOARD=1` and `=2` | `APP_BOARD=4` (default) and `=5` |
+
+Target-specific defaults live in `sdkconfig.defaults.esp32c6` / `sdkconfig.defaults.esp32c3`;
+`idf.py set-target <chip>` picks them up automatically.
 
 Three issues were found by actually compiling (do not reintroduce them):
 
@@ -308,10 +318,12 @@ docs/hardware.md       pinout, power options, antenna and console notes
 Issues and pull requests are welcome. Before sending a PR:
 
 ```bash
-idf.py -DAPP_BOARD=1 build && idf.py -DAPP_BOARD=2 build    # both presets must pass
+idf.py set-target esp32c6 && idf.py -DAPP_BOARD=1 build
+idf.py set-target esp32c6 && idf.py -DAPP_BOARD=2 build
+idf.py set-target esp32c3 && idf.py -DAPP_BOARD=4 build
 ```
 
-CI runs the same two builds on every push. Keep changes to `main/www/index.html`
+CI runs exactly these three builds on every push. Keep changes to `main/www/index.html`
 self-contained (no CDN, no external fonts) — the device has no internet access.
 
 ## License

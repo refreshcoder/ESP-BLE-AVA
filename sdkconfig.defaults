@@ -1,28 +1,24 @@
 # ============================================================
-# Target: ESP32-C6 (XIAO C6 / DevKitC-1 / SuperMini)
-# Requires ESP-IDF >= v5.2 (v5.5.6 verified)
+# Common defaults for ESP32-C6 and ESP32-C3.
+# Target-specific settings live in sdkconfig.defaults.<target>.
+#   idf.py set-target esp32c6    (or esp32c3)
+# Requires ESP-IDF >= v5.2 (v5.5.6 verified).
 # ============================================================
-CONFIG_IDF_TARGET="esp32c6"
 
-# ---------- Flash ----------
-# Most C6 boards are 4 MB; confirm with `esptool.py flash_id` and adjust if 8 MB
+# ---------- Flash / partitions ----------
+# Confirm with `esptool.py flash_id`; adjust partitions if you have 8 MB.
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
 # ---------- Console over native USB-Serial/JTAG ----------
-# No CH340/CP2102 on these boards; the USB-C goes straight to the C6 USB-JTAG
-# (/dev/ttyACM0). Switch back to UART if your board has a bridge chip.
+# No CH340/CP2102 on XIAO C6, C3 SuperMini or DevKitC/M-1 USB port: it appears as
+# /dev/ttyACM0. Switch back to UART if your board has a bridge chip.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
-# ---------- Tri-radio: disable 802.15.4 ----------
-# The C6 radio can do Wi-Fi / BLE / 802.15.4, all sharing one RF path.
-# This project only needs Wi-Fi + BLE; disabling 15.4 saves RAM/flash and
-# removes a coexistence contender.
-CONFIG_IEEE802154_ENABLED=n
+# ---------- RF coexistence ----------
 CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
-# Note: v5.5 has no separate COEX preference symbol; balanced is the default
 
 # ---------- BLE: NimBLE (broadcaster + observer only) ----------
 CONFIG_BT_ENABLED=y
@@ -36,9 +32,6 @@ CONFIG_BT_NIMBLE_EXT_ADV=n
 CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=64
 CONFIG_BT_NIMBLE_LOG_LEVEL_ERROR=y
 CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096
-# Low power note: CONFIG_BT_CTRL_MODEM_SLEEP exists ONLY on ESP32-C3.
-# On C6 use CONFIG_PM_ENABLE=y + tickless idle, and the Wi-Fi AP must be off.
-# CONFIG_PM_ENABLE=n
 
 # ---------- Wi-Fi ----------
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y

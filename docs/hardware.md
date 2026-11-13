@@ -1,16 +1,22 @@
 # Hardware notes
 
-Everything here is about the **ESP32-C6** and the three supported boards. The firmware
-uses exactly **two GPIOs** (LED + button), so any C6 board works after editing
-`main/board.h`.
+Everything here is about the **ESP32-C6 / ESP32-C3** and the five supported boards. The
+firmware uses exactly **two GPIOs** (LED + button), so any board of either chip works
+after editing `main/board.h`.
 
 ## Supported boards
 
 | `APP_BOARD` | Board | On-board LED | BOOT button | Flash |
 |---|---|---|---|---|
 | `1` | Espressif **ESP32-C6-DevKitC-1** | WS2812 RGB on **GPIO8** | **GPIO9** | 4 MB (N4/N8 variants exist) |
-| `2` (default) | Seeed **XIAO ESP32-C6** | single-colour LED on **GPIO15** | **GPIO9** | 4 MB |
+| `2` (default on C6) | Seeed **XIAO ESP32-C6** | single-colour LED on **GPIO15** | **GPIO9** | 4 MB |
 | `3` | Waveshare **ESP32-C6-Zero** | verify silkscreen | **GPIO9** | 4 MB or 8 MB depending on SKU |
+| `4` (default on C3) | **ESP32-C3 SuperMini** | single-colour LED on **GPIO8**, usually active low | **GPIO9** | 4 MB |
+| `5` | Espressif **ESP32-C3-DevKitM-1** | WS2812 RGB on **GPIO8** | **GPIO9** | 4 MB |
+
+`BOARD_ID` defaults from the build target (`esp32c6` → 2, `esp32c3` → 4), so
+`idf.py set-target esp32c3 && idf.py build` just works. A `#warning` fires if a preset
+obviously belongs to the other chip, which usually means a stale `-DAPP_BOARD`.
 
 ```bash
 idf.py -DAPP_BOARD=2 build      # switch at build time, no source edit needed
@@ -22,7 +28,7 @@ idf.py -DAPP_BOARD=2 build      # switch at build time, no source edit needed
 |---|---|---|
 | Status LED | `BOARD_LED_GPIO` (`8` or `15`) | WS2812 is driven over RMT; a mono LED is driven as a plain GPIO |
 | Button | **GPIO9** | BOOT pin, active low. On the XIAO the other button is RESET and cannot be read by firmware |
-| Native USB | **GPIO12 (D-), GPIO13 (D+)** | C6 specific — the **C3 uses 18/19**, do not copy C3 wiring |
+| Native USB | **C6: GPIO12 (D-), GPIO13 (D+)**<br>**C3: GPIO18 (D-), GPIO19 (D+)** | The most common cross-wiring mistake between the two chips |
 | UART0 (fallback console) | GPIO21 (TX), GPIO20 (RX) | usually not brought out; only needed if USB-JTAG misbehaves |
 
 The XIAO silk prints `D0…D10`; map those to GPIO numbers from Seeed's pinout diagram
