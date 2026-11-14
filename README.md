@@ -5,8 +5,10 @@
 
 Scan nearby BLE advertisements, then **replicate them byte-for-byte**.
 
-> Documentation: [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
-> decisions) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna, console).
+> Documentation: [docs/flashing.md](docs/flashing.md) (how to get firmware onto the board,
+> no toolchain needed) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna,
+> console) · [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
+> decisions).
 
 Built for a single **ESP32-C6** (or **ESP32-C3**) running ESP-IDF. Capturing and broadcasting are
 **mutually exclusive** modes — that removes self-capture feedback loops and radio
@@ -81,6 +83,15 @@ idf.py build                        # preset follows the target
 #   idf.py -DAPP_BOARD=1 build      # override: DevKitC-1
 idf.py -p /dev/ttyACM0 flash monitor
 ```
+
+Already have a built image? Skip the toolchain entirely — the CI artifacts contain the
+four files needed, and `tools/flash.sh` (or `tools\flash.bat`) flashes them:
+
+```bash
+./tools/flash.sh /dev/ttyACM0
+```
+
+See [docs/flashing.md](docs/flashing.md) for ports, first-boot expectations and recovery.
 
 1. The board brings up SoftAP `BeaconGW-XXXX`, password `beaconXXXX` (last two MAC bytes,
    also printed on the serial console).
