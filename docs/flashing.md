@@ -109,17 +109,76 @@ There is no OTA endpoint in this version, so updating always means a cable.
 
 ---
 
-## Flashing from a phone
+## Flashing from an Android phone
 
-Possible, but not the recommended path:
+Possible, and it works fine for this chip because the **ESP32-C6 USB-Serial/JTAG
+peripheral (`303a:1001`) speaks the same SLIP protocol as esptool over a cable** — no
+CP210x/CH340 driver is involved.
 
-- **Web Serial** (esptool-js, ESP Launchpad) is desktop Chrome only; it is not usable on
-  Android/iOS today.
-- Android apps that flash over OTG exist and work with the `303a:1001` USB-JTAG
-  peripheral, but they are third-party and uneven in quality.
-- A phone's OTG port is usually current-limited to 100–500 mA, while flash erase peaks
-  higher than that — an interrupted erase is the classic way to make people think a
-  board is dead.
+Power is *not* the problem people expect: in ROM download mode the radios are off, so
+current stays around 50–150 mA. The 350–420 mA figure only applies when the firmware is
+running with the SoftAP up.
 
-For field updates without a laptop, HTTP OTA over the device's own SoftAP is the sane
-answer (not implemented yet — see DESIGN.md §13).
+### One file instead of four (recommended for phones)
+
+```bash
+./tools/merge.sh      # -> build/beacon_gw-full.bin  (≈1.3 MB)
+```
+
+Then every phone tool only needs **one file at offset `0x0`**, which removes most of the
+ways this can go wrong.
+
+### Route A — Chrome + Web Serial (no install)
+
+Web Serial reached Chrome for Android in **148** (before that it was Bluetooth-RFCOMM
+only). Check `chrome://version` first; MIUI's built-in browser will not work.
+
+1. Open <https://espressif.github.io/esptool-js/> in Chrome
+2. **Connect** → pick the device (a permission dialog appears) → baud `460800`
+3. **Add file**: `beacon_gw-full.bin` at offset `0x0`
+   (or the four files at `0x0`, `0x8000`, `0xf000`, `0x20000`)
+4. **Program** → wait, then the board reboots
+
+### Route B — Termux + nrflash (no root, scriptable)
+
+```bash
+# Termux from F-Droid (not the Play Store build) + Termux:API from F-Droid
+pkg update && pkg install python termux-api libusb
+pip install nrflash
+
+nrflash probe                                   # chip auto-detected
+nrflash write 0x0:beacon_gw-full.bin            # single merged image
+# or: nrflash write 0x0:bootloader.bin 0x8000:partition-table.bin \
+#                   0xf000:ota_data_initial.bin 0x20000:beacon_gw.bin
+```
+
+`nrflash` talks to the USB endpoints directly (Android hands apps a file descriptor via
+`termux-usb`, not a `/dev/ttyACM*` node), uploads the ESP-IDF RAM stub, and prompts for
+USB permission once per session. Native-USB chips such as C3/C6 do not need baud
+negotiation.
+
+### Route C — third-party APKs
+
+There are Android apps that claim C6 support (for example `Dzarda7/esp-flasher-android`
+or `AvinasheeTech/ESP32-phone-flasher`). They work, but they are unmaintained to varying
+degrees; prefer A or B.
+
+### Where do the files come from without a PC?
+
+Download the CI artifact in the phone browser (GitHub → Actions → green run → Artifacts),
+unzip it, and you get `build/` with the four images. A merged image has to be produced
+once with `tools/merge.sh` (needs a machine), after which the single `.bin` can live
+wherever you like.
+
+### MIUI / HyperOS gotchas
+
+* **Settings → Additional settings → OTG connection** may be set to "turn off after
+  10 minutes". Set it to stay on, or the cable can go dead mid-flash.
+* Choose "File transfer" if MIUI asks what the USB connection is for; a charging-only
+  selection can leave the data lines unpowered on some builds.
+* Keep the cable short and do not let the screen lock/sleep during Programming.
+
+### Still not recommended for routine updates
+
+Flashing over a phone cable is fine as a rescue path, but HTTP OTA over the device's own
+SoftAP remains the better field-update route (not implemented yet — see DESIGN.md §13).

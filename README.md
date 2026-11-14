@@ -320,6 +320,8 @@ main/
 ├── web_server.[ch]    REST API + embedded SPA + bearer auth
 └── www/index.html     single-page UI (gzipped at build time)
 
+docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
+tools/                 flash.sh / flash.bat / merge.sh helpers
 docs/hardware.md       pinout, power options, antenna and console notes
 .github/workflows      CI: builds both board presets on ESP-IDF v5.5
 ```
