@@ -163,6 +163,18 @@ There are Android apps that claim C6 support (for example `Dzarda7/esp-flasher-a
 or `AvinasheeTech/ESP32-phone-flasher`). They work, but they are unmaintained to varying
 degrees; prefer A or B.
 
+### Fastest route with no PC at all
+
+A merged image for the default preset is committed to the repo, so a phone can fetch it
+with one tap:
+
+```
+https://github.com/refreshcoder/ESP-BLE-AVA/raw/main/firmware/beacon_gw-c6-board2-full.bin
+```
+
+Flash it at offset **`0x0`** — nothing else to configure. See
+[`firmware/README.md`](../firmware/README.md) for the commit it was built from.
+
 ### Where do the files come from without a PC?
 
 Download the CI artifact in the phone browser (GitHub → Actions → green run → Artifacts),
