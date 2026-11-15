@@ -306,6 +306,7 @@ const I18N = {
     cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
     cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
     cap_avg: "avg", cap_ago: "s ago", cap_raw: "raw bytes, ",
+    cap_rsp: "scan response, ", form_rsp: "Scan response (replayed verbatim, cannot be edited)",
     cap_ble_adv: "BLE advertisement", btn_clone_sm: "Clone",
     toast_session_cleared: "Session captures cleared",
     toast_cloning: "Cloning now (interval {itvl}ms)",
@@ -386,6 +387,7 @@ const I18N = {
     cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
     cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",
     cap_avg: "均值", cap_ago: "秒前", cap_raw: "原始字节，",
+    cap_rsp: "扫描响应，", form_rsp: "扫描响应（原样重放，不可编辑）",
     cap_ble_adv: "BLE 广播", btn_clone_sm: "克隆",
     toast_session_cleared: "本次会话捕获已清空",
     toast_cloning: "正在克隆（间隔 {itvl}ms）",
@@ -637,7 +639,9 @@ function renderCaps() {
       "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
         "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" +
         "<details style='margin-top:4px'><summary>" + t("cap_raw") + d.adv_len + "B</summary>" +
-        "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details></td>" +
+        "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details>" +
+        (d.rsp_len ? "<details style='margin-top:2px'><summary>" + t("cap_rsp") + d.rsp_len + "B</summary>" +
+          "<div class='hexbox'>" + hexPairs(d.rsp) + "</div></details>" : "") + "</td>" +
       "<td>" + d.rssi + "<div class='dim' style='font-size:11px'>" + t("cap_avg") + " " + d.rssi_avg + "</div></td>" +
       "<td>" + (d.itvl_ms ? d.itvl_ms + "ms" : "—") + "<div class='dim' style='font-size:11px'>" + Math.round(d.age_ms / 1000) + t("cap_ago") + "</div></td>" +
       "<td><button class='btn pri sm'>" + t("btn_clone_sm") + "</button></td>";
@@ -759,7 +763,9 @@ function openForm(i) {
   $("form-ibe").style.display = isRaw ? "none" : "block";
   $("form-raw").style.display = isRaw ? "block" : "none";
   if (isRaw) {
-    $("form-raw").innerHTML = esc(t("raw_note")) + "<div class='hexbox'>" + hexPairs(p.raw) + "</div>";
+    $("form-raw").innerHTML = esc(t("raw_note")) + "<div class='hexbox'>" + hexPairs(p.raw) + "</div>" +
+      (p.rsp ? "<div class='dim' style='margin-top:8px'>" + esc(t("form_rsp")) + "</div>" +
+        "<div class='hexbox'>" + hexPairs(p.rsp) + "</div>" : "");
   } else {
     $("f-uuid").value = fmtUuid(p.uuid);
     $("f-major").value = p.major;
@@ -775,7 +781,11 @@ async function saveForm() {
     adv_itvl_ms: +$("f-itvl").value, radio_dbm: +$("f-tx").value,
     scannable: $("f-scan").checked, enabled: true
   };
-  if (o.kind === 1) { body.raw = o.raw; if (o.src) { body.src = o.src; body.src_adv_type = o.src_adv_type; } }
+  if (o.kind === 1) {
+    body.raw = o.raw;
+    if (o.rsp) body.rsp = o.rsp;
+    if (o.src) { body.src = o.src; body.src_adv_type = o.src_adv_type; }
+  }
   else {
     body.uuid = $("f-uuid").value.trim();
     body.major = +$("f-major").value; body.minor = +$("f-minor").value;

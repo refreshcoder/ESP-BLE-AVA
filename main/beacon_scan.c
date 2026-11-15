@@ -10,6 +10,10 @@
 
 static const char *TAG = "scan";
 
+/* BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP; kept numeric so the constant name cannot differ
+ * between NimBLE versions. */
+#define ADV_RPT_SCAN_RSP 0x04
+
 static detection_t       s_tab[SCAN_TAB_MAX];
 static int               s_used;
 static SemaphoreHandle_t s_mtx;
@@ -86,6 +90,18 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
         was_new = true;
     }
 
+    /* A scan response answers our own SCAN_REQ; it is not an advertisement. Store it
+     * separately and return, so the replayed ADV payload and the interval estimate are
+     * never touched by it. The address matches, so it lands on the same slot. */
+    if (desc->event_type == ADV_RPT_SCAN_RSP) {
+        uint8_t rn = desc->length_data;
+        if (rn > SCAN_RAW_MAX) rn = SCAN_RAW_MAX;
+        memcpy(slot->rsp, desc->data, rn);
+        slot->rsp_len = rn;
+        xSemaphoreGive(s_mtx);
+        return;
+    }
+
     /* Estimate the advertising interval with an EMA over gaps (20 ms .. 10 s only) */
     if (slot->count > 0) {
         uint32_t gap = t - slot->last_ms;
@@ -97,6 +113,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
 
     slot->count++;
     slot->last_ms = t;
+    slot->adv_type = desc->event_type;   /* a slot may have been created by a scan response */
     slot->rssi_last = desc->rssi;
     if (desc->rssi > slot->rssi_max) slot->rssi_max = desc->rssi;
     slot->rssi_avg = (int8_t)((slot->rssi_avg * 7 + desc->rssi) / 8);   /* IIR smoothing */
@@ -202,7 +219,7 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     struct ble_gap_disc_params p = {0};
     p.itvl              = (uint16_t)u_itvl;
     p.window            = (uint16_t)u_win;
-    p.passive           = 1;        /* passive scan: no SCAN_REQ, lowest power */
+    p.passive           = 0;        /* active scan: needed to receive SCAN_RSP payloads */
     p.filter_duplicates = 0;        /* we aggregate ourselves; controller de-dup eats counts */
 
     int rc = ble_gap_disc(BLE_OWN_ADDR_PUBLIC, BLE_HS_FOREVER, &p, disc_event, NULL);
@@ -214,7 +231,7 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     s_running = true;
     s_since_ms = now_ms();
     s_pkts = 0;
-    ESP_LOGI(TAG, "scan on: win=%ums itvl=%ums (%.0f%%)",
+    ESP_LOGI(TAG, "scan on: win=%ums itvl=%ums (%.0f%%) active",
              (unsigned)s_win_ms, (unsigned)s_itvl_ms,
              (double)s_win_ms * 100.0 / (double)s_itvl_ms);
     return ESP_OK;

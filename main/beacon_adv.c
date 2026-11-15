@@ -137,6 +137,25 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
         }
     }
 
+    /* Scan response (RAW profiles only). Always (re)set it -- including the empty case --
+     * so a previous profile's response cannot leak through. Only a scannable
+     * advertisement (ADV_SCAN_IND here) can answer SCAN_REQ at all. */
+    {
+        const uint8_t *rsp = (p->kind == PROFILE_KIND_RAW && p->scannable && p->rsp_len)
+                             ? p->rsp : NULL;
+        uint8_t rsp_len = rsp ? p->rsp_len : 0;
+        if (p->kind == PROFILE_KIND_RAW && p->rsp_len && !p->scannable) {
+            ESP_LOGW(TAG, "profile has a scan response but is not scannable -> dropped");
+            applog_add(LOG_T_CFG, 0, "rsp dropped (profile not scannable)");
+        }
+        int rrc = ble_gap_adv_rsp_set_data(rsp, rsp_len);
+        if (rrc != 0) {
+            ESP_LOGW(TAG, "adv_rsp_set_data(%u) rc=%d -> advertising without scan response",
+                     (unsigned)rsp_len, rrc);
+            applog_add(LOG_T_ERR, 0, "rsp_set_data rc=%d", rrc);
+        }
+    }
+
     /* 3) Address: optional static-random, one per profile, so downstream can tell devices apart */
     uint8_t own = s_own_addr_type;
     if (p->use_rand_addr) {
@@ -171,9 +190,10 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
     if (p->kind == PROFILE_KIND_RAW) {
         char h[CFG_RAW_MAX * 2 + 1];
         cfg_hex_to_str(p->raw, p->raw_len, h);
-        ESP_LOGI(TAG, "clone on: '%s' raw=%s itvl=%ums tx=%ddBm%s",
+        ESP_LOGI(TAG, "clone on: '%s' raw=%s itvl=%ums tx=%ddBm%s%s",
                  p->name, h, p->adv_itvl_ms, p->radio_dbm,
-                 p->scannable ? " (scannable)" : "");
+                 p->scannable ? " (scannable)" : "",
+                 p->rsp_len ? " +rsp" : "");
     } else {
         char u[33];
         cfg_uuid_to_str(p->uuid, u);

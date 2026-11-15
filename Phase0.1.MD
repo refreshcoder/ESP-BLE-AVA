@@ -144,6 +144,29 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 
 ---
 
+## 后续改动（本次全新增加，**未编译、未上板**）
+
+### SCAN_RSP 复制
+
+之前的结论表里"Scan Response 完全没有"是当时的事实。现已实现，改动如下：
+
+| 文件 | 改动 |
+|---|---|
+| `beacon_scan.c` | `params.passive = 0`（主动扫描）；`event_type == 0x04` 的第二个事件写入 `rsp[31]` 并**提前返回**（不污染 `raw`、间隔 EMA、包计数） |
+| `beacon_scan.h` | `detection_t` 新增 `rsp[31]` + `rsp_len` |
+| `app_cfg.h/.c` | profile 新增 `rsp[31]` + `rsp_len`，JSON 里为可选字段 `rsp` |
+| `beacon_adv.c` | 每次 apply 都调 `ble_gap_adv_rsp_set_data()`（空时传 NULL/0 清除，避免上一个 profile 的响应泄漏）；仅在 `scannable` 时生效 |
+| `web_server.c` | `/api/scan` 输出 `rsp`/`rsp_len`；`/api/clone` 复制 rsp，并把"抓到过扫描响应"视为源可扫描 |
+| `index.html` | 捕获行多一个"扫描响应"十六进制折叠块；高级编辑显示 rsp；保存时保留 rsp |
+
+待验证（需要有工具链的机器）：
+
+1. `ble_gap_adv_rsp_set_data(NULL, 0)` 在本 IDF/NimBLE 版本确实能清除旧响应（若不行，改成每次显式写入 1 字节空数据）
+2. 主动扫描下 `event_type` 确实为 `0x04`（常量已用数字，避免头文件差异）
+3. 包率/功耗变化：主动扫描每个广播多发一个 SCAN_REQ
+
+---
+
 ## 复现命令
 
 ```powershell

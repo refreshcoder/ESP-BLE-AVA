@@ -30,6 +30,8 @@ typedef struct {
     /* ---- kind = RAW ---- */
     uint8_t  raw[CFG_RAW_MAX];
     uint8_t  raw_len;
+    uint8_t  rsp[CFG_RAW_MAX];  /* scan response, replayed verbatim; empty = none */
+    uint8_t  rsp_len;
 
     /* ---- common ---- */
     int8_t   radio_dbm;       /* radio TX power, dBm */

@@ -462,6 +462,12 @@ static esp_err_t h_scan_get(httpd_req_t *req)
             cJSON_AddStringToObject(o, "raw", rh);
             cJSON_AddBoolToObject(o, "clonable", d->raw_len >= 2);
         }
+        cJSON_AddNumberToObject(o, "rsp_len", d->rsp_len);
+        if (d->rsp_len) {
+            char sh[SCAN_RAW_MAX * 2 + 1];
+            cfg_hex_to_str(d->rsp, d->rsp_len, sh);
+            cJSON_AddStringToObject(o, "rsp", sh);
+        }
         cJSON_AddItemToArray(arr, o);
     }
     free(tab);
@@ -601,6 +607,8 @@ static esp_err_t h_clone(httpd_req_t *req)
         p->enabled  = true;
         memcpy(p->raw, d.raw, d.raw_len);
         p->raw_len  = d.raw_len;
+        memcpy(p->rsp, d.rsp, d.rsp_len);
+        p->rsp_len  = d.rsp_len;            /* 0 when no SCAN_RSP was captured */
         memcpy(p->src_addr, addr, 6);
         p->src_adv_type = d.adv_type;
         if (d.is_ibeacon) {
@@ -614,8 +622,9 @@ static esp_err_t h_clone(httpd_req_t *req)
         p->radio_dbm   = 9;
         p->adv_itvl_ms = itvl;
         /* Keep scannability when the source was ADV_IND/ADV_SCAN_IND, otherwise
-         * advertise non-connectable and non-scannable. */
-        p->scannable   = (d.adv_type == 0x00 || d.adv_type == 0x02);
+         * advertise non-connectable and non-scannable. A captured scan response implies
+         * the source answered SCAN_REQ, so it was scannable. */
+        p->scannable   = (d.adv_type == 0x00 || d.adv_type == 0x02) || d.rsp_len > 0;
         /* Address: a random address clones exactly; a public one can only be sent as
          * the same bytes under the random type. */
         if (d.addr_type == ADDR_TYPE_RANDOM) {

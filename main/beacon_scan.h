@@ -13,6 +13,8 @@ typedef struct {
     uint8_t  adv_type;         /* BLE_HCI_ADV_RPT_EVTYPE_* */
     uint8_t  raw_len;
     uint8_t  raw[SCAN_RAW_MAX];/* raw advertising data, replayed verbatim */
+    uint8_t  rsp_len;          /* scan response length, 0 = none captured */
+    uint8_t  rsp[SCAN_RAW_MAX];/* raw scan response, replayed verbatim */
 
     /* iBeacon fields, when the payload matches */
     bool     is_ibeacon;

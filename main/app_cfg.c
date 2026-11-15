@@ -163,6 +163,15 @@ bool cfg_profile_from_json(const cJSON *j, beacon_profile_t *p, char *err, size_
         if (len < 2 || len > CFG_RAW_MAX) { snprintf(err, errlen, "raw must be 2..31 bytes hex"); return false; }
         if (!cfg_hex_from_str(s, p->raw, len)) { snprintf(err, errlen, "raw is not valid hex"); return false; }
         p->raw_len = (uint8_t)len;
+        /* optional: the scan response captured alongside the advertisement */
+        s = jstr(j, "rsp");
+        if (s && *s) {
+            int rl = (int)(strlen(s) / 2);
+            if (rl < 1 || rl > CFG_RAW_MAX || !cfg_hex_from_str(s, p->rsp, rl)) {
+                snprintf(err, errlen, "rsp must be 1..31 bytes hex"); return false;
+            }
+            p->rsp_len = (uint8_t)rl;
+        }
         p->ref_rssi = -59;
         /* If the request also carries a uuid, parse it for display; optional. */
         cfg_uuid_from_str(jstr(j, "uuid"), p->uuid);
@@ -217,6 +226,10 @@ void cfg_profile_to_json(const beacon_profile_t *p, cJSON *dst)
         char h[CFG_RAW_MAX * 2 + 1];
         cfg_hex_to_str(p->raw, p->raw_len, h);
         cJSON_AddStringToObject(dst, "raw", h);
+        if (p->rsp_len) {
+            cfg_hex_to_str(p->rsp, p->rsp_len, h);
+            cJSON_AddStringToObject(dst, "rsp", h);
+        }
     }
     cJSON_AddStringToObject(dst, "uuid", u);
     cJSON_AddNumberToObject(dst, "major", p->major);

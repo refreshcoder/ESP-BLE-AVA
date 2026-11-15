@@ -35,7 +35,7 @@ time-sharing contention on a single-radio SoC.
 
 | | |
 |---|---|
-| **Raw replication** | Captures the full 31-byte advertising payload and replays it with `ble_gap_adv_set_data()` — works for iBeacon, Eddystone-UID/URL, AltBeacon, plain named BLE devices and private formats |
+| **Raw replication** | Captures the full 31-byte advertising payload **and the scan response** and replays both with `ble_gap_adv_set_data()` / `ble_gap_adv_rsp_set_data()` — works for iBeacon, Eddystone-UID/URL, AltBeacon, plain named BLE devices and private formats |
 | **Metadata replication** | Re-estimates the advertising interval (EMA over inter-arrival gaps), preserves scannability, optionally clones a static-random address |
 | **Exclusive modes** | `sniff` / `clone` / `idle` arbitrated by one module (`radio.c`) with a mutex — no self-capture, no radio contention |
 | **3 profile slots** | Stored atomically in NVS; when full the least-recently-used non-active slot is overwritten |
@@ -132,10 +132,12 @@ See [docs/flashing.md](docs/flashing.md) for ports, first-boot expectations and 
 
 ### Capture
 
-Passive scan (`BLE_GAP_DISC_MODE`, duty cycle capped at 50% to keep the SoftAP alive),
-`filter_duplicates = 0` so the application keeps its own counters. Per device we store:
+Active scan (`SCAN_REQ`, so the source's SCAN_RSP is captured too), duty cycle capped at 50% to
+keep the SoftAP alive, `filter_duplicates = 0` so the application keeps its own counters.
+Per device we store:
 
 - `raw[31]` — the complete AD structure, verbatim
+- `rsp[31]` — the scan response, verbatim (empty when the source never answered)
 - `adv_type` — `ADV_IND` / `ADV_SCAN_IND` / `ADV_NONCONN_IND` …
 - `itvl_ms` — EMA of inter-arrival gaps (clamped to 20 ms … 10 s)
 - RSSI last/max/IIR-average, packet count, first/last seen
@@ -287,8 +289,8 @@ Three issues were found by actually compiling (do not reintroduce them):
 
 1. **Extended advertising (>31 bytes) cannot be replicated.** Legacy advertising data
    is capped at 31 bytes.
-2. **Passive scan only** — device names carried in the scan response are invisible.
-   Adding active scanning is a small change (it costs airtime).
+2. **Active scan costs airtime** — the observer sends a SCAN_REQ per advertisement, and a clone
+   only answers SCAN_REQ when the source profile is scannable (`ADV_SCAN_IND`).
 3. **Public addresses cannot be fully cloned** (see the table above).
 4. **No OTA** in this version; update over USB.
 5. Compile-verified but **not yet run on hardware** — RF behaviour, LED polarity and

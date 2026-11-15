@@ -116,7 +116,8 @@ devices all work through the same code path. iBeacon becomes a special case.
 | Field | Source | Notes |
 |---|---|---|
 | `adv_itvl_ms` | EMA of inter-arrival gaps | Falls back to 100 ms if only one packet was seen |
-| `scannable` | source `event_type` (ADV_IND/ADV_SCAN_IND) | connectable sources are replayed as `ADV_SCAN_IND`, others as `ADV_NONCONN_IND` |
+| `scannable` | source `event_type` (ADV_IND/ADV_SCAN_IND) or a captured SCAN_RSP | connectable sources are replayed as `ADV_SCAN_IND`, others as `ADV_NONCONN_IND` |
+| `rsp[31]` | the source's scan response, verbatim | replayed with `ble_gap_adv_rsp_set_data()`; requires `scannable` |
 | static-random address | source address when its type is random | forced top two bits `11` |
 
 Deliberate omission: when the source is connectable we replay **non-connectable**.
@@ -133,6 +134,30 @@ downstream beacon system reads advertisements only.
 
 Practically irrelevant for beacon use (systems key on UUID/major/minor or manufacturer
 data), fatal for MAC allow-lists.
+
+### 3.5 Scan response (the second 31 bytes)
+
+A legacy advertiser may answer `SCAN_REQ` with up to 31 bytes of `SCAN_RSP`. Once extended
+advertising is out of scope, that is the *only* other payload on the link, and some devices put
+their data there (complete names, more service data) or split it between `ADV` and `SCAN_RSP`.
+
+Consequences for the design:
+
+- The observer must scan **actively** (`params.passive = 0`), otherwise it never sees a response.
+  It arrives as a second `BLE_GAP_EVENT_DISC` for the same address with
+  `event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP (0x04)`.
+- A scan response is **not** an advertisement: it must not overwrite `raw`, the interval
+  estimate or the packet counter — it goes into `rsp[31]` and returns immediately.
+- Replay needs `ble_gap_adv_rsp_set_data()` **and** a scannable advertisement
+  (`ADV_SCAN_IND`). A `SCAN_RSP` on a non-connectable non-scannable advertisement is
+  unreachable on air, so a captured response forces `scannable = true`.
+- The response is (re)set on every `apply`, including the empty case, so a previous profile's
+  scan response cannot leak into the next one.
+- Both buffers are ≤ 31 B, so a profile grows by 32 B (payload + length byte); 3 slots stay
+  far below the NVS blob limit.
+- Cost: an active observer transmits one `SCAN_REQ` per advertisement it hears. Modes are
+  exclusive, so this never competes with our own advertising, and the official SoftAP × BLE-scan
+  coexistence rating (`C1`) is unchanged.
 
 ---
 
@@ -393,8 +418,10 @@ Compile-verified only. Remaining bench work:
 ## 13. Roadmap / known limitations
 
 - **Extended advertising (>31 B) is not replicated.** Legacy limit.
-- **Passive scan only**: names carried in the scan response are invisible. Active scanning
-  would fix it at the cost of airtime and battery.
+- **Scan responses are replayed but not parsed.** Active scanning captures `rsp[31]` and the
+  clone answers `SCAN_REQ` with it, but a device whose *name* lives only in the SCAN_RSP still
+  shows up as unnamed in the UI (only the advertisement is parsed for name/iBeacon fields).
+  The capture archive does not store the scan response either.
 - **No OTA** yet: `esp_ota_write` + validation, slots are already reserved.
 - **No MQTT/cloud reporting**, no Eddystone-specific encoders (raw replay covers them).
 - **Single-radio ceiling**: for guaranteed simultaneous scan + advertise + AP, add a second
