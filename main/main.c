@@ -212,7 +212,8 @@ void app_main(void)
     {
         const beacon_cfg_t *c0 = cfg_get();
         if (c0->active >= 0 && c0->active < c0->count && c0->p[c0->active].clone_public_addr) {
-            esp_err_t ae = esp_iface_mac_addr_set(ESP_MAC_BT, c0->p[c0->active].src_addr);
+            /* note the argument order: (mac, type) */
+            esp_err_t ae = esp_iface_mac_addr_set(c0->p[c0->active].src_addr, ESP_MAC_BT);
             ESP_LOGW(TAG, "ble public addr <- " MACSTR " (%s)",
                      MAC2STR(c0->p[c0->active].src_addr), esp_err_to_name(ae));
         }
