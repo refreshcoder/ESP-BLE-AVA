@@ -108,13 +108,13 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
           <tr><td data-i18n="led_triple">Triple fast blink</td><td data-i18n="led_triple_m">Cloning and a client is on this UI</td></tr>
           <tr><td data-i18n="led_3s">One blink every 3 s</td><td data-i18n="led_3s_m">Idle (profiles exist, radio off)</td></tr>
           <tr><td data-i18n="led_solid">Solid</td><td data-i18n="led_solid_m">No profile at all</td></tr>
-          <tr><td data-i18n="led_six">Six rapid blinks</td><td data-i18n="led_six_m">Radio error</td></tr>
+          <tr><td data-i18n="led_six">Six rapid blinks</td><td data-i18n="led_six_m">Radio error, or the button is being held towards a factory reset</td></tr>
         </table>
         <table class="legend" style="margin-top:10px">
           <tr><th data-i18n="th_button">Button (BOOT)</th><th data-i18n="th_action">Action</th></tr>
           <tr><td data-i18n="btn1_click">Single click</td><td data-i18n="btn1_act">Sniff ⇄ Clone</td></tr>
           <tr><td data-i18n="btn2_click">Double click</td><td data-i18n="btn2_act">Stop radio</td></tr>
-          <tr><td data-i18n="btn_long">Long press 5 s</td><td data-i18n="btn_long_act">Factory reset + reboot</td></tr>
+          <tr><td data-i18n="btn_long">Hold 5 s / 8 s</td><td data-i18n="btn_long_act">5 s warns (fast blinks) · 8 s factory reset; release in between to cancel</td></tr>
         </table>
       </details>
     </div>
@@ -290,11 +290,11 @@ const I18N = {
     led_triple: "Triple fast blink", led_triple_m: "Cloning and a client is on this UI",
     led_3s: "One blink every 3 s", led_3s_m: "Idle (profiles exist, radio off)",
     led_solid: "Solid", led_solid_m: "No profile at all",
-    led_six: "Six rapid blinks", led_six_m: "Radio error",
+    led_six: "Six rapid blinks", led_six_m: "Radio error, or the button is being held towards a factory reset",
     th_button: "Button (BOOT)", th_action: "Action",
-    btn1_click: "Single click", btn1_act: "Sniff ⇄ Clone",
+    btn1_click: "Single click", btn1_act: "Clone on / off",
     btn2_click: "Double click", btn2_act: "Stop radio",
-    btn_long: "Long press 5 s", btn_long_act: "Factory reset + reboot",
+    btn_long: "Hold 5 s / 8 s", btn_long_act: "5 s warns (fast blinks) · 8 s factory reset; release to cancel",
     led_sniff: "double blink", led_clone: "1 Hz blink", led_clone_client: "triple fast", led_idle: "blink every 3 s",
     st_board: "board", st_version: "version", st_ip: "IP", st_profile: "profile", st_none: "(none)",
     st_scan: "scan", st_packets: "packets", st_detected: "detected", st_devices: "devices",
@@ -382,11 +382,11 @@ const I18N = {
     led_triple: "三连快闪", led_triple_m: "克隆中，且有客户端连着本页面",
     led_3s: "每 3 秒闪一次", led_3s_m: "空闲（有配置，射频关闭）",
     led_solid: "常亮", led_solid_m: "没有任何配置",
-    led_six: "六连快闪", led_six_m: "射频错误",
+    led_six: "六连快闪", led_six_m: "射频错误，或正按住按钮即将恢复出厂",
     th_button: "按键（BOOT）", th_action: "动作",
-    btn1_click: "单击", btn1_act: "嗅探 ⇄ 克隆",
+    btn1_click: "单击", btn1_act: "广播 开 / 关",
     btn2_click: "双击", btn2_act: "关闭射频",
-    btn_long: "长按 5 秒", btn_long_act: "恢复出厂 + 重启",
+    btn_long: "按住 5 秒 / 8 秒", btn_long_act: "5 秒警告（急闪）· 8 秒恢复出厂；中途松手取消",
     led_sniff: "双闪", led_clone: "1 Hz 慢闪", led_clone_client: "三连快闪", led_idle: "每 3 秒闪一次",
     st_board: "开发板", st_version: "版本", st_ip: "IP", st_profile: "配置", st_none: "（无）",
     st_scan: "扫描", st_packets: "个包", st_detected: "已发现", st_devices: "个设备",

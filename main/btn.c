@@ -11,7 +11,7 @@ static const char *TAG = "btn";
 
 static btn_single_cb_t s_single;
 static btn_double_cb_t s_double;
-static btn_long_cb_t   s_long;
+static btn_hold_cb_t   s_hold;
 
 static inline uint32_t now_ms(void)
 {
@@ -26,6 +26,7 @@ static inline bool raw_pressed(void)
 static void btn_task(void *arg)
 {
     bool     down = false;
+    bool     warn_fired = false;
     bool     long_fired = false;
     uint32_t t_down = 0;
     uint32_t t_last_click = 0;
@@ -40,22 +41,36 @@ static void btn_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(20));
             if (raw_pressed()) {
                 down = true;
+                warn_fired = false;
                 long_fired = false;
                 t_down = now_ms();
             }
         } else if (down && pressed) {
-            /* held: detect long press (fires once) */
-            if (!long_fired && (t - t_down) >= BOARD_BTN_LONG_MS) {
+            uint32_t held = t - t_down;
+            /* Two-stage hold: 5 s only warns (LED + log), 8 s commits. Letting go in between
+             * is the cancel path -- the whole point is that a fumbled press on a button 6 mm
+             * from RESET must not be able to wipe the configuration. */
+            if (!warn_fired && held >= BOARD_BTN_LONG_MS) {
+                warn_fired = true;
+                clicks = 0;                       /* a hold swallows pending clicks */
+                ESP_LOGW(TAG, "held %ums -> factory reset at %ums, release to cancel",
+                         (unsigned)held, (unsigned)BOARD_BTN_COMMIT_MS);
+                if (s_hold) s_hold(BTN_HOLD_WARN);
+            }
+            if (warn_fired && !long_fired && held >= BOARD_BTN_COMMIT_MS) {
                 long_fired = true;
-                clicks = 0;                       /* long press swallows pending clicks */
-                ESP_LOGW(TAG, "long press %ums -> factory reset", (unsigned)(t - t_down));
-                if (s_long) s_long();
+                ESP_LOGW(TAG, "held %ums -> factory reset", (unsigned)held);
+                if (s_hold) s_hold(BTN_HOLD_COMMIT);
             }
         } else if (down && !pressed) {
-            /* released: count one click */
+            /* released: cancel a warned hold, otherwise count a click */
             down = false;
             uint32_t dur = t - t_down;
-            if (!long_fired && dur >= BOARD_BTN_SHORT_MS && dur <= BOARD_BTN_SHORT_MAX_MS) {
+            if (warn_fired && !long_fired) {
+                warn_fired = false;
+                ESP_LOGI(TAG, "released after %ums -> cancelled", (unsigned)dur);
+                if (s_hold) s_hold(BTN_HOLD_CANCEL);
+            } else if (!long_fired && dur >= BOARD_BTN_SHORT_MS && dur <= BOARD_BTN_SHORT_MAX_MS) {
                 if (clicks < 255) clicks++;
                 t_last_click = t;
                 ESP_LOGD(TAG, "click %u (%ums)", clicks, (unsigned)dur);
@@ -78,11 +93,11 @@ static void btn_task(void *arg)
     }
 }
 
-void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_long_cb_t on_long)
+void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_hold_cb_t on_hold)
 {
     s_single = on_single;
     s_double = on_double;
-    s_long   = on_long;
+    s_hold   = on_hold;
 
     gpio_config_t io = {
         .pin_bit_mask = 1ULL << BOARD_BTN_GPIO,
@@ -95,6 +110,6 @@ void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_long_cb_
     gpio_config(&io);
 
     xTaskCreate(btn_task, "btn", 2560, NULL, 4, NULL);
-    ESP_LOGI(TAG, "button gpio%d: 1click=sniff/clone, 2click=idle, long %dms=factory reset",
-             BOARD_BTN_GPIO, BOARD_BTN_LONG_MS);
+    ESP_LOGI(TAG, "button gpio%d: 1click=clone on/off, 2click=radio off, hold %dms=warn/%dms=factory reset",
+             BOARD_BTN_GPIO, BOARD_BTN_LONG_MS, BOARD_BTN_COMMIT_MS);
 }

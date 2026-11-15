@@ -100,16 +100,29 @@ static void on_btn_double(void)
 
 static void reboot_cb(void *arg) { esp_restart(); }
 
-static void on_btn_long(void)
+static void on_btn_hold(btn_hold_t ev)
 {
-    ESP_LOGW(TAG, "long press -> factory reset");
-    applog_add(LOG_T_CFG, 0, "factory reset by button");
-    cfg_factory_reset();
-    app_apply_active();
+    switch (ev) {
+    case BTN_HOLD_WARN:
+        /* Fast blinks = "still holding, about to erase". A fumbled press ends here. */
+        status_led_set(LED_ERROR);
+        applog_add(LOG_T_ACT, 0, "hold 5s: reset armed, release to cancel");
+        break;
+    case BTN_HOLD_CANCEL:
+        applog_add(LOG_T_ACT, 0, "hold cancelled, config intact");
+        update_led();
+        break;
+    case BTN_HOLD_COMMIT:
+        ESP_LOGW(TAG, "hold confirmed -> factory reset");
+        applog_add(LOG_T_CFG, 0, "factory reset by button");
+        cfg_factory_reset();
+        app_apply_active();
 
-    esp_timer_handle_t t;
-    const esp_timer_create_args_t a = { .callback = reboot_cb, .name = "rst" };
-    if (esp_timer_create(&a, &t) == ESP_OK) esp_timer_start_once(t, 800000);
+        esp_timer_handle_t t;
+        const esp_timer_create_args_t a = { .callback = reboot_cb, .name = "rst" };
+        if (esp_timer_create(&a, &t) == ESP_OK) esp_timer_start_once(t, 800000);
+        break;
+    }
 }
 
 void app_on_ble_sync(void)
@@ -236,7 +249,7 @@ void app_main(void)
     ESP_ERROR_CHECK(blescan_init());
     ESP_ERROR_CHECK(radio_init());
     status_led_init();
-    btn_init(on_btn_short, on_btn_double, on_btn_long);
+    btn_init(on_btn_short, on_btn_double, on_btn_hold);
     ESP_ERROR_CHECK(net_ap_start());       /* Wi-Fi first; coexistence params latch at BLE init */
     ESP_ERROR_CHECK(web_start());
     ESP_ERROR_CHECK(beacon_stack_init());  /* async: sync_cb -> app_on_ble_sync */

@@ -456,7 +456,7 @@ Compile-verified only. Remaining bench work:
 | Item | How to check |
 |---|---|
 | LED GPIO/polarity per board | Does the pattern match sniff/clone/idle? |
-| Button gestures | single / double / long press all fire |
+| Button gestures | single / double / hold-warn / hold-commit fire, and releasing during the warning cancels |
 | Actual capture + replay | nRF Connect side-by-side byte comparison |
 | Supply headroom | watch `brownouts` in `/api/status` under SoftAP + advertising |
 | Scan duty vs SoftAP responsiveness | raise `win_ms` until the page stalls |

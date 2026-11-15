@@ -44,7 +44,7 @@ time-sharing contention on a single-radio SoC.
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
-| **LED + one button** | Six LED states distinguishable on a *single-colour* LED; single click / double click / long press |
+| **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click / double click / two-stage hold |
 
 **Not implemented:** OTA update (`/api/ota`), extended advertising (>31 bytes), active scanning
 (scan response), RPA addresses. See [Limitations](#limitations).
@@ -187,9 +187,11 @@ RGB boards (DevKitC-1) additionally use colour: cyan = sniff, blue = clone, gree
 
 | Button gesture (BOOT / GPIO9) | Action |
 |---|---|
-| Single click | Sniff ⇄ Clone |
+| Single click | Clone on / off (sniffing is web-only) |
 | Double click (<450 ms) | Stop radio → idle |
-| Long press 5 s | Factory reset + reboot |
+| Hold 5 s | Warning only: LED switches to fast blinks, log line, nothing erased |
+| Hold 8 s | Factory reset + reboot |
+| Release between 5 s and 8 s | Cancelled — config intact. RESET is a hard reset and is harmless: mode and profiles live in NVS, so the device comes back doing what it was doing |
 
 ---
 
@@ -322,7 +324,7 @@ main/
 ├── storage.[ch]       FATFS+WL capture archive (ring of 70 B records)
 ├── app_log.[ch]       RAM ring event log with sequence numbers
 ├── status_led.[ch]    LED pattern engine (mono + WS2812)
-├── btn.[ch]           single click / double click / long press
+├── btn.[ch]           single click / double click / two-stage hold
 ├── net_ap.[ch]        SoftAP + station accounting
 ├── web_server.[ch]    REST API + embedded SPA + bearer auth
 └── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time)

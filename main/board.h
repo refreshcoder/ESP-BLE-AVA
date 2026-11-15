@@ -46,7 +46,8 @@
 
 #define BOARD_BTN_SHORT_MS      60     /* shortest valid click (debounce) */
 #define BOARD_BTN_SHORT_MAX_MS  1200   /* longer than this but < long press = ignored */
-#define BOARD_BTN_LONG_MS       5000   /* long press: factory reset */
+#define BOARD_BTN_LONG_MS       5000   /* hold this long = warn (LED + log), nothing erased */
+#define BOARD_BTN_COMMIT_MS     8000   /* keep holding: factory reset; release in between cancels */
 #define BOARD_BTN_MULTI_MS      450    /* double-click window */
 
 /* ---------------- LED ---------------- */
