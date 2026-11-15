@@ -421,7 +421,14 @@ Design decisions worth keeping:
    and the UI says so.
 5. **Human error messages**: `409 → "all profile slots are used"`, `404 → "no longer in the capture table, scan again"`, `401 → re-login`.
 6. Dark, high-contrast theme (warehouses, outdoors), no web fonts, no CDN, works offline.
-7. 2.5 s polling rather than WebSockets: fewer moving parts, tables are ≤16 rows.
+7. 2.5 s polling rather than WebSockets: fewer moving parts, tables are ≤16 rows. The poll is
+   **scoped to what is visible**: nothing while the tab is hidden, only the current tab's data
+   after a reload, and `/api/scan` only while the radio is actually sniffing — a parked device
+   cannot add captures, so polling it buys nothing but airtime on a single-radio SoC.
+8. The SPA is served with a build-time **ETag** (`main/CMakeLists.txt` hashes `index.html`), so
+   repeat loads are one `304 Not Modified` and a flash invalidates the cache by itself. Before
+   that it was `max-age=3600`, which after a flash could show a UI that did not match the
+   firmware.
 8. **Two languages, one file.** English is the source and 简体中文 sits beside it in one
    inline `I18N` table keyed by `data-i18n` attributes; `localStorage.bgw_lang` remembers
    the choice and `navigator.language` seeds it. No JSON fetch, no second HTTP request,

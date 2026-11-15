@@ -14,5 +14,20 @@ endif()
 file(SIZE "${CMAKE_CURRENT_LIST_DIR}/main/www/index.html.gz" _gz_size)
 message(STATUS "www/index.html.gz = ${_gz_size} bytes")
 
+# ---- Cache validator for the embedded SPA ----
+# The page can be cached hard (it only changes with the firmware), so the browser revalidates
+# with one conditional request instead of re-downloading it after every flash. A hash of the
+# un-gzipped HTML is the natural ETag.
+execute_process(
+    COMMAND sh -c "sha256sum '${CMAKE_CURRENT_LIST_DIR}/main/www/index.html' | cut -c1-16"
+    OUTPUT_VARIABLE _ui_etag
+    RESULT_VARIABLE _etag_rc
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT _etag_rc EQUAL 0 OR _ui_etag STREQUAL "")
+    set(_ui_etag "dev")
+endif()
+set(BGW_UI_ETAG "${_ui_etag}" CACHE INTERNAL "ETag of the embedded SPA")
+message(STATUS "www/index.html ETag = ${BGW_UI_ETAG}")
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(beacon_gw)

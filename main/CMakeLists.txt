@@ -20,3 +20,8 @@ if(DEFINED APP_BOARD)
     message(STATUS "board preset: APP_BOARD=${APP_BOARD}")
     target_compile_definitions(${COMPONENT_LIB} PRIVATE BOARD_ID=${APP_BOARD})
 endif()
+
+# ETag of the embedded SPA (see the root CMakeLists.txt), used for conditional GETs.
+if(DEFINED BGW_UI_ETAG)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE APP_UI_ETAG="${BGW_UI_ETAG}")
+endif()

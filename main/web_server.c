@@ -139,14 +139,30 @@ static const char *led_state_name(rmode_t m, uint8_t sta)
 
 /* ------------------------- static page ------------------------- */
 
+/* ETag from the build (main/CMakeLists.txt): the SPA changes only with the firmware, so the
+ * browser cache survives across page loads and is invalidated by a flash instead of by an
+ * arbitrary max-age. */
+#ifndef APP_UI_ETAG
+#define APP_UI_ETAG "dev"
+#endif
+
 static esp_err_t h_index(httpd_req_t *req)
 {
+    static const char etag[] = "\"" APP_UI_ETAG "\"";
+    char inm[48];
+    bool fresh = httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof(inm)) == ESP_OK &&
+                 strcmp(inm, etag) == 0;
+
+    httpd_resp_set_hdr(req, "ETag", etag);
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+    if (fresh) {
+        httpd_resp_set_status(req, "304 Not Modified");
+        return httpd_resp_send(req, NULL, 0);
+    }
+
     size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-    /* no-cache on purpose: the SPA is embedded in the firmware, so after a flash an old copy
-     * in the browser cache would show a UI that does not match the running device. */
-    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
     return httpd_resp_send(req, (const char *)index_html_gz_start, (ssize_t)len);
 }
 
@@ -646,8 +662,9 @@ static esp_err_t h_clone(httpd_req_t *req)
         cfg_touch(c, slot);
         id = slot;
         cfg_save();
-        applog_add(LOG_T_CFG, d.rssi_last, "clone %02x%02x%02x%02x%02x%02x -> #%d raw%d itvl%ums",
+        applog_add(LOG_T_CFG, d.rssi_last, "clone %02x%02x%02x%02x%02x%02x (%s) -> #%d raw%d itvl%ums",
                    addr[0], addr[1], addr[2], addr[3], addr[4], addr[5],
+                   d.addr_type == ADDR_TYPE_RANDOM ? "random, pinned as static" : "public, applied at boot",
                    id, d.raw_len, (unsigned)itvl);
     }
     cfg_unlock();

@@ -359,7 +359,7 @@ const I18N = {
     err_adv_addr: "address must be empty or 12 hex chars",
     btn_save: "Save", btn_cancel: "Cancel",
     tag_raw: "RAW replay", tag_ibe: "iBeacon", tag_on_air: "on air",
-    tag_pubaddr: "public addr",
+    tag_pubaddr: "public addr", tag_randaddr: "random addr (rotates)",
     prof_note_addr: "A profile cloned from a public address sets the BLE address for the whole boot: switching to or from one makes the device reboot once.",
     btn_stop: "Stop", btn_activate: "Activate", btn_adv_edit: "Advanced edit", btn_delete: "Delete",
     toast_activated: "Activated #", toast_deleted: "Deleted", toast_saved: "Saved",
@@ -453,7 +453,7 @@ const I18N = {
     err_adv_addr: "地址需留空或为 12 位十六进制",
     btn_save: "保存", btn_cancel: "取消",
     tag_raw: "原始重放", tag_ibe: "iBeacon", tag_on_air: "广播中",
-    tag_pubaddr: "公开地址",
+    tag_pubaddr: "公开地址", tag_randaddr: "随机地址（会轮换）",
     prof_note_addr: "从公开地址克隆的配置会在启动时占用 BLE 地址：切入或切出这类配置时，设备会自动重启一次。",
     btn_stop: "停止", btn_activate: "启用", btn_adv_edit: "高级编辑", btn_delete: "删除",
     toast_activated: "已启用 #", toast_deleted: "已删除", toast_saved: "已保存",
@@ -588,6 +588,14 @@ const MODE_KEY = { sniff: "mode_sniff", clone: "mode_clone", idle: "mode_idle" }
 const LED_KEY = { sniff: "led_sniff", clone: "led_clone", "clone+client": "led_clone_client", idle: "led_idle" };
 const modeTxt = m => (MODE_KEY[m] ? t(MODE_KEY[m]) : m);
 
+/* Shared by the capture table, the quick list and the record store */
+const capTitle = d => d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
+                                : (d.name ? esc(d.name) : t("cap_ble_adv"));
+const capSub = d => d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
+/* addr_type: 0 = public (stable), 1 = random (may rotate) */
+const addrTag = at => " <span class='tag'>" +
+  (at === 1 ? t("tag_randaddr") : t("tag_pubaddr")) + "</span>";
+
 async function refreshStatus() {
   let j;
   try { j = await get("/api/status"); } catch (e) { return; }
@@ -679,9 +687,8 @@ function renderCaps() {
     return;
   }
   list.forEach(d => {
-    const title = d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
-                            : (d.name ? esc(d.name) : t("cap_ble_adv"));
-    const sub = d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
+    const title = capTitle(d) + addrTag(d.addr_type);
+    const sub = capSub(d);
     const tr = document.createElement("tr");
     tr.innerHTML =
       "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
@@ -902,7 +909,8 @@ async function loadProfiles() {
     card.innerHTML =
       "<div class='row' style='justify-content:space-between'>" +
         "<div><b>" + esc(p.name) + "</b> " + kind +
-        (p.clone_public_addr ? " <span class='tag'>" + t("tag_pubaddr") + "</span>" : "") +
+        (p.clone_public_addr ? " <span class='tag'>" + t("tag_pubaddr") + "</span>"
+                             : (p.use_rand_addr ? " <span class='tag'>" + t("tag_randaddr") + "</span>" : "")) +
         (active ? " <span class='tag on'>" + t("tag_on_air") + "</span>" : "") + "</div>" +
         "<span class='dim mono'>#" + i + "</span></div>" +
       "<div class='mono dim' style='margin-top:6px'>" +
@@ -1073,19 +1081,32 @@ async function boot() {
   if (!j) return;
   recLoad();
   renderRecs();
-  loadQuick();
-  loadProfiles();
-  loadCaptures();
-  loadLog(true);
+  const cur = document.querySelector("nav button.active").dataset.tab;
+  if (cur === "home") loadQuick();
+  if (cur === "capture") { loadCaptures(); loadHistory(); }
+  if (cur === "profiles") loadProfiles();
+  if (cur === "log") loadLog(true);
   if (timer) clearInterval(timer);
-  timer = setInterval(() => {
-    refreshStatus();
-    const cur = document.querySelector("nav button.active").dataset.tab;
-    if (cur === "home") loadQuick();
-    if (cur === "capture") loadCaptures(); else recPoll();
-    if (cur === "log") loadLog(false);
-  }, 2500);
+  timer = setInterval(tick, 2500);
 }
+
+/* One poll: only what the current tab shows, and nothing while the page is hidden or while
+ * the radio is parked (the capture table cannot change then). */
+function tick() {
+  if (document.hidden) return;
+  refreshStatus();
+  const cur = document.querySelector("nav button.active").dataset.tab;
+  if (cur === "home") loadQuick();
+  if (cur === "capture") loadCaptures();
+  else if (S.mode === "sniff") recPoll();
+  if (cur === "log") loadLog(false);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !token) return;
+  refreshStatus();
+  recPoll();
+});
 
 async function loadQuick() {
   const box = $("quick");
@@ -1101,7 +1122,7 @@ async function loadQuick() {
     row.className = "row";
     row.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0;justify-content:space-between";
     row.innerHTML =
-      "<div><div>" + (d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor) : (d.name || t("cap_ble_adv"))) +
+      "<div><div>" + capTitle(d) +
       "</div><div class='mono dim'>" + d.rssi + "dBm · " + (d.itvl_ms || "?") + "ms</div></div>" +
       "<button class='btn pri sm'>" + t("btn_clone_sm") + "</button>";
     row.querySelector("button").onclick = () => cloneSignal(d.addr, row.querySelector("button"));
