@@ -184,6 +184,26 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 2. 设置后 `ble_hs_util_ensure_addr()` 确实走 public（串口 `own_addr_type=0` 那一行）
 3. 空口上 `TxAdd = 0` 且地址等于 `src_addr`（需 nRF Connect 或 WinRT 原始节）
 
+### 已刷入 CI 构建的固件（提交 45616fa）
+
+CI 成功后用已存储的 git 凭据拉取 artifact `firmware-esp32c6-board2`（下载接口需鉴权，未鉴权返回 401），
+按文档偏移刷入：
+
+| 偏移 | 文件 | 字节 |
+|---|---|---|
+| `0x0` | `bootloader.bin` | 22,064 |
+| `0x8000` | `partition-table.bin` | 3,072 |
+| `0xf000` | `ota_data_initial.bin` | 8,192 |
+| `0x20000` | `beacon_gw.bin` | 1,183,328（sha256 `dba6600d…85aab2`） |
+
+四次写入均 `Hash of data verified`。NVS（`0x9000`）未擦除，原有 2 个 profile 保留。
+
+刷后确认：`esptool --before no-reset` 报 `Write timeout` → ROM 不应答，**应用已在运行**；
+CI size report：app `0x120e60` = 1,183,328 B，1.5 MB 分区还剩 **25%**；DIRAM 187,654 / 452,112 B = **41.5%**。
+
+注意：`midea2` 这个 profile 是旧固件建的，JSON 里没有 `clone_public_addr`（默认 false），
+所以本次启动**不会**冒用空调的地址。要验证公开地址克隆，需用新固件重新克隆一次源设备。
+
 待验证（需要有工具链的机器）：
 
 1. `ble_gap_adv_rsp_set_data(NULL, 0)` 在本 IDF/NimBLE 版本确实能清除旧响应（若不行，改成每次显式写入 1 字节空数据）
