@@ -144,7 +144,9 @@ static esp_err_t h_index(httpd_req_t *req)
     size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=3600");
+    /* no-cache on purpose: the SPA is embedded in the firmware, so after a flash an old copy
+     * in the browser cache would show a UI that does not match the running device. */
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
     return httpd_resp_send(req, (const char *)index_html_gz_start, (ssize_t)len);
 }
 
