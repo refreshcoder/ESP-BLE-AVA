@@ -165,7 +165,7 @@ Downstream beacon systems only read advertisements.
 | Source address type | Cloneable | Why |
 |---|---|---|
 | Static random | ✅ identical | `ble_hs_id_set_rnd()` accepts it |
-| Public | ⚠️ bytes only | You cannot forge the public type; the same 6 bytes are sent as a *random* address, and the controller forces the top two bits to `11` — up to 2 bits may differ |
+| Public | ✅ identical, after a reboot | The public *type* can be assumed too: `esp_iface_mac_addr_set(ESP_MAC_BT, …)` overrides the controller's public address in RAM before the stack starts, so it costs one reboot per address — but no eFuse burn and no 2-bit compromise |
 | RPA (resolvable private) | ❌ pointless | Rotates every ~15 min at the source |
 
 ---
@@ -291,7 +291,10 @@ Three issues were found by actually compiling (do not reintroduce them):
    is capped at 31 bytes.
 2. **Active scan costs airtime** — the observer sends a SCAN_REQ per advertisement, and a clone
    only answers SCAN_REQ when the source profile is scannable (`ADV_SCAN_IND`).
-3. **Public addresses cannot be fully cloned** (see the table above).
+3. **Public addresses are cloned per boot.** The address is applied once at startup
+   (`esp_iface_mac_addr_set()`), so switching to or from such a profile reboots the device, and
+   rotation is paused while one is in use. It is also impersonation of an IEEE-assigned
+   identity — keep it to owned or authorised devices.
 4. **No OTA** in this version; update over USB.
 5. Compile-verified but **not yet run on hardware** — RF behaviour, LED polarity and
    supply headroom still need a bench run.

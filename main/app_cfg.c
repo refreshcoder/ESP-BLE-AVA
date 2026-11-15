@@ -207,6 +207,8 @@ bool cfg_profile_from_json(const cJSON *j, beacon_profile_t *p, char *err, size_
     } else {
         p->use_rand_addr = false;
     }
+    p->clone_public_addr = jbool(j, "clone_public_addr", false);
+    if (p->clone_public_addr) p->use_rand_addr = false;   /* the two cannot both apply */
 
     s = jstr(j, "src");
     if (s && *s) cfg_hex_from_str(s, p->src_addr, 6);
@@ -239,6 +241,7 @@ void cfg_profile_to_json(const beacon_profile_t *p, cJSON *dst)
     cJSON_AddNumberToObject(dst, "adv_itvl_ms", p->adv_itvl_ms);
     cJSON_AddBoolToObject(dst, "scannable", p->scannable);
     cJSON_AddBoolToObject(dst, "use_rand_addr", p->use_rand_addr);
+    if (p->clone_public_addr) cJSON_AddBoolToObject(dst, "clone_public_addr", true);
     cJSON_AddNumberToObject(dst, "use_seq", p->use_seq);
     if (p->use_rand_addr) {
         char h[13];
@@ -473,4 +476,29 @@ esp_err_t cfg_factory_reset(void)
     cfg_unlock();
     applog_add(LOG_T_CFG, 0, "factory reset");
     return e;
+}
+
+/* ---------------- BLE public address (applied once per boot in app_main) ---------------- */
+
+static uint8_t s_boot_addr[6];
+static bool    s_boot_addr_valid;
+
+void cfg_note_boot_addr(const uint8_t mac[6])
+{
+    if (!mac) { s_boot_addr_valid = false; return; }
+    memcpy(s_boot_addr, mac, 6);
+    s_boot_addr_valid = true;
+}
+
+/* True when the active profile wants a public address other than the one this boot
+ * advertises with; radio_clone() then schedules a reboot so it takes effect. */
+bool cfg_addr_change_pending(void)
+{
+    cfg_lock();
+    const beacon_cfg_t *c = cfg_get();
+    int i = c->active;
+    bool pending = (i >= 0 && i < c->count) && c->p[i].clone_public_addr &&
+                   (!s_boot_addr_valid || memcmp(c->p[i].src_addr, s_boot_addr, 6) != 0);
+    cfg_unlock();
+    return pending;
 }

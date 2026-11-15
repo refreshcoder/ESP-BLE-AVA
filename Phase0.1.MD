@@ -15,6 +15,7 @@ WinRT/bleak 被动/主动扫描）抓空口，同一时间用 pyserial 抓 COM10
 |---|---|---|
 | 1 | 刷机（合并镜像 @0x0） | ✅ 校验通过，启动正常 |
 | 2 | 克隆功能（RAW 逐字节重放） | ✅ 空口 payload 与固件 raw 完全一致，两次独立复现 |
+| 2b | 广播地址 | ⚠️ 当时实测**未复制**（源为公开地址）。现已实现 `clone_public`（boot 时设置，需重启），见"后续改动" |
 | 3 | "断开 AP 后自动回到 sniff" | ❌ 不存在该逻辑；实际是主机强制关闭串口导致复位（见 D3） |
 | 4 | TX 功率设置 | ❌ 每次 `ESP_FAIL`（单位/枚举用错），实际功率为控制器默认值 |
 | 5 | 广播"自己消失" | ⚠️ 观察到两次；`s_mode` 不跟随，UI 会显示"克隆中 + ADV off" |
@@ -158,6 +159,30 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 | `beacon_adv.c` | 每次 apply 都调 `ble_gap_adv_rsp_set_data()`（空时传 NULL/0 清除，避免上一个 profile 的响应泄漏）；仅在 `scannable` 时生效 |
 | `web_server.c` | `/api/scan` 输出 `rsp`/`rsp_len`；`/api/clone` 复制 rsp，并把"抓到过扫描响应"视为源可扫描 |
 | `index.html` | 捕获行多一个"扫描响应"十六进制折叠块；高级编辑显示 rsp；保存时保留 rsp |
+
+### 公开地址克隆（`clone_public`，切换配置自动重启）
+
+之前结论里"公开地址物理上不可复制"已被乐鑫文档推翻：`esp_iface_mac_addr_set(ESP_MAC_BT, …)`
+可在**不烧 eFuse** 的前提下在 RAM 里改 BLE public 地址，代价是必须在任何网络接口初始化前
+调用 → **每次启动只能一个地址**。
+
+| 文件 | 改动 |
+|---|---|
+| `main.c` | `app_main` 在 `net_ap_start()` 之前，若活动 profile 带 `clone_public_addr` 则 `esp_iface_mac_addr_set(ESP_MAC_BT, src_addr)`，然后用 `esp_read_mac` 记下本次启动的地址 (`cfg_note_boot_addr`) |
+| `app_cfg.*` | profile 新增 `clone_public_addr`（JSON 可选字段）；`cfg_addr_change_pending()` 比较活动 profile 想要的地址与本次启动已应用的地址 |
+| `radio.c` | `radio_clone()` 成功后若 `cfg_addr_change_pending()` 为真 → 1.2 s 后重启（留时间把 HTTP 响应发出） |
+| `main.c` tick | 任何 profile 带 `clone_public_addr` 时暂停 rotation（否则每步都要重启），并告警一次 |
+| `web_server.c` | `h_clone` 在源地址为公开类型时置 `clone_public_addr = true` |
+| `index.html` | 配置卡新增"公开地址"标签 + 一句说明 |
+
+与之前实测的差异：Phase 0.1 里观测到的克隆体地址与原件不同（`24:59:E5:B6:E6:1A` vs
+`10:BD:A3:B4:2A:52`），是因为当时固件没有这个能力。新固件上两者应**完全一致**且 `TxAdd = 0`。
+
+待验证：
+
+1. `esp_iface_mac_addr_set()` 在 IDF v5.5 存在（CI 编过即证明）
+2. 设置后 `ble_hs_util_ensure_addr()` 确实走 public（串口 `own_addr_type=0` 那一行）
+3. 空口上 `TxAdd = 0` 且地址等于 `src_addr`（需 nRF Connect 或 WinRT 原始节）
 
 待验证（需要有工具链的机器）：
 

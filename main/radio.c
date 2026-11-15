@@ -4,6 +4,8 @@
 #include "beacon_adv.h"
 #include "beacon_scan.h"
 #include "esp_log.h"
+#include "esp_timer.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -11,6 +13,8 @@ static const char *TAG = "radio";
 
 static SemaphoreHandle_t s_mtx;
 static volatile rmode_t  s_mode = RMODE_IDLE;
+
+static void addr_reboot_cb(void *arg) { esp_restart(); }
 
 const char *radio_mode_str(rmode_t m)
 {
@@ -82,6 +86,17 @@ esp_err_t radio_clone(void)
 
     ESP_LOGI(TAG, "mode=%s (%s)", radio_mode_str(s_mode), esp_err_to_name(e));
     applog_add(LOG_T_ACT, 0, "mode=clone %s", on ? "on" : "off");
+
+    /* The BLE public address can only be set before the stack is initialised, so a profile
+     * that needs a different one takes effect after a reboot. 1.2 s leaves room for the
+     * HTTP response / log line to go out first. */
+    if (on && cfg_addr_change_pending()) {
+        ESP_LOGW(TAG, "active profile needs another public address -> rebooting");
+        applog_add(LOG_T_CFG, 0, "public addr change -> reboot");
+        esp_timer_handle_t t;
+        const esp_timer_create_args_t a = { .callback = addr_reboot_cb, .name = "addr_rst" };
+        if (esp_timer_create(&a, &t) == ESP_OK) esp_timer_start_once(t, 1200000);
+    }
     return e;
 }
 

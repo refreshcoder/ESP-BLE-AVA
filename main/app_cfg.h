@@ -38,6 +38,8 @@ typedef struct {
     uint16_t adv_itvl_ms;     /* advertising interval, 20..10240 ms */
     bool     scannable;       /* true = ADV_SCAN_IND, false = ADV_NONCONN_IND */
     bool     use_rand_addr;
+    bool     clone_public_addr; /* source had a PUBLIC address: applied at boot via
+                                 * esp_iface_mac_addr_set(ESP_MAC_BT), needs a reboot */
     uint8_t  rand_addr[6];
     uint8_t  src_addr[6];     /* provenance: address this profile was copied from */
     uint8_t  src_adv_type;    /* source adv event type, BLE_HCI_ADV_RPT_EVTYPE_* */
@@ -98,3 +100,10 @@ const char    *cfg_api_token(void);
 /* Lightweight NVS counters (boots, brownouts, ...) for serial-free diagnostics */
 uint32_t       cfg_stat_get(const char *key);
 void           cfg_stat_bump(const char *key, uint32_t add);
+
+/* --- BLE public address cloning (boot-time only) ---
+ * The BLE public address can be overridden in RAM with esp_iface_mac_addr_set(), but only
+ * before any network interface is initialised. So it is applied once at boot for the then
+ * active profile, and changing to a profile with a different public address needs a reboot. */
+void           cfg_note_boot_addr(const uint8_t mac[6]);   /* address this boot advertises with */
+bool           cfg_addr_change_pending(void);              /* active profile wants another one */

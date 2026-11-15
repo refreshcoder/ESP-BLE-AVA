@@ -625,14 +625,17 @@ static esp_err_t h_clone(httpd_req_t *req)
          * advertise non-connectable and non-scannable. A captured scan response implies
          * the source answered SCAN_REQ, so it was scannable. */
         p->scannable   = (d.adv_type == 0x00 || d.adv_type == 0x02) || d.rsp_len > 0;
-        /* Address: a random address clones exactly; a public one can only be sent as
-         * the same bytes under the random type. */
+        /* Address: a random address clones exactly (same bytes, top two bits forced to 11).
+         * A public address cannot be chosen per advertising instance, but it can be set for
+         * the whole boot with esp_iface_mac_addr_set(ESP_MAC_BT) -- app_main does that for the
+         * active profile, and radio_clone() reboots when a switch needs another one. */
         if (d.addr_type == ADDR_TYPE_RANDOM) {
             memcpy(p->rand_addr, addr, 6);
             p->rand_addr[5] |= 0xC0;
             p->use_rand_addr = true;
         } else {
             p->use_rand_addr = false;
+            p->clone_public_addr = true;      /* takes effect after the reboot below */
         }
 
         if (!replaced) c->count++;

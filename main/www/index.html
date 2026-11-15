@@ -162,6 +162,7 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <h2 data-i18n="prof_title">Profiles (max 3)</h2>
       <div id="prof-body" class="dim" data-i18n="loading">loading…</div>
       <div class="dim" style="margin-top:10px;font-size:12px" data-i18n="prof_note">When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.</div>
+      <div class="dim" style="margin-top:6px;font-size:12px" data-i18n="prof_note_addr">A profile cloned from a public address sets the BLE address for the whole boot: switching to or from one makes the device reboot once.</div>
     </div>
     <div class="card" id="form-card" style="display:none">
       <h2 id="form-title" data-i18n="form_edit">Edit</h2>
@@ -328,6 +329,8 @@ const I18N = {
     raw_note: "Raw bytes (replayed verbatim, cannot be edited):",
     btn_save: "Save", btn_cancel: "Cancel",
     tag_raw: "RAW replay", tag_ibe: "iBeacon", tag_on_air: "on air",
+    tag_pubaddr: "public addr",
+    prof_note_addr: "A profile cloned from a public address sets the BLE address for the whole boot: switching to or from one makes the device reboot once.",
     btn_stop: "Stop", btn_activate: "Activate", btn_adv_edit: "Advanced edit", btn_delete: "Delete",
     toast_activated: "Activated #", toast_deleted: "Deleted", toast_saved: "Saved",
     err_save_failed: "save failed",
@@ -409,6 +412,8 @@ const I18N = {
     raw_note: "原始字节（原样重放，不可编辑）：",
     btn_save: "保存", btn_cancel: "取消",
     tag_raw: "原始重放", tag_ibe: "iBeacon", tag_on_air: "广播中",
+    tag_pubaddr: "公开地址",
+    prof_note_addr: "从公开地址克隆的配置会在启动时占用 BLE 地址：切入或切出这类配置时，设备会自动重启一次。",
     btn_stop: "停止", btn_activate: "启用", btn_adv_edit: "高级编辑", btn_delete: "删除",
     toast_activated: "已启用 #", toast_deleted: "已删除", toast_saved: "已保存",
     err_save_failed: "保存失败",
@@ -712,6 +717,7 @@ async function loadProfiles() {
     card.innerHTML =
       "<div class='row' style='justify-content:space-between'>" +
         "<div><b>" + esc(p.name) + "</b> " + kind +
+        (p.clone_public_addr ? " <span class='tag'>" + t("tag_pubaddr") + "</span>" : "") +
         (active ? " <span class='tag on'>" + t("tag_on_air") + "</span>" : "") + "</div>" +
         "<span class='dim mono'>#" + i + "</span></div>" +
       "<div class='mono dim' style='margin-top:6px'>" +

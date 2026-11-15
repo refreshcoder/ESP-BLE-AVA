@@ -129,13 +129,44 @@ downstream beacon system reads advertisements only.
 | Source type | Result | Reason |
 |---|---|---|
 | Static random | identical | `ble_hs_id_set_rnd()` sets it verbatim |
-| Public | bytes only, up to 2 bits differ | the public *type* cannot be forged; bytes go out as a random address and NimBLE forces the top two bits to `11` |
+| Public | identical, after one reboot | `esp_iface_mac_addr_set(ESP_MAC_BT, …)` overrides the controller's public address **in RAM**, but only before the stack is up — so it is applied once per boot and changing it reboots the device (§3.5) |
 | RPA | pointless | rotates every ~15 min at the source |
 
 Practically irrelevant for beacon use (systems key on UUID/major/minor or manufacturer
 data), fatal for MAC allow-lists.
 
-### 3.5 Scan response (the second 31 bytes)
+### 3.5 Cloning a public address (boot-time override)
+
+The public address is not a free-form field in the advertising PDU — it comes from the controller's
+own identity, so `ble_gap_adv_start()` has no parameter for it. It *can* be overridden in RAM
+from the IDF side, without burning eFuse:
+
+```c
+esp_iface_mac_addr_set(ESP_MAC_BT, addr);   /* before any interface is initialised */
+```
+
+The documentation is explicit that this must happen **before any network interface is initialised
+or `esp_read_mac()` is called**, because the interface MAC is derived and cached on first read. So:
+
+| | |
+|---|---|
+| Where it is applied | `app_main()`, before `net_ap_start()` / `ble` stack init, for the then **active** profile only |
+| Scope | one address per boot; not per profile, not switchable at runtime |
+| Switching profiles | `radio_clone()` compares the active profile against the address this boot advertises with (`cfg_addr_change_pending()`) and schedules a reboot 1.2 s later |
+| Wi-Fi side | untouched — `ESP_MAC_BT` only, so the SoftAP SSID/password derivation stays valid |
+| Rotation | paused while any profile clones a public address (it would reboot on every step) |
+| Failure mode | `esp_iface_mac_addr_set()` returns an error for a multicast address; the log line `ble public addr <- …` shows the result |
+
+Because the address is set before the BLE stack reads it, the advertisement carries
+`TxAdd = 0` — on air it is indistinguishable from the original device's public address, unlike the
+static-random fallback (which is forced to top bits `11`).
+
+Legally this is impersonation of an IEEE-assigned identity, not just payload replay: keep it to
+owned or explicitly authorised devices (see §14).
+
+---
+
+### 3.6 Scan response (the second 31 bytes)
 
 A legacy advertiser may answer `SCAN_REQ` with up to 31 bytes of `SCAN_RSP`. Once extended
 advertising is out of scope, that is the *only* other payload on the link, and some devices put

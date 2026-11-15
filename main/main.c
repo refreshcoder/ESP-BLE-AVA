@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_system.h"
+#include "esp_mac.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -129,9 +130,19 @@ static void tick_cb(void *arg)
     cfg_lock();
     beacon_cfg_t *c = cfg_get();
     int enabled_n = 0;
-    for (int i = 0; i < c->count; i++) if (c->p[i].enabled) enabled_n++;
+    bool any_public = false;
+    for (int i = 0; i < c->count; i++) {
+        if (c->p[i].enabled) enabled_n++;
+        if (c->p[i].clone_public_addr) any_public = true;
+    }
 
-    if (c->rotation && c->active >= 0 && enabled_n > 1 && radio_mode() == RMODE_CLONE) {
+    /* Rotation cannot mix profiles that clone a public address: that address is fixed for
+     * the whole boot, so rotating would need a reboot per step. */
+    if (c->rotation && any_public && c->active >= 0 && enabled_n > 1 && radio_mode() == RMODE_CLONE) {
+        static bool warned;
+        if (!warned) { warned = true; ESP_LOGW(TAG, "rotation paused: a profile clones a public address"); }
+    }
+    if (c->rotation && !any_public && c->active >= 0 && enabled_n > 1 && radio_mode() == RMODE_CLONE) {
         if (++s_rot_tick >= c->rotation_s) {
             s_rot_tick = 0;
             for (int k = 1; k <= c->count; k++) {
@@ -192,6 +203,24 @@ void app_main(void)
     applog_add(LOG_T_BOOT, 0, "boot v%s reset=%s", APP_VER, reset_reason_str(rr));
     if (rr == ESP_RST_BROWNOUT) {
         applog_add(LOG_T_ERR, 0, "BROWNOUT: weak supply (short cable / add bulk cap / better PSU)");
+    }
+
+    /* BLE public address override (cloning a device that used a PUBLIC address). RAM only and
+     * only possible before any network interface is initialised, so it is done once here and
+     * a profile switch that needs another address triggers a reboot (radio_clone()). */
+    cfg_lock();
+    {
+        const beacon_cfg_t *c0 = cfg_get();
+        if (c0->active >= 0 && c0->active < c0->count && c0->p[c0->active].clone_public_addr) {
+            esp_err_t ae = esp_iface_mac_addr_set(ESP_MAC_BT, c0->p[c0->active].src_addr);
+            ESP_LOGW(TAG, "ble public addr <- " MACSTR " (%s)",
+                     MAC2STR(c0->p[c0->active].src_addr), esp_err_to_name(ae));
+        }
+    }
+    cfg_unlock();
+    {
+        uint8_t bmac[6] = {0};
+        if (esp_read_mac(bmac, ESP_MAC_BT) == ESP_OK) cfg_note_boot_addr(bmac);
     }
 
     ESP_ERROR_CHECK(blescan_init());
