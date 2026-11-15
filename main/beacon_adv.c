@@ -22,6 +22,10 @@ static int8_t   s_tx_dbm = 9;    /* last successfully applied TX power */
    4C 00 | 02 15 | UUID(16) | major(2) | minor(2) | ref_rssi(1) */
 static uint8_t s_mfg[25];
 
+/* dBm -> esp_power_level_t. The enum is NOT a shared linear index: on C6/C3 the extended
+ * table is N15=3, N12=4, N9=5, N6=6, N3=7, N0=8, P3=9, P6=10, P9=11, ... so computing an
+ * index from dBm is wrong (the first attempt used dBm/3+4, which is the ESP32 classic table).
+ * Use the named constants and cap at +9 dBm, which every BLE 5 target supports. */
 static void snap_tx_power(int8_t dbm)
 {
     int v = dbm < BOARD_BLE_TX_MIN_DBM ? BOARD_BLE_TX_MIN_DBM
@@ -29,21 +33,33 @@ static void snap_tx_power(int8_t dbm)
     if (v >= 0) v = ((v + 1) / 3) * 3;
     else        v = -(((-v) + 1) / 3) * 3;
 
-    /* esp_power_level_t is an INDEX into a 3 dBm ladder, not a dBm value:
-     * N12=0, N9=1, N6=2, N3=3, N0=4, P3=5, P6=6, P9=7. Passing dBm straight
-     * through made every call fail with ESP_FAIL (9 is ESP_PWR_LVL_N11 on the
-     * C6), so the radio stayed on its default power while /api/status reported
-     * the requested value. */
-    int idx = v / 3 + 4;
-    if (idx < 0) { idx = 0; v = -12; }
-    if (idx > 7) { idx = 7; v = 9; }
-
-    esp_err_t e = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, (esp_power_level_t)idx);
-    if (e != ESP_OK) {
-        ESP_LOGW(TAG, "tx_power %d dBm (level %d): %s", v, idx, esp_err_to_name(e));
-    } else {
-        s_tx_dbm = (int8_t)v;
+    bool clamped = false;
+    esp_power_level_t lvl;
+    switch (v) {
+    case -15: lvl = ESP_PWR_LVL_N15; break;
+    case -12: lvl = ESP_PWR_LVL_N12; break;
+    case  -9: lvl = ESP_PWR_LVL_N9;  break;
+    case  -6: lvl = ESP_PWR_LVL_N6;  break;
+    case  -3: lvl = ESP_PWR_LVL_N3;  break;
+    case   0: lvl = ESP_PWR_LVL_N0;  break;
+    case   3: lvl = ESP_PWR_LVL_P3;  break;
+    case   6: lvl = ESP_PWR_LVL_P6;  break;
+    default:  lvl = ESP_PWR_LVL_P9;  v = 9; clamped = true; break;
     }
+
+    esp_err_t e = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, lvl);
+    if (e != ESP_OK) {
+        /* Some controllers accept only the global level, not the per-type one */
+        if (esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, lvl) == ESP_OK) e = ESP_OK;
+    }
+    int got = (int)esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_ADV);
+    if (e != ESP_OK) {
+        ESP_LOGW(TAG, "tx_power %d dBm (level %d)%s: %s, controller reports %d",
+                 v, (int)lvl, clamped ? " clamped" : "", esp_err_to_name(e), got);
+        return;                    /* do not claim a level we could not apply */
+    }
+    s_tx_dbm = (int8_t)v;
+    ESP_LOGI(TAG, "tx_power %d dBm (level %d) ok, controller reports %d", v, (int)lvl, got);
 }
 
 static void build_mfg(const beacon_profile_t *p)

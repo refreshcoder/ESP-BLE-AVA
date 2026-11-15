@@ -67,7 +67,17 @@ I (630488) radio: mode=clone (ESP_OK)
 
 ## 缺陷清单
 
-### D1（已修）TX 功率：把 dBm 当枚举传
+### D1（两次修复）TX 功率：dBm 与 esp_power_level_t 的映射
+
+第一次修复把 dBm 换算成 `dBm/3 + 4`（**ESP32 经典款**的枚举表），在 C6 上仍然 `ESP_FAIL`——
+因为 C6/C3 用的是扩展表：`N15=3, N12=4, N9=5, N6=6, N3=7, N0=8, P3=9, P6=10, P9=11, P12=12 …`，
+即 +9 dBm 是 **11**，而 7 是 −3 dBm。
+
+第二次修复：改用**具名枚举**（`ESP_PWR_LVL_P9` 等）而非算术，上限收到 +9 dBm（所有 BLE 5 目标都支持）；
+`ESP_BLE_PWR_TYPE_ADV` 失败时回退到 `ESP_BLE_PWR_TYPE_DEFAULT`；无论成功与否都打印
+`esp_ble_tx_power_get()` 的**回读值**，不再让 `/api/status` 的 `tx_dbm` 撒谎。
+
+待上板确认：日志应出现 `tx_power 9 dBm (level 11) ok, controller reports …`。
 
 `main/beacon_adv.c:snap_tx_power()` 原代码：
 
