@@ -38,7 +38,7 @@ console.log("ok  referenced keys: " + refs.size);
 [...en].filter(k => !refs.has(k)).forEach(k => console.log("warn unused key: " + k));
 
 // 5) ids preserved vs git HEAD ('s-en' etc. are deliberately retired)
-const RETIRED = new Set(["s-en"]);
+const RETIRED = new Set(["s-en", "quick", "btn-freeze"]);
 const oldHtml = execFileSync("git", ["show", "HEAD:" + file], { encoding: "utf8" });
 const ids = s => new Set([...s.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
 const a = ids(oldHtml), b = ids(html);

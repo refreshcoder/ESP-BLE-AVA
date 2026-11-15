@@ -40,10 +40,6 @@ input,select{width:100%;background:#0d1016;border:1px solid var(--line);color:va
 input[type=checkbox]{width:auto;min-height:0}
 #lang{width:auto;min-height:0;padding:3px 6px;border-radius:99px;font-size:11px;background:#151a22;color:var(--dim)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.spacer{flex:1}
-.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0}
-.chip{flex:0 0 auto;padding:7px 13px;border-radius:99px;border:1px solid var(--line);background:#151a22;color:var(--dim);font-size:13px;cursor:pointer}
-.chip.on{background:#233044;color:#fff;border-color:#31425c}
 .tag{font-size:11px;padding:2px 7px;border-radius:6px;background:#1f2632;color:var(--dim)}
 .tag.raw{background:#2b1f3f;color:#c7a6ff}
 .tag.ibe{background:#132b3f;color:#6ab7ff}
@@ -103,8 +99,6 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
 
     <div class="card"><h2 data-i18n="card_runtime">Runtime</h2><div id="status-body" class="mono dim" style="white-space:pre-wrap" data-i18n="loading">loading…</div></div>
 
-    <div class="card"><h2 data-i18n="card_latest">Latest captures (one-tap clone)</h2><div id="quick" class="dim">—</div></div>
-
     <div class="card">
       <details><summary data-i18n="details_legend">LED patterns / button gestures</summary>
         <table class="legend" style="margin-top:8px">
@@ -131,16 +125,9 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
     <div class="card">
       <h2><span data-i18n="cap_this_session">This session</span> <span class="dim" id="cap-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" id="btn-freeze" onclick="toggleFreeze()" data-i18n="btn_freeze">Freeze</button>
         <button class="btn sm pri" onclick="setMode('sniff')" data-i18n="btn_sniff">Sniff (capture)</button>
         <button class="btn sm" onclick="loadCaptures()" data-i18n="btn_refresh">Refresh</button>
         <button class="btn sm dan" onclick="clearCapture()" data-i18n="btn_clear">Clear</button>
-      </div>
-      <div class="chips" style="margin-bottom:8px">
-        <button class="chip on" data-filter="all" onclick="setFilter('all')" data-i18n="f_all">All</button>
-        <button class="chip" data-filter="ibe" onclick="setFilter('ibe')" data-i18n="f_ibe">iBeacon</button>
-        <button class="chip" data-filter="name" onclick="setFilter('name')" data-i18n="f_name">Named</button>
-        <button class="chip" data-filter="rssi" onclick="setFilter('rssi')" data-i18n="f_rssi">Strongest</button>
       </div>
       <table><thead><tr><th data-i18n="th_signal">Signal</th><th data-i18n="th_rssi">RSSI</th><th data-i18n="th_itvl">Interval</th><th></th></tr></thead>
       <tbody id="cap-body"></tbody></table>
@@ -277,8 +264,6 @@ let token = localStorage.getItem("bgw_token") || "";
 let S = {};                 /* latest /api/status */
 let caps = [];              /* this session's captures */
 let profiles = [];
-let frozen = false;
-let filter = "all";
 let editId = -1;
 let logSeq = 0;
 let timer = null;
@@ -298,7 +283,6 @@ const I18N = {
     btn_sniff: "Sniff (capture)", btn_clone: "Clone (advertise)", btn_stop_radio: "Stop radio",
     mode_hint: "Capture and advertising are mutually exclusive: entering one stops the other.",
     card_runtime: "Runtime", loading: "loading…",
-    card_latest: "Latest captures (one-tap clone)",
     details_legend: "LED patterns / button gestures",
     th_led: "LED", th_meaning: "Meaning",
     led_double: "Double blink", led_double_m: "Sniffing",
@@ -318,9 +302,8 @@ const I18N = {
     st_records: "records (persistent)", st_reset: "reset", st_boots: "boots",
     st_memory: "memory", st_min: "min", st_uptime: "uptime",
     pow_warn: "brownout reset(s) recorded. That is a weak supply, not a firmware bug: shorter/thicker USB cable, better PSU, or 220 µF across 3V3.",
-    cap_this_session: "This session", btn_freeze: "Freeze", btn_frozen: "Frozen",
+    cap_this_session: "This session",
     btn_refresh: "Refresh", btn_clear: "Clear", btn_clear_archive: "Clear archive",
-    f_all: "All", f_ibe: "iBeacon", f_name: "Named", f_rssi: "Strongest",
     th_signal: "Signal", th_rssi: "RSSI", th_itvl: "Interval",
     cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.",
     sniff_tmo: "Sniffing stops by itself after 30 s - tap Sniff again to extend.",
@@ -392,7 +375,6 @@ const I18N = {
     btn_sniff: "嗅探（捕获）", btn_clone: "克隆（广播）", btn_stop_radio: "关闭射频",
     mode_hint: "捕获与广播互斥：进入其中一个会停止另一个。",
     card_runtime: "运行状态", loading: "加载中…",
-    card_latest: "最新捕获（一键克隆）",
     details_legend: "LED 指示 / 按键操作",
     th_led: "LED", th_meaning: "含义",
     led_double: "双闪", led_double_m: "嗅探中",
@@ -412,9 +394,8 @@ const I18N = {
     st_records: "条记录（掉电保留）", st_reset: "复位原因", st_boots: "启动次数",
     st_memory: "内存", st_min: "最小", st_uptime: "运行时长",
     pow_warn: "次掉电复位。这是供电不足，不是固件问题：换更短更粗的 USB 线、更好的电源，或在 3V3 并 220 µF 电容。",
-    cap_this_session: "本次会话", btn_freeze: "冻结", btn_frozen: "已冻结",
+    cap_this_session: "本次会话",
     btn_refresh: "刷新", btn_clear: "清空", btn_clear_archive: "清空归档",
-    f_all: "全部", f_ibe: "iBeacon", f_name: "有名", f_rssi: "最强",
     th_signal: "信号", th_rssi: "RSSI", th_itvl: "间隔",
     cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会同时写入下方掉电保留的归档。",
     sniff_tmo: "嗅探会在 30 秒后自动停止，再点一次「嗅探」可重新计时。",
@@ -645,24 +626,12 @@ async function setMode(mode) {
 }
 
 /* ---------- capture ---------- */
-function setFilter(f) {
-  filter = f;
-  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c.dataset.filter === f));
-  renderCaps();
-}
-function toggleFreeze() {
-  frozen = !frozen;
-  $("btn-freeze").textContent = frozen ? t("btn_frozen") : t("btn_freeze");
-  $("btn-freeze").className = "btn sm" + (frozen ? " pri" : "");
-  if (!frozen) loadCaptures();
-}
 async function clearCapture() {
   const r = await del("/api/scan");
   toast(r.ok ? t("toast_session_cleared") : t("err_failed"), !r.ok);
   loadCaptures();
 }
 async function loadCaptures() {
-  if (frozen) return;
   let j;
   try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
   if (!j.ok) return;
@@ -675,10 +644,7 @@ async function loadCaptures() {
 function renderCaps() {
   const tb = $("cap-body");
   tb.innerHTML = "";
-  let list = caps.slice();
-  if (filter === "ibe") list = list.filter(d => d.ibeacon);
-  if (filter === "name") list = list.filter(d => d.name);
-  if (filter === "rssi") list.sort((a, b) => b.rssi - a.rssi);
+  let list = caps.slice().sort((a, b) => b.rssi - a.rssi);
 
   if (!list.length) {
     tb.innerHTML = "<tr><td colspan='4' class='dim'></td></tr>";
@@ -1082,7 +1048,6 @@ async function boot() {
   recLoad();
   renderRecs();
   const cur = document.querySelector("nav button.active").dataset.tab;
-  if (cur === "home") loadQuick();
   if (cur === "capture") { loadCaptures(); loadHistory(); }
   if (cur === "profiles") loadProfiles();
   if (cur === "log") loadLog(true);
@@ -1096,7 +1061,6 @@ function tick() {
   if (document.hidden) return;
   refreshStatus();
   const cur = document.querySelector("nav button.active").dataset.tab;
-  if (cur === "home") loadQuick();
   if (cur === "capture") loadCaptures();
   else if (S.mode === "sniff") recPoll();
   if (cur === "log") loadLog(false);
@@ -1107,28 +1071,6 @@ document.addEventListener("visibilitychange", () => {
   refreshStatus();
   recPoll();
 });
-
-async function loadQuick() {
-  const box = $("quick");
-  let j;
-  try { j = await get("/api/scan?limit=3"); } catch (e) { return; }
-  if (!j.ok || !(j.items || []).length) {
-    box.innerHTML = "<span class='dim'>" + esc(t("cap_nothing") + " " + t("cap_idle")) + "</span>";
-    return;
-  }
-  box.innerHTML = "";
-  j.items.slice(0, 3).forEach(d => {
-    const row = document.createElement("div");
-    row.className = "row";
-    row.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0;justify-content:space-between";
-    row.innerHTML =
-      "<div><div>" + capTitle(d) +
-      "</div><div class='mono dim'>" + d.rssi + "dBm · " + (d.itvl_ms || "?") + "ms</div></div>" +
-      "<button class='btn pri sm'>" + t("btn_clone_sm") + "</button>";
-    row.querySelector("button").onclick = () => cloneSignal(d.addr, row.querySelector("button"));
-    box.appendChild(row);
-  });
-}
 
 applyLang();
 if (token) { hideLogin(); boot(); } else { showLogin(); }
