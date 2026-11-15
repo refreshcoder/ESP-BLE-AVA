@@ -211,7 +211,14 @@ bool cfg_profile_from_json(const cJSON *j, beacon_profile_t *p, char *err, size_
     if (p->clone_public_addr) p->use_rand_addr = false;   /* the two cannot both apply */
 
     s = jstr(j, "src");
-    if (s && *s) cfg_hex_from_str(s, p->src_addr, 6);
+    bool src_ok = false;
+    if (s && *s) src_ok = cfg_hex_from_str(s, p->src_addr, 6);
+    if (p->clone_public_addr) {
+        /* A forced public address must be present and unicast (bit 0 of the first octet = group). */
+        if (!src_ok) { snprintf(err, errlen, "clone_public_addr needs src (12 hex chars)"); return false; }
+        if (p->src_addr[0] & 0x01) { snprintf(err, errlen, "public address must be unicast"); return false; }
+        p->use_rand_addr = false;
+    }
     p->src_adv_type = (uint8_t)jint(j, "src_adv_type", 0);
     p->use_seq      = (uint32_t)jint(j, "use_seq", 0);
     return true;

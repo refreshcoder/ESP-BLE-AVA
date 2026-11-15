@@ -180,6 +180,11 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
         </div>
       </div>
       <div id="form-raw" class="dim mono" style="display:none"></div>
+      <div id="form-addr" style="display:none">
+        <label data-i18n="lb_adv_addr">Advertised address</label>
+        <input id="f-addr" class="mono" maxlength="17" placeholder="02:11:22:33:44:55" data-i18n-ph="ph_adv_addr">
+        <div class="dim" style="margin-top:4px;font-size:12px" data-i18n="adv_addr_hint">Empty = the device's own address. Twelve hex chars force this BLE public address on air; it applies from the next boot, so saving while the profile is active reboots the device.</div>
+      </div>
       <div class="row" style="margin-top:12px">
         <button class="btn pri" onclick="saveForm()" data-i18n="btn_save">Save</button>
         <button class="btn" onclick="closeForm()" data-i18n="btn_cancel">Cancel</button>
@@ -327,6 +332,10 @@ const I18N = {
     lb_scan: "Scannable", lb_uuid: "UUID", ph_uuid: "32 hex chars, dashes optional",
     lb_major: "Major", lb_minor: "Minor",
     raw_note: "Raw bytes (replayed verbatim, cannot be edited):",
+    lb_adv_addr: "Advertised address",
+    ph_adv_addr: "empty = own address, or 12 hex chars",
+    adv_addr_hint: "Empty = the device's own address. Twelve hex chars force this BLE public address on air; it applies from the next boot, so saving while the profile is active reboots the device.",
+    err_adv_addr: "address must be empty or 12 hex chars",
     btn_save: "Save", btn_cancel: "Cancel",
     tag_raw: "RAW replay", tag_ibe: "iBeacon", tag_on_air: "on air",
     tag_pubaddr: "public addr",
@@ -410,6 +419,10 @@ const I18N = {
     lb_scan: "可扫描", lb_uuid: "UUID", ph_uuid: "32 位十六进制，可带连字符",
     lb_major: "主值", lb_minor: "次值",
     raw_note: "原始字节（原样重放，不可编辑）：",
+    lb_adv_addr: "广播地址",
+    ph_adv_addr: "留空 = 本机地址，或 12 位十六进制",
+    adv_addr_hint: "留空则用本机地址；填 12 位十六进制会把该公开地址强制用作广播地址，从下次启动起生效——若该配置正在广播，保存后设备会自动重启一次。",
+    err_adv_addr: "地址需留空或为 12 位十六进制",
     btn_save: "保存", btn_cancel: "取消",
     tag_raw: "原始重放", tag_ibe: "iBeacon", tag_on_air: "广播中",
     tag_pubaddr: "公开地址",
@@ -768,6 +781,8 @@ function openForm(i) {
   const isRaw = p.kind === 1;
   $("form-ibe").style.display = isRaw ? "none" : "block";
   $("form-raw").style.display = isRaw ? "block" : "none";
+  $("form-addr").style.display = isRaw ? "block" : "none";
+  $("f-addr").value = (isRaw && p.clone_public_addr && p.src) ? fmtAddr(p.src) : "";
   if (isRaw) {
     $("form-raw").innerHTML = esc(t("raw_note")) + "<div class='hexbox'>" + hexPairs(p.raw) + "</div>" +
       (p.rsp ? "<div class='dim' style='margin-top:8px'>" + esc(t("form_rsp")) + "</div>" +
@@ -791,10 +806,17 @@ async function saveForm() {
     body.raw = o.raw;
     if (o.rsp) body.rsp = o.rsp;
     if (o.src) { body.src = o.src; body.src_adv_type = o.src_adv_type; }
-    /* Address settings are not editable here, but must survive a save: the backend treats a
-     * missing field as "off", so omitting them silently disables address cloning. */
-    if (o.clone_public_addr) body.clone_public_addr = true;
-    if (o.use_rand_addr && o.rand_addr) { body.rand_addr = o.rand_addr; body.use_rand_addr = true; }
+    /* Advertised address: empty keeps the device's own, 12 hex chars force a public one.
+     * The backend treats a missing field as "off", so both cases must be spelled out. */
+    const a = $("f-addr").value.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+    if (a.length === 12) {
+      body.src = a; body.clone_public_addr = true;
+    } else if (a.length === 0) {
+      body.clone_public_addr = false;
+      if (o.use_rand_addr && o.rand_addr) { body.rand_addr = o.rand_addr; body.use_rand_addr = true; }
+    } else {
+      $("form-msg").textContent = t("err_adv_addr"); return;
+    }
   }
   else {
     body.uuid = $("f-uuid").value.trim();
