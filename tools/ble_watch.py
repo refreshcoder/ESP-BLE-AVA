@@ -87,6 +87,8 @@ async def main():
                     help="keep scanning until a match appears (or --seconds elapses)")
     ap.add_argument("--active", action="store_true",
                     help="send scan requests instead of staying passive (Windows default)")
+    ap.add_argument("--watch", type=float, metavar="SEC",
+                    help="report every SEC seconds until --seconds elapses (did it die, and when)")
     a = ap.parse_args()
 
     want_mfg = bytes.fromhex(a.mfg) if a.mfg else None
@@ -106,6 +108,22 @@ async def main():
         return rows
 
     deadline = time.monotonic() + a.seconds
+    if a.watch:
+        while time.monotonic() < deadline:
+            await asyncio.sleep(a.watch)
+            rows = matches()
+            if a.expect:
+                rows = [d for d in rows if check_expected(a.expect, d)[0]]
+            stamp = time.strftime("%H:%M:%S")
+            if rows:
+                d = rows[0]
+                print(f"{stamp}  {d['address']:18} {d['rssi']:>4}dB  pkts={d['pkts']:<4} "
+                      f"itvl={d['itvl_ms']:>6.0f}ms  {fmt_mfg(d['mfg'])}", flush=True)
+            else:
+                print(f"{stamp}  -- no match ({len(seen)} devices seen)", flush=True)
+        await scanner.stop()
+        return 0
+
     if a.wait:
         while time.monotonic() < deadline and not matches():
             await asyncio.sleep(1.0)
