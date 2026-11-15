@@ -118,8 +118,9 @@ void app_on_ble_sync(void)
     update_led();
 }
 
-/* 1 s tick: optional rotation */
+/* 1 s tick: optional rotation, plus advertising self-heal */
 static uint32_t s_rot_tick;
+static uint8_t  s_adv_retry;
 
 static void tick_cb(void *arg)
 {
@@ -153,6 +154,21 @@ static void tick_cb(void *arg)
         app_apply_active();
         applog_add(LOG_T_ACT, 0, "rotation -> %d", newid);
     }
+
+    /* Self-heal: the controller can drop advertising (ADV_COMPLETE, RF error) while
+     * the host still believes it is in clone mode. Without this the UI keeps saying
+     * "cloning" with ADV off and nothing ever restarts the advertisement. */
+    if (radio_mode() == RMODE_CLONE && !beacon_adv_is_running()) {
+        if (++s_adv_retry >= 10) {
+            s_adv_retry = 0;
+            ESP_LOGW(TAG, "advertising dropped in clone mode -> re-apply");
+            applog_add(LOG_T_ERR, 0, "adv dropped in clone mode, re-applying");
+            app_apply_active();
+        }
+    } else {
+        s_adv_retry = 0;
+    }
+
     update_led();
 }
 

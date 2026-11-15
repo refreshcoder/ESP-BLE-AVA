@@ -55,7 +55,7 @@ Decisions taken because of this:
 - **No TLS on the management UI.** A TLS handshake costs ~20 KB RAM and ~1.5 s on this
   class of part; the SoftAP is a closed network and the API is bearer-token protected.
 - **Content is embedded, not served from flash FS**: the SPA is gzipped at build time
-  and linked into rodata (10 KB), so the device works with no internet and never
+  and linked into rodata (15 KB), so the device works with no internet and never
   touches the filesystem to render its own UI.
 
 ### Typical current draw (estimates, not measured)
@@ -342,6 +342,10 @@ Design decisions worth keeping:
 5. **Human error messages**: `409 → "all profile slots are used"`, `404 → "no longer in the capture table, scan again"`, `401 → re-login`.
 6. Dark, high-contrast theme (warehouses, outdoors), no web fonts, no CDN, works offline.
 7. 2.5 s polling rather than WebSockets: fewer moving parts, tables are ≤16 rows.
+8. **Two languages, one file.** English is the source and 简体中文 sits beside it in one
+   inline `I18N` table keyed by `data-i18n` attributes; `localStorage.bgw_lang` remembers
+   the choice and `navigator.language` seeds it. No JSON fetch, no second HTTP request,
+   no extra flash partition — a language the device cannot serve never appears.
 
 ---
 

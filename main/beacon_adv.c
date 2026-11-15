@@ -28,9 +28,19 @@ static void snap_tx_power(int8_t dbm)
           : dbm > BOARD_BLE_TX_MAX_DBM ? BOARD_BLE_TX_MAX_DBM : dbm;
     if (v >= 0) v = ((v + 1) / 3) * 3;
     else        v = -(((-v) + 1) / 3) * 3;
-    esp_err_t e = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, (esp_power_level_t)v);
+
+    /* esp_power_level_t is an INDEX into a 3 dBm ladder, not a dBm value:
+     * N12=0, N9=1, N6=2, N3=3, N0=4, P3=5, P6=6, P9=7. Passing dBm straight
+     * through made every call fail with ESP_FAIL (9 is ESP_PWR_LVL_N11 on the
+     * C6), so the radio stayed on its default power while /api/status reported
+     * the requested value. */
+    int idx = v / 3 + 4;
+    if (idx < 0) { idx = 0; v = -12; }
+    if (idx > 7) { idx = 7; v = 9; }
+
+    esp_err_t e = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, (esp_power_level_t)idx);
     if (e != ESP_OK) {
-        ESP_LOGW(TAG, "tx_power %d dBm: %s", v, esp_err_to_name(e));
+        ESP_LOGW(TAG, "tx_power %d dBm (level %d): %s", v, idx, esp_err_to_name(e));
     } else {
         s_tx_dbm = (int8_t)v;
     }

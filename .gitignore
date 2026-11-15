@@ -7,6 +7,10 @@ sdkconfig.ci
 # generated at configure time from main/www/index.html
 main/www/index.html.gz
 
+# local bench logs from tools/ble_watch.py + serial capture
+tools/*.log
+tools/*.err
+
 # editors / OS
 .vscode/
 .idea/

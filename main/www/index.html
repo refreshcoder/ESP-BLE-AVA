@@ -38,6 +38,7 @@ button.btn.sm{min-height:34px;padding:6px 11px;font-size:13px}
 label{display:block;font-size:12px;color:var(--dim);margin:10px 0 5px}
 input,select{width:100%;background:#0d1016;border:1px solid var(--line);color:var(--fg);min-height:44px;padding:10px 11px;border-radius:10px;font-size:15px;font-family:inherit}
 input[type=checkbox]{width:auto;min-height:0}
+#lang{width:auto;min-height:0;padding:3px 6px;border-radius:99px;font-size:11px;background:#151a22;color:var(--dim)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .spacer{flex:1}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0}
@@ -69,15 +70,16 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
   <span class="pill" id="p-adv">ADV —</span>
   <span class="pill" id="p-sta">AP —</span>
   <span class="spacer"></span>
-  <button class="btn sm" id="btn-lock">Lock</button>
+  <select id="lang" title="Language"><option value="en">EN</option><option value="zh">中文</option></select>
+  <button class="btn sm" id="btn-lock" data-i18n="btn_lock">Lock</button>
 </header>
 
 <nav>
-  <button data-tab="home" class="active">Status</button>
-  <button data-tab="capture">Capture</button>
-  <button data-tab="profiles">Profiles</button>
-  <button data-tab="log">Log</button>
-  <button data-tab="settings">Settings</button>
+  <button data-tab="home" class="active" data-i18n="nav_status">Status</button>
+  <button data-tab="capture" data-i18n="nav_capture">Capture</button>
+  <button data-tab="profiles" data-i18n="nav_profiles">Profiles</button>
+  <button data-tab="log" data-i18n="nav_log">Log</button>
+  <button data-tab="settings" data-i18n="nav_settings">Settings</button>
 </nav>
 
 <main>
@@ -86,39 +88,39 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
     <div class="card warnbox" id="pow-card" style="display:none"><div id="pow-warn" class="mono"></div></div>
 
     <div class="card">
-      <h2>Current mode</h2>
+      <h2 data-i18n="home_mode">Current mode</h2>
       <div class="big">
         <div class="row" style="justify-content:space-between">
           <div style="font-size:22px;font-weight:700" id="mode-title">—</div>
           <span class="dim mono" id="led-hint">LED —</span>
         </div>
-        <button class="modebtn" id="m-sniff" onclick="setMode('sniff')">Sniff (capture)</button>
-        <button class="modebtn" id="m-clone" onclick="setMode('clone')">Clone (advertise)</button>
-        <button class="modebtn" id="m-idle" onclick="setMode('idle')">Stop radio</button>
+        <button class="modebtn" id="m-sniff" onclick="setMode('sniff')" data-i18n="btn_sniff">Sniff (capture)</button>
+        <button class="modebtn" id="m-clone" onclick="setMode('clone')" data-i18n="btn_clone">Clone (advertise)</button>
+        <button class="modebtn" id="m-idle" onclick="setMode('idle')" data-i18n="btn_stop_radio">Stop radio</button>
       </div>
-      <div class="dim" style="margin-top:10px;font-size:12px">Capture and advertising are mutually exclusive: entering one stops the other.</div>
+      <div class="dim" style="margin-top:10px;font-size:12px" data-i18n="mode_hint">Capture and advertising are mutually exclusive: entering one stops the other.</div>
     </div>
 
-    <div class="card"><h2>Runtime</h2><div id="status-body" class="mono dim" style="white-space:pre-wrap">loading…</div></div>
+    <div class="card"><h2 data-i18n="card_runtime">Runtime</h2><div id="status-body" class="mono dim" style="white-space:pre-wrap" data-i18n="loading">loading…</div></div>
 
-    <div class="card"><h2>Latest captures (one-tap clone)</h2><div id="quick" class="dim">—</div></div>
+    <div class="card"><h2 data-i18n="card_latest">Latest captures (one-tap clone)</h2><div id="quick" class="dim">—</div></div>
 
     <div class="card">
-      <details><summary>LED patterns / button gestures</summary>
+      <details><summary data-i18n="details_legend">LED patterns / button gestures</summary>
         <table class="legend" style="margin-top:8px">
-          <tr><th>LED</th><th>Meaning</th></tr>
-          <tr><td>Double blink</td><td>Sniffing</td></tr>
-          <tr><td>1 Hz slow blink</td><td>Cloning / advertising</td></tr>
-          <tr><td>Triple fast blink</td><td>Cloning and a client is on this UI</td></tr>
-          <tr><td>One blink every 3 s</td><td>Idle (profiles exist, radio off)</td></tr>
-          <tr><td>Solid</td><td>No profile at all</td></tr>
-          <tr><td>Six rapid blinks</td><td>Radio error</td></tr>
+          <tr><th data-i18n="th_led">LED</th><th data-i18n="th_meaning">Meaning</th></tr>
+          <tr><td data-i18n="led_double">Double blink</td><td data-i18n="led_double_m">Sniffing</td></tr>
+          <tr><td data-i18n="led_1hz">1 Hz slow blink</td><td data-i18n="led_1hz_m">Cloning / advertising</td></tr>
+          <tr><td data-i18n="led_triple">Triple fast blink</td><td data-i18n="led_triple_m">Cloning and a client is on this UI</td></tr>
+          <tr><td data-i18n="led_3s">One blink every 3 s</td><td data-i18n="led_3s_m">Idle (profiles exist, radio off)</td></tr>
+          <tr><td data-i18n="led_solid">Solid</td><td data-i18n="led_solid_m">No profile at all</td></tr>
+          <tr><td data-i18n="led_six">Six rapid blinks</td><td data-i18n="led_six_m">Radio error</td></tr>
         </table>
         <table class="legend" style="margin-top:10px">
-          <tr><th>Button (BOOT)</th><th>Action</th></tr>
-          <tr><td>Single click</td><td>Sniff ⇄ Clone</td></tr>
-          <tr><td>Double click</td><td>Stop radio</td></tr>
-          <tr><td>Long press 5 s</td><td>Factory reset + reboot</td></tr>
+          <tr><th data-i18n="th_button">Button (BOOT)</th><th data-i18n="th_action">Action</th></tr>
+          <tr><td data-i18n="btn1_click">Single click</td><td data-i18n="btn1_act">Sniff ⇄ Clone</td></tr>
+          <tr><td data-i18n="btn2_click">Double click</td><td data-i18n="btn2_act">Stop radio</td></tr>
+          <tr><td data-i18n="btn_long">Long press 5 s</td><td data-i18n="btn_long_act">Factory reset + reboot</td></tr>
         </table>
       </details>
     </div>
@@ -127,28 +129,28 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
   <!-- ========== capture ========== -->
   <section id="tab-capture">
     <div class="card">
-      <h2>This session <span class="dim" id="cap-stat"></span></h2>
+      <h2><span data-i18n="cap_this_session">This session</span> <span class="dim" id="cap-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" id="btn-freeze" onclick="toggleFreeze()">Freeze</button>
-        <button class="btn sm" onclick="loadCaptures()">Refresh</button>
-        <button class="btn sm dan" onclick="clearCapture()">Clear</button>
+        <button class="btn sm" id="btn-freeze" onclick="toggleFreeze()" data-i18n="btn_freeze">Freeze</button>
+        <button class="btn sm" onclick="loadCaptures()" data-i18n="btn_refresh">Refresh</button>
+        <button class="btn sm dan" onclick="clearCapture()" data-i18n="btn_clear">Clear</button>
       </div>
       <div class="chips" style="margin-bottom:8px">
-        <button class="chip on" data-filter="all" onclick="setFilter('all')">All</button>
-        <button class="chip" data-filter="ibe" onclick="setFilter('ibe')">iBeacon</button>
-        <button class="chip" data-filter="name" onclick="setFilter('name')">Named</button>
-        <button class="chip" data-filter="rssi" onclick="setFilter('rssi')">Strongest</button>
+        <button class="chip on" data-filter="all" onclick="setFilter('all')" data-i18n="f_all">All</button>
+        <button class="chip" data-filter="ibe" onclick="setFilter('ibe')" data-i18n="f_ibe">iBeacon</button>
+        <button class="chip" data-filter="name" onclick="setFilter('name')" data-i18n="f_name">Named</button>
+        <button class="chip" data-filter="rssi" onclick="setFilter('rssi')" data-i18n="f_rssi">Strongest</button>
       </div>
-      <table><thead><tr><th>Signal</th><th>RSSI</th><th>Interval</th><th></th></tr></thead>
+      <table><thead><tr><th data-i18n="th_signal">Signal</th><th data-i18n="th_rssi">RSSI</th><th data-i18n="th_itvl">Interval</th><th></th></tr></thead>
       <tbody id="cap-body"></tbody></table>
-      <div class="dim" style="margin-top:8px;font-size:12px">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
+      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n-html="cap_note">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
     </div>
 
     <div class="card">
-      <h2>Capture archive (survives reboot)<span class="dim" id="hist-stat"></span></h2>
+      <h2><span data-i18n="hist_title">Capture archive (survives reboot)</span><span class="dim" id="hist-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="loadHistory()">Refresh</button>
-        <button class="btn sm dan" onclick="clearHistory()">Clear archive</button>
+        <button class="btn sm" onclick="loadHistory()" data-i18n="btn_refresh">Refresh</button>
+        <button class="btn sm dan" onclick="clearHistory()" data-i18n="btn_clear_archive">Clear archive</button>
       </div>
       <div id="hist-body" class="dim">—</div>
     </div>
@@ -157,29 +159,29 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
   <!-- ========== profiles ========== -->
   <section id="tab-profiles">
     <div class="card">
-      <h2>Profiles (max 3)</h2>
-      <div id="prof-body" class="dim">loading…</div>
-      <div class="dim" style="margin-top:10px;font-size:12px">When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.</div>
+      <h2 data-i18n="prof_title">Profiles (max 3)</h2>
+      <div id="prof-body" class="dim" data-i18n="loading">loading…</div>
+      <div class="dim" style="margin-top:10px;font-size:12px" data-i18n="prof_note">When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.</div>
     </div>
     <div class="card" id="form-card" style="display:none">
-      <h2 id="form-title">Edit</h2>
+      <h2 id="form-title" data-i18n="form_edit">Edit</h2>
       <div class="grid2">
-        <div><label>Name</label><input id="f-name" maxlength="23"></div>
-        <div><label>Advertising interval (ms)</label><input id="f-itvl" type="number" min="20" max="10240"></div>
-        <div><label>TX power (dBm)</label><input id="f-tx" type="number" min="-15" max="20"></div>
-        <div><label>Scannable</label><input id="f-scan" type="checkbox"></div>
+        <div><label data-i18n="lb_name">Name</label><input id="f-name" maxlength="23"></div>
+        <div><label data-i18n="lb_itvl">Advertising interval (ms)</label><input id="f-itvl" type="number" min="20" max="10240"></div>
+        <div><label data-i18n="lb_tx">TX power (dBm)</label><input id="f-tx" type="number" min="-15" max="20"></div>
+        <div><label data-i18n="lb_scan">Scannable</label><input id="f-scan" type="checkbox"></div>
       </div>
       <div id="form-ibe">
-        <label>UUID</label><input id="f-uuid" class="mono" placeholder="32 hex chars, dashes optional">
+        <label data-i18n="lb_uuid">UUID</label><input id="f-uuid" class="mono" placeholder="32 hex chars, dashes optional" data-i18n-ph="ph_uuid">
         <div class="grid2">
-          <div><label>Major</label><input id="f-major" type="number" min="0" max="65535"></div>
-          <div><label>Minor</label><input id="f-minor" type="number" min="0" max="65535"></div>
+          <div><label data-i18n="lb_major">Major</label><input id="f-major" type="number" min="0" max="65535"></div>
+          <div><label data-i18n="lb_minor">Minor</label><input id="f-minor" type="number" min="0" max="65535"></div>
         </div>
       </div>
       <div id="form-raw" class="dim mono" style="display:none"></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn pri" onclick="saveForm()">Save</button>
-        <button class="btn" onclick="closeForm()">Cancel</button>
+        <button class="btn pri" onclick="saveForm()" data-i18n="btn_save">Save</button>
+        <button class="btn" onclick="closeForm()" data-i18n="btn_cancel">Cancel</button>
         <span class="dim" id="form-msg"></span>
       </div>
     </div>
@@ -188,10 +190,10 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
   <!-- ========== log ========== -->
   <section id="tab-log">
     <div class="card">
-      <h2>Event log</h2>
+      <h2 data-i18n="card_log">Event log</h2>
       <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="loadLog(true)">Refresh</button>
-        <button class="btn sm dan" onclick="clearLog()">Clear</button>
+        <button class="btn sm" onclick="loadLog(true)" data-i18n="btn_refresh">Refresh</button>
+        <button class="btn sm dan" onclick="clearLog()" data-i18n="btn_clear">Clear</button>
         <span class="dim mono" id="log-hint"></span>
       </div>
       <div class="log" id="log-body"></div>
@@ -200,51 +202,51 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
 
   <!-- ========== settings ========== -->
   <section id="tab-settings">
-    <div class="card"><h2>Scan parameters</h2>
+    <div class="card"><h2 data-i18n="card_scan">Scan parameters</h2>
       <div class="grid2">
-        <div><label>Scanning enabled</label><input id="s-en" type="checkbox"></div>
-        <div><label>Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
-        <div><label>Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
+        <div><label data-i18n="lb_enabled">Scanning enabled</label><input id="s-en" type="checkbox"></div>
+        <div><label data-i18n="lb_scan_itvl">Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
+        <div><label data-i18n="lb_scan_win">Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveScan()">Save</button></div>
-      <div class="dim" style="margin-top:8px;font-size:12px">A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.</div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveScan()" data-i18n="btn_save">Save</button></div>
+      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="scan_note">A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.</div>
     </div>
-    <div class="card"><h2>SoftAP</h2>
-      <div><label>SSID</label><input id="s-ssid" maxlength="32"></div>
-      <div><label>Password (≥8 chars)</label><input id="s-pass" maxlength="63"></div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveAp()">Save</button></div>
+    <div class="card"><h2 data-i18n="card_softap">SoftAP</h2>
+      <div><label data-i18n="lb_ssid">SSID</label><input id="s-ssid" maxlength="32"></div>
+      <div><label data-i18n="lb_pass">Password (≥8 chars)</label><input id="s-pass" maxlength="63"></div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveAp()" data-i18n="btn_save">Save</button></div>
     </div>
-    <div class="card"><h2>Rotation (optional)</h2>
+    <div class="card"><h2 data-i18n="card_rotation">Rotation (optional)</h2>
       <div class="grid2">
-        <div><label>Enabled</label><input id="s-rot" type="checkbox"></div>
-        <div><label>Period (s)</label><input id="s-rot-s" type="number" min="5" max="3600"></div>
+        <div><label data-i18n="lb_enabled">Enabled</label><input id="s-rot" type="checkbox"></div>
+        <div><label data-i18n="lb_period">Period (s)</label><input id="s-rot-s" type="number" min="5" max="3600"></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveRotation()">Save</button></div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveRotation()" data-i18n="btn_save">Save</button></div>
     </div>
-    <div class="card"><h2>Import / export</h2>
+    <div class="card"><h2 data-i18n="card_io">Import / export</h2>
       <div class="row">
-        <button class="btn" onclick="doExport()">Export JSON</button>
-        <label class="btn" style="margin:0;display:inline-flex;align-items:center">Import
+        <button class="btn" onclick="doExport()" data-i18n="btn_export">Export JSON</button>
+        <label class="btn" style="margin:0;display:inline-flex;align-items:center"><span data-i18n="btn_import">Import</span>
           <input type="file" accept="application/json" style="display:none" onchange="doImport(this)">
         </label>
       </div>
     </div>
-    <div class="card"><h2>Danger zone</h2>
+    <div class="card"><h2 data-i18n="card_danger">Danger zone</h2>
       <div class="row">
-        <button class="btn dan" onclick="if(confirm('Factory reset?'))post('/api/factory',{}).then(()=>post('/api/reboot',{}))">Factory reset</button>
-        <button class="btn dan" onclick="if(confirm('Reboot the device?'))post('/api/reboot',{})">Reboot</button>
+        <button class="btn dan" onclick="factoryReset()" data-i18n="btn_factory">Factory reset</button>
+        <button class="btn dan" onclick="rebootNow()" data-i18n="btn_reboot">Reboot</button>
       </div>
-      <div class="dim" style="margin-top:8px;font-size:12px">OTA is not implemented; update over USB-C.</div>
+      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="ota_note">OTA is not implemented; update over USB-C.</div>
     </div>
   </section>
 </main>
 
 <div id="login">
   <div class="box card">
-    <h2>Sign in</h2>
-    <label>SoftAP password</label>
-    <input id="l-pass" type="password" placeholder="beaconXXXX by default (see silkscreen or serial log)">
-    <div class="row" style="margin-top:12px"><button class="btn pri" id="l-btn">Sign in</button><span class="dim" id="l-msg"></span></div>
+    <h2 data-i18n="login_title">Sign in</h2>
+    <label data-i18n="lb_ap_pass">SoftAP password</label>
+    <input id="l-pass" type="password" placeholder="beaconXXXX by default (see silkscreen or serial log)" data-i18n-ph="ph_ap_pass">
+    <div class="row" style="margin-top:12px"><button class="btn pri" id="l-btn" data-i18n="btn_signin">Sign in</button><span class="dim" id="l-msg"></span></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -264,12 +266,202 @@ let timer = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
+/* ---------- i18n ---------- */
+const I18N = {
+  en: {
+    app_title: "BLE Beacon Cloner",
+    btn_lock: "Lock", btn_signin: "Sign in",
+    nav_status: "Status", nav_capture: "Capture", nav_profiles: "Profiles", nav_log: "Log", nav_settings: "Settings",
+    adv_on: "ADV on", adv_off: "ADV off", clients: "clients",
+    home_mode: "Current mode",
+    mode_sniff: "Sniffing", mode_clone: "Cloning", mode_idle: "Radio off",
+    btn_sniff: "Sniff (capture)", btn_clone: "Clone (advertise)", btn_stop_radio: "Stop radio",
+    mode_hint: "Capture and advertising are mutually exclusive: entering one stops the other.",
+    card_runtime: "Runtime", loading: "loading…",
+    card_latest: "Latest captures (one-tap clone)",
+    details_legend: "LED patterns / button gestures",
+    th_led: "LED", th_meaning: "Meaning",
+    led_double: "Double blink", led_double_m: "Sniffing",
+    led_1hz: "1 Hz slow blink", led_1hz_m: "Cloning / advertising",
+    led_triple: "Triple fast blink", led_triple_m: "Cloning and a client is on this UI",
+    led_3s: "One blink every 3 s", led_3s_m: "Idle (profiles exist, radio off)",
+    led_solid: "Solid", led_solid_m: "No profile at all",
+    led_six: "Six rapid blinks", led_six_m: "Radio error",
+    th_button: "Button (BOOT)", th_action: "Action",
+    btn1_click: "Single click", btn1_act: "Sniff ⇄ Clone",
+    btn2_click: "Double click", btn2_act: "Stop radio",
+    btn_long: "Long press 5 s", btn_long_act: "Factory reset + reboot",
+    led_sniff: "double blink", led_clone: "1 Hz blink", led_clone_client: "triple fast", led_idle: "blink every 3 s",
+    st_board: "board", st_version: "version", st_ip: "IP", st_profile: "profile", st_none: "(none)",
+    st_scan: "scan", st_packets: "packets", st_detected: "detected", st_devices: "devices",
+    st_tx: "tx", st_adv_starts: "adv starts", st_archive: "archive",
+    st_records: "records (persistent)", st_reset: "reset", st_boots: "boots",
+    st_memory: "memory", st_min: "min", st_uptime: "uptime",
+    pow_warn: "brownout reset(s) recorded. That is a weak supply, not a firmware bug: shorter/thicker USB cable, better PSU, or 220 µF across 3V3.",
+    cap_this_session: "This session", btn_freeze: "Freeze", btn_frozen: "Frozen",
+    btn_refresh: "Refresh", btn_clear: "Clear", btn_clear_archive: "Clear archive",
+    f_all: "All", f_ibe: "iBeacon", f_name: "Named", f_rssi: "Strongest",
+    th_signal: "Signal", th_rssi: "RSSI", th_itvl: "Interval",
+    cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.",
+    cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
+    cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
+    cap_avg: "avg", cap_ago: "s ago", cap_raw: "raw bytes, ",
+    cap_ble_adv: "BLE advertisement", btn_clone_sm: "Clone",
+    toast_session_cleared: "Session captures cleared",
+    toast_cloning: "Cloning now (interval {itvl}ms)",
+    toast_replaced: ", replaced the least recently used profile",
+    toast_clone_failed: "clone failed",
+    hist_title: "Capture archive (survives reboot)",
+    hist_unavailable: " unavailable", hist_records: " records",
+    hist_no_store: "Storage partition not mounted.",
+    hist_empty: "Empty. One record is written each time you clone.",
+    hist_boot: "boot #",
+    toast_archive_cleared: "Archive cleared", err_failed: "failed",
+    confirm_clear_archive: "Clear the capture archive?",
+    prof_title: "Profiles (max 3)", form_edit: "Edit",
+    prof_note: "When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.",
+    prof_empty: "No profiles yet. Capture a signal and tap Clone.",
+    lb_name: "Name", lb_itvl: "Advertising interval (ms)", lb_tx: "TX power (dBm)",
+    lb_scan: "Scannable", lb_uuid: "UUID", ph_uuid: "32 hex chars, dashes optional",
+    lb_major: "Major", lb_minor: "Minor",
+    raw_note: "Raw bytes (replayed verbatim, cannot be edited):",
+    btn_save: "Save", btn_cancel: "Cancel",
+    tag_raw: "RAW replay", tag_ibe: "iBeacon", tag_on_air: "on air",
+    btn_stop: "Stop", btn_activate: "Activate", btn_adv_edit: "Advanced edit", btn_delete: "Delete",
+    toast_activated: "Activated #", toast_deleted: "Deleted", toast_saved: "Saved",
+    err_save_failed: "save failed",
+    confirm_del_profile: "Delete profile #{id} \"{name}\"?",
+    card_log: "Event log", lb_seq: "seq ", toast_cleared: "Cleared",
+    card_scan: "Scan parameters", lb_enabled: "Scanning enabled",
+    lb_scan_itvl: "Interval (ms)", lb_scan_win: "Window (ms)",
+    scan_note: "A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.",
+    card_softap: "SoftAP", lb_ssid: "SSID", lb_pass: "Password (≥8 chars)",
+    card_rotation: "Rotation (optional)", lb_period: "Period (s)",
+    card_io: "Import / export", btn_export: "Export JSON", btn_import: "Import",
+    card_danger: "Danger zone", btn_factory: "Factory reset", btn_reboot: "Reboot",
+    ota_note: "OTA is not implemented; update over USB-C.",
+    toast_scan_saved: "Scan parameters saved",
+    toast_ap_saved: "Saved - reconnect with the new credentials",
+    toast_imported: "Imported", err_bad_json: "Not valid JSON",
+    confirm_factory: "Factory reset?", confirm_reboot: "Reboot the device?",
+    login_title: "Sign in", lb_ap_pass: "SoftAP password",
+    ph_ap_pass: "beaconXXXX by default (see silkscreen or serial log)",
+    err_wrong_pass: "wrong password", err_net: "Network error: ", toast_mode: "Mode: "
+  },
+  zh: {
+    app_title: "BLE 信标克隆器",
+    btn_lock: "锁定", btn_signin: "登录",
+    nav_status: "状态", nav_capture: "捕获", nav_profiles: "配置", nav_log: "日志", nav_settings: "设置",
+    adv_on: "广播 开", adv_off: "广播 关", clients: "客户端",
+    home_mode: "当前模式",
+    mode_sniff: "嗅探中", mode_clone: "克隆中", mode_idle: "射频关闭",
+    btn_sniff: "嗅探（捕获）", btn_clone: "克隆（广播）", btn_stop_radio: "关闭射频",
+    mode_hint: "捕获与广播互斥：进入其中一个会停止另一个。",
+    card_runtime: "运行状态", loading: "加载中…",
+    card_latest: "最新捕获（一键克隆）",
+    details_legend: "LED 指示 / 按键操作",
+    th_led: "LED", th_meaning: "含义",
+    led_double: "双闪", led_double_m: "嗅探中",
+    led_1hz: "1 Hz 慢闪", led_1hz_m: "克隆 / 广播中",
+    led_triple: "三连快闪", led_triple_m: "克隆中，且有客户端连着本页面",
+    led_3s: "每 3 秒闪一次", led_3s_m: "空闲（有配置，射频关闭）",
+    led_solid: "常亮", led_solid_m: "没有任何配置",
+    led_six: "六连快闪", led_six_m: "射频错误",
+    th_button: "按键（BOOT）", th_action: "动作",
+    btn1_click: "单击", btn1_act: "嗅探 ⇄ 克隆",
+    btn2_click: "双击", btn2_act: "关闭射频",
+    btn_long: "长按 5 秒", btn_long_act: "恢复出厂 + 重启",
+    led_sniff: "双闪", led_clone: "1 Hz 慢闪", led_clone_client: "三连快闪", led_idle: "每 3 秒闪一次",
+    st_board: "开发板", st_version: "版本", st_ip: "IP", st_profile: "配置", st_none: "（无）",
+    st_scan: "扫描", st_packets: "个包", st_detected: "已发现", st_devices: "个设备",
+    st_tx: "发射", st_adv_starts: "广播启动", st_archive: "归档",
+    st_records: "条记录（掉电保留）", st_reset: "复位原因", st_boots: "启动次数",
+    st_memory: "内存", st_min: "最小", st_uptime: "运行时长",
+    pow_warn: "次掉电复位。这是供电不足，不是固件问题：换更短更粗的 USB 线、更好的电源，或在 3V3 并 220 µF 电容。",
+    cap_this_session: "本次会话", btn_freeze: "冻结", btn_frozen: "已冻结",
+    btn_refresh: "刷新", btn_clear: "清空", btn_clear_archive: "清空归档",
+    f_all: "全部", f_ibe: "iBeacon", f_name: "有名", f_rssi: "最强",
+    th_signal: "信号", th_rssi: "RSSI", th_itvl: "间隔",
+    cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会同时写入下方掉电保留的归档。",
+    cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
+    cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",
+    cap_avg: "均值", cap_ago: "秒前", cap_raw: "原始字节，",
+    cap_ble_adv: "BLE 广播", btn_clone_sm: "克隆",
+    toast_session_cleared: "本次会话捕获已清空",
+    toast_cloning: "正在克隆（间隔 {itvl}ms）",
+    toast_replaced: "，已替换最久未使用的配置",
+    toast_clone_failed: "克隆失败",
+    hist_title: "捕获归档（掉电保留）",
+    hist_unavailable: " 不可用", hist_records: " 条记录",
+    hist_no_store: "存储分区未挂载。",
+    hist_empty: "空。每次克隆会写入一条记录。",
+    hist_boot: "启动#",
+    toast_archive_cleared: "归档已清空", err_failed: "失败",
+    confirm_clear_archive: "确定清空捕获归档？",
+    prof_title: "配置（最多 3 个）", form_edit: "编辑",
+    prof_note: "三个槽位用满后，再次克隆会覆盖最久未使用且当前未在广播的那条配置。",
+    prof_empty: "还没有配置。先捕获信号，再点「克隆」。",
+    lb_name: "名称", lb_itvl: "广播间隔（ms）", lb_tx: "发射功率（dBm）",
+    lb_scan: "可扫描", lb_uuid: "UUID", ph_uuid: "32 位十六进制，可带连字符",
+    lb_major: "主值", lb_minor: "次值",
+    raw_note: "原始字节（原样重放，不可编辑）：",
+    btn_save: "保存", btn_cancel: "取消",
+    tag_raw: "原始重放", tag_ibe: "iBeacon", tag_on_air: "广播中",
+    btn_stop: "停止", btn_activate: "启用", btn_adv_edit: "高级编辑", btn_delete: "删除",
+    toast_activated: "已启用 #", toast_deleted: "已删除", toast_saved: "已保存",
+    err_save_failed: "保存失败",
+    confirm_del_profile: "确定删除配置 #{id}「{name}」？",
+    card_log: "事件日志", lb_seq: "序号 ", toast_cleared: "已清空",
+    card_scan: "扫描参数", lb_enabled: "启用扫描",
+    lb_scan_itvl: "间隔（ms）", lb_scan_win: "窗口（ms）",
+    scan_note: "窗口超过间隔的 50% 会被自动截断，以保证 SoftAP 响应。400/500 是抓稀疏广播的好设置。",
+    card_softap: "软AP", lb_ssid: "SSID", lb_pass: "密码（至少 8 位）",
+    card_rotation: "轮换（可选）", lb_period: "周期（秒）",
+    card_io: "导入 / 导出", btn_export: "导出 JSON", btn_import: "导入",
+    card_danger: "危险操作", btn_factory: "恢复出厂", btn_reboot: "重启",
+    ota_note: "未实现 OTA；请用 USB-C 更新。",
+    toast_scan_saved: "扫描参数已保存",
+    toast_ap_saved: "已保存 - 请用新凭据重连",
+    toast_imported: "已导入", err_bad_json: "不是合法的 JSON",
+    confirm_factory: "恢复出厂设置？", confirm_reboot: "重启设备？",
+    login_title: "登录", lb_ap_pass: "软AP 密码",
+    ph_ap_pass: "默认 beaconXXXX（见板子丝印或串口日志）",
+    err_wrong_pass: "密码错误", err_net: "网络错误：", toast_mode: "模式："
+  }
+};
+const LANGS = ["en", "zh"];
+let lang = localStorage.getItem("bgw_lang");
+if (LANGS.indexOf(lang) < 0) lang = (navigator.language || "").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+
+function t(k) {
+  const v = (I18N[lang] || {})[k];
+  return v != null ? v : (I18N.en[k] != null ? I18N.en[k] : k);
+}
+/* Inline values: tf("toast_cloning", {itvl: 100}) */
+function tf(k, o) { return t(k).replace(/\{(\w+)\}/g, (m, n) => (o[n] != null ? o[n] : m)); }
+
+/* Applies the static strings; dynamic lists are re-rendered by boot(). */
+function applyLang() {
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.title = t("app_title");
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll("[data-i18n-html]").forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+  $("lang").value = lang;
+}
+$("lang").onchange = () => {
+  lang = $("lang").value;
+  localStorage.setItem("bgw_lang", lang);
+  applyLang();
+  if (token) boot(); else $("l-pass").focus();
+};
+
 function toast(msg, isErr) {
-  const t = $("toast");
-  t.textContent = msg;
-  t.className = "show" + (isErr ? " err" : "");
-  clearTimeout(t._h);
-  t._h = setTimeout(() => t.className = "", 2600);
+  const t2 = $("toast");
+  t2.textContent = msg;
+  t2.className = "show" + (isErr ? " err" : "");
+  clearTimeout(t2._h);
+  t2._h = setTimeout(() => t2.className = "", 2600);
 }
 
 async function api(path, opts) {
@@ -280,7 +472,7 @@ async function api(path, opts) {
   try {
     r = await fetch(path, { method: opts.method || "GET", headers: h,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body) });
-  } catch (e) { toast("Network error: " + e.message, true); throw e; }
+  } catch (e) { toast(t("err_net") + e.message, true); throw e; }
   if (r.status === 401) { showLogin(); throw new Error("unauthorized"); }
   const txt = await r.text();
   let j = {};
@@ -323,8 +515,8 @@ $("l-btn").onclick = async () => {
     if (j.ok && j.token) {
       token = j.token; localStorage.setItem("bgw_token", token);
       $("l-msg").textContent = ""; hideLogin(); boot();
-    } else $("l-msg").textContent = j.err || "wrong password";
-  } catch (e) { $("l-msg").textContent = "failed"; }
+    } else $("l-msg").textContent = j.err || t("err_wrong_pass");
+  } catch (e) { $("l-msg").textContent = t("err_failed"); }
 };
 $("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
 $("btn-lock").onclick = () => { token = ""; localStorage.removeItem("bgw_token"); showLogin(); };
@@ -344,8 +536,9 @@ document.querySelectorAll("nav button").forEach(b => {
 });
 
 /* ---------- status ---------- */
-const MODE_TXT = { sniff: "Sniffing", clone: "Cloning", idle: "Radio off" };
-const LED_TXT = { sniff: "double blink", clone: "1 Hz blink", "clone+client": "triple fast", idle: "blink every 3 s" };
+const MODE_KEY = { sniff: "mode_sniff", clone: "mode_clone", idle: "mode_idle" };
+const LED_KEY = { sniff: "led_sniff", clone: "led_clone", "clone+client": "led_clone_client", idle: "led_idle" };
+const modeTxt = m => (MODE_KEY[m] ? t(MODE_KEY[m]) : m);
 
 async function refreshStatus() {
   let j;
@@ -353,42 +546,44 @@ async function refreshStatus() {
   if (!j.ok) return;
   S = j;
 
-  $("p-mode").textContent = MODE_TXT[j.mode] || j.mode;
+  $("p-mode").textContent = modeTxt(j.mode);
   $("p-mode").className = "pill " + (j.mode === "idle" ? "off" : "on");
-  $("p-adv").textContent = j.adv ? "ADV on" : "ADV off";
+  $("p-adv").textContent = j.adv ? t("adv_on") : t("adv_off");
   $("p-adv").className = "pill " + (j.adv ? "on" : "off");
-  $("p-sta").textContent = "clients " + j.sta;
+  $("p-sta").textContent = t("clients") + " " + j.sta;
   $("p-sta").className = "pill " + (j.sta > 0 ? "on" : "");
 
-  $("mode-title").textContent = MODE_TXT[j.mode] || j.mode;
-  $("led-hint").textContent = "LED " + (LED_TXT[j.led] || "—");
+  $("mode-title").textContent = modeTxt(j.mode);
+  $("led-hint").textContent = "LED " + (LED_KEY[j.led] ? t(LED_KEY[j.led]) : "—");
   $("m-sniff").className = "modebtn" + (j.mode === "sniff" ? " on" : "");
   $("m-clone").className = "modebtn" + (j.mode === "clone" ? " on" : "");
   $("m-idle").className = "modebtn" + (j.mode === "idle" ? " on" : "");
 
   const bad = (j.brownouts > 0);
   $("pow-card").style.display = bad ? "block" : "none";
-  if (bad) $("pow-warn").textContent =
-    "⚠ " + j.brownouts + " brownout reset(s) recorded. That is a weak supply, not a firmware bug: shorter/thicker USB cable, better PSU, or 220 µF across 3V3.";
+  if (bad) $("pow-warn").textContent = "⚠ " + j.brownouts + " " + t("pow_warn");
 
-  $("status-body").textContent =
-    "board     : " + j.board + "\n" +
-    "version   : " + j.ver + "    uptime " + fmtDur(j.uptime_s) + "\n" +
-    "IP        : " + j.ip + "\n" +
-    "profile   : " + (j.active < 0 ? "(none)" : "#" + j.active + " of " + j.count) + "\n" +
-    "scan      : " + j.scan_win_ms + "ms / " + j.scan_itvl_ms + "ms, " + j.scan_pkts + " packets" +
-      (j.scan_running_ms ? " (" + fmtDur(j.scan_running_ms / 1000) + ")" : "") + "\n" +
-    "detected  : " + j.detected + " devices    tx " + j.tx_dbm + " dBm (adv starts " + j.adv_starts + ")\n" +
-    "archive   : " + (j.storage || "?") + " records (persistent)\n" +
-    "reset     : " + j.reset_reason + ", boots " + j.boots + "\n" +
-    "memory    : " + j.heap + " B (min " + j.min_heap + " B)";
+  const L = (k, v) => t(k) + " : " + v;
+  $("status-body").textContent = [
+    L("st_board", j.board),
+    L("st_version", j.ver) + "    " + L("st_uptime", fmtDur(j.uptime_s)),
+    L("st_ip", j.ip),
+    L("st_profile", j.active < 0 ? t("st_none") : "#" + j.active + " / " + j.count),
+    L("st_scan", j.scan_win_ms + "ms / " + j.scan_itvl_ms + "ms, " + j.scan_pkts + " " + t("st_packets") +
+      (j.scan_running_ms ? " (" + fmtDur(j.scan_running_ms / 1000) + ")" : "")),
+    L("st_detected", j.detected + " " + t("st_devices")) + "    " +
+      L("st_tx", j.tx_dbm + " dBm (" + t("st_adv_starts") + " " + j.adv_starts + ")"),
+    L("st_archive", (j.storage || "?") + " " + t("st_records")),
+    L("st_reset", j.reset_reason + ", " + t("st_boots") + " " + j.boots),
+    L("st_memory", j.heap + " B (" + t("st_min") + " " + j.min_heap + " B)")
+  ].join("\n");
 
   return j;
 }
 
 async function setMode(mode) {
   const r = await post("/api/mode", { mode });
-  toast(r.ok ? "Mode: " + (MODE_TXT[r.mode] || r.mode) : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_mode") + modeTxt(r.mode) : (r.err || t("err_failed")), !r.ok);
   refreshStatus();
   if (mode === "clone") loadProfiles();
 }
@@ -401,13 +596,13 @@ function setFilter(f) {
 }
 function toggleFreeze() {
   frozen = !frozen;
-  $("btn-freeze").textContent = frozen ? "Frozen" : "Freeze";
+  $("btn-freeze").textContent = frozen ? t("btn_frozen") : t("btn_freeze");
   $("btn-freeze").className = "btn sm" + (frozen ? " pri" : "");
   if (!frozen) loadCaptures();
 }
 async function clearCapture() {
   const r = await del("/api/scan");
-  toast(r.ok ? "Session captures cleared" : "failed", !r.ok);
+  toast(r.ok ? t("toast_session_cleared") : t("err_failed"), !r.ok);
   loadCaptures();
 }
 async function loadCaptures() {
@@ -416,7 +611,7 @@ async function loadCaptures() {
   try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
   if (!j.ok) return;
   caps = j.items || [];
-  $("cap-stat").textContent = caps.length + " devices / " + (S.scan_pkts || 0) + " packets";
+  $("cap-stat").textContent = caps.length + " / " + (S.scan_pkts || 0) + " " + t("st_packets");
   renderCaps();
 }
 function renderCaps() {
@@ -428,23 +623,24 @@ function renderCaps() {
   if (filter === "rssi") list.sort((a, b) => b.rssi - a.rssi);
 
   if (!list.length) {
-    tb.innerHTML = "<tr><td colspan='4' class='dim'>Nothing yet. " +
-      (S.mode === "sniff" ? "Listening, please wait…" : "Not sniffing: switch to Sniff on the Status tab.") + "</td></tr>";
+    tb.innerHTML = "<tr><td colspan='4' class='dim'></td></tr>";
+    tb.firstChild.firstChild.textContent = esc(t("cap_nothing") + " " +
+      (S.mode === "sniff" ? t("cap_wait") : t("cap_idle")));
     return;
   }
   list.forEach(d => {
     const title = d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
-                            : (d.name ? esc(d.name) : "BLE advertisement");
+                            : (d.name ? esc(d.name) : t("cap_ble_adv"));
     const sub = d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
     const tr = document.createElement("tr");
     tr.innerHTML =
       "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
         "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" +
-        "<details style='margin-top:4px'><summary>raw bytes, " + d.adv_len + "B</summary>" +
+        "<details style='margin-top:4px'><summary>" + t("cap_raw") + d.adv_len + "B</summary>" +
         "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details></td>" +
-      "<td>" + d.rssi + "<div class='dim' style='font-size:11px'>avg " + d.rssi_avg + "</div></td>" +
-      "<td>" + (d.itvl_ms ? d.itvl_ms + "ms" : "—") + "<div class='dim' style='font-size:11px'>" + Math.round(d.age_ms / 1000) + "s ago</div></td>" +
-      "<td><button class='btn pri sm'>Clone</button></td>";
+      "<td>" + d.rssi + "<div class='dim' style='font-size:11px'>" + t("cap_avg") + " " + d.rssi_avg + "</div></td>" +
+      "<td>" + (d.itvl_ms ? d.itvl_ms + "ms" : "—") + "<div class='dim' style='font-size:11px'>" + Math.round(d.age_ms / 1000) + t("cap_ago") + "</div></td>" +
+      "<td><button class='btn pri sm'>" + t("btn_clone_sm") + "</button></td>";
     tr.querySelector("button").onclick = () => cloneSignal(d.addr, tr.querySelector("button"));
     tb.appendChild(tr);
   });
@@ -454,12 +650,11 @@ async function cloneSignal(addr, btn) {
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
   const r = await post("/api/clone", { addr });
   if (!r.ok) {
-    if (btn) { btn.disabled = false; btn.textContent = "Clone"; }
-    toast(r.err || "clone failed", true);
+    if (btn) { btn.disabled = false; btn.textContent = t("btn_clone_sm"); }
+    toast(r.err || t("toast_clone_failed"), true);
     return;
   }
-  toast("Cloning now (interval " + r.adv_itvl_ms + "ms" +
-        (r.replaced ? ", replaced the least recently used profile" : "") + ")");
+  toast(tf("toast_cloning", { itvl: r.adv_itvl_ms }) + (r.replaced ? t("toast_replaced") : ""));
   await refreshStatus();
   document.querySelector('nav button[data-tab="profiles"]').click();
 }
@@ -469,26 +664,26 @@ async function loadHistory() {
   let j;
   try { j = await get("/api/history"); } catch (e) { return; }
   if (!j.ok) return;
-  $("hist-stat").textContent = j.available ? (" " + j.count + " records") : " unavailable";
+  $("hist-stat").textContent = j.available ? (" " + j.count + t("hist_records")) : t("hist_unavailable");
   const box = $("hist-body");
-  if (!j.available) { box.innerHTML = "<span class='dim'>Storage partition not mounted.</span>"; return; }
-  if (!j.count) { box.innerHTML = "<span class='dim'>Empty. One record is written each time you clone.</span>"; return; }
+  if (!j.available) { box.innerHTML = "<span class='dim'>" + esc(t("hist_no_store")) + "</span>"; return; }
+  if (!j.count) { box.innerHTML = "<span class='dim'>" + esc(t("hist_empty")) + "</span>"; return; }
   box.innerHTML = "";
   (j.items || []).forEach(it => {
     const div = document.createElement("div");
     div.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0";
     div.innerHTML =
-      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : "BLE advertisement") +
+      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : t("cap_ble_adv")) +
         " <span class='dim mono'>" + it.rssi + "dBm · " + it.itvl_ms + "ms</span></div>" +
-      "<div class='mono dim'>" + fmtAddr(it.addr) + " · boot #" + it.boot_seq + " +" + fmtDur(it.uptime_s) + "</div>" +
+      "<div class='mono dim'>" + fmtAddr(it.addr) + " · " + t("hist_boot") + it.boot_seq + " +" + fmtDur(it.uptime_s) + "</div>" +
       "<div class='hexbox'>" + hexPairs(it.raw) + "</div>";
     box.appendChild(div);
   });
 }
 async function clearHistory() {
-  if (!confirm("Clear the capture archive?")) return;
+  if (!confirm(t("confirm_clear_archive"))) return;
   const r = await del("/api/history");
-  toast(r.ok ? "Archive cleared" : "failed", !r.ok);
+  toast(r.ok ? t("toast_archive_cleared") : t("err_failed"), !r.ok);
   loadHistory();
 }
 
@@ -499,7 +694,7 @@ async function loadProfiles() {
   profiles = j.profiles || [];
   const box = $("prof-body");
   box.innerHTML = "";
-  if (!profiles.length) { box.innerHTML = "<span class='dim'>No profiles yet. Capture a signal and tap Clone.</span>"; return; }
+  if (!profiles.length) { box.innerHTML = "<span class='dim'>" + esc(t("prof_empty")) + "</span>"; return; }
 
   profiles.forEach((p, i) => {
     const active = (i === j.active);
@@ -507,23 +702,23 @@ async function loadProfiles() {
     card.style.cssText = "border:1px solid " + (active ? "#1e5a44" : "#262b36") +
       ";background:" + (active ? "#101c17" : "#141821") + ";border-radius:10px;padding:10px;margin-bottom:8px";
     const kind = p.kind === 1
-      ? "<span class='tag raw'>RAW replay</span>"
-      : "<span class='tag ibe'>iBeacon</span>";
+      ? "<span class='tag raw'>" + t("tag_raw") + "</span>"
+      : "<span class='tag ibe'>" + t("tag_ibe") + "</span>";
     const rawSum = p.raw ? hexPairs(p.raw.slice(0, 16)) + (p.raw.length > 16 ? " …" : "") : "";
     card.innerHTML =
       "<div class='row' style='justify-content:space-between'>" +
         "<div><b>" + esc(p.name) + "</b> " + kind +
-        (active ? " <span class='tag on'>on air</span>" : "") + "</div>" +
+        (active ? " <span class='tag on'>" + t("tag_on_air") + "</span>" : "") + "</div>" +
         "<span class='dim mono'>#" + i + "</span></div>" +
       "<div class='mono dim' style='margin-top:6px'>" +
         (p.kind === 1 ? rawSum + "<br>" : fmtUuid(p.uuid) + "<br>" + p.major + "/" + p.minor + "<br>") +
         p.adv_itvl_ms + "ms · tx " + p.radio_dbm + "dBm" + (p.src ? " · src " + fmtAddr(p.src) : "") +
       "</div>" +
       "<div class='row' style='margin-top:8px'>" +
-        (active ? "<button class='btn sm' data-a='stop'>Stop</button>"
-                : "<button class='btn pri sm' data-a='act'>Activate</button>") +
-        "<button class='btn sm' data-a='edit'>Advanced edit</button>" +
-        "<button class='btn sm dan' data-a='del'>Delete</button>" +
+        (active ? "<button class='btn sm' data-a='stop'>" + t("btn_stop") + "</button>"
+                : "<button class='btn pri sm' data-a='act'>" + t("btn_activate") + "</button>") +
+        "<button class='btn sm' data-a='edit'>" + t("btn_adv_edit") + "</button>" +
+        "<button class='btn sm dan' data-a='del'>" + t("btn_delete") + "</button>" +
       "</div>";
     card.querySelectorAll("[data-a]").forEach(b => {
       b.onclick = () => {
@@ -542,20 +737,20 @@ async function loadProfiles() {
 }
 async function activate(i) {
   const r = await post("/api/active", { id: i });
-  toast(r.ok ? "Activated #" + i : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_activated") + i : (r.err || t("err_failed")), !r.ok);
   refreshStatus(); loadProfiles();
 }
 async function removeProfile(i) {
-  if (!confirm("Delete profile #" + i + " \"" + profiles[i].name + "\"?")) return;
+  if (!confirm(tf("confirm_del_profile", { id: i, name: profiles[i].name }))) return;
   const r = await del("/api/profiles/" + i);
-  toast(r.ok ? "Deleted" : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_deleted") : (r.err || t("err_failed")), !r.ok);
   refreshStatus(); loadProfiles();
 }
 function openForm(i) {
   editId = i;
   const p = profiles[i];
   $("form-card").style.display = "block";
-  $("form-title").textContent = "Edit #" + i + " " + p.name;
+  $("form-title").textContent = t("form_edit") + " #" + i + " " + p.name;
   $("f-name").value = p.name;
   $("f-itvl").value = p.adv_itvl_ms;
   $("f-tx").value = p.radio_dbm;
@@ -564,7 +759,7 @@ function openForm(i) {
   $("form-ibe").style.display = isRaw ? "none" : "block";
   $("form-raw").style.display = isRaw ? "block" : "none";
   if (isRaw) {
-    $("form-raw").innerHTML = "Raw bytes (replayed verbatim, cannot be edited):<div class='hexbox'>" + hexPairs(p.raw) + "</div>";
+    $("form-raw").innerHTML = esc(t("raw_note")) + "<div class='hexbox'>" + hexPairs(p.raw) + "</div>";
   } else {
     $("f-uuid").value = fmtUuid(p.uuid);
     $("f-major").value = p.major;
@@ -587,8 +782,8 @@ async function saveForm() {
     body.ref_rssi = o.ref_rssi;
   }
   const r = await put("/api/profiles/" + editId, body);
-  if (!r.ok) { $("form-msg").textContent = r.err || "save failed"; return; }
-  toast("Saved"); closeForm(); loadProfiles(); refreshStatus();
+  if (!r.ok) { $("form-msg").textContent = r.err || t("err_save_failed"); return; }
+  toast(t("toast_saved")); closeForm(); loadProfiles(); refreshStatus();
 }
 
 /* ---------- log ---------- */
@@ -606,9 +801,9 @@ async function loadLog(reset) {
     box.appendChild(d);
   });
   box.scrollTop = box.scrollHeight;
-  $("log-hint").textContent = "seq " + logSeq;
+  $("log-hint").textContent = t("lb_seq") + logSeq;
 }
-async function clearLog() { const r = await del("/api/log"); toast(r.ok ? "Cleared" : "failed", !r.ok); loadLog(true); }
+async function clearLog() { const r = await del("/api/log"); toast(r.ok ? t("toast_cleared") : t("err_failed"), !r.ok); loadLog(true); }
 
 /* ---------- settings ---------- */
 async function loadSettings() {
@@ -625,16 +820,16 @@ async function loadSettings() {
 async function saveScan() {
   const r = await post("/api/scan", {
     enabled: $("s-en").checked, itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value });
-  toast(r.ok ? "Scan parameters saved" : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_scan_saved") : (r.err || t("err_failed")), !r.ok);
   refreshStatus();
 }
 async function saveAp() {
   const r = await post("/api/ap", { ssid: $("s-ssid").value.trim(), pass: $("s-pass").value });
-  toast(r.ok ? "Saved - reconnect with the new credentials" : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_ap_saved") : (r.err || t("err_failed")), !r.ok);
 }
 async function saveRotation() {
   const r = await post("/api/rotation", { enabled: $("s-rot").checked, seconds: +$("s-rot-s").value });
-  toast(r.ok ? "Saved" : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_saved") : (r.err || t("err_failed")), !r.ok);
 }
 async function doExport() {
   const r = await fetch("/api/export", { headers: { "Authorization": "Bearer " + token } });
@@ -646,10 +841,18 @@ async function doExport() {
 async function doImport(inp) {
   const f = inp.files[0]; if (!f) return;
   let body;
-  try { body = JSON.parse(await f.text()); } catch (e) { toast("Not valid JSON", true); return; }
+  try { body = JSON.parse(await f.text()); } catch (e) { toast(t("err_bad_json"), true); return; }
   const r = await post("/api/import", body);
-  toast(r.ok ? "Imported" : (r.err || "failed"), !r.ok);
+  toast(r.ok ? t("toast_imported") : (r.err || t("err_failed")), !r.ok);
   inp.value = ""; loadProfiles(); refreshStatus();
+}
+function factoryReset() {
+  if (!confirm(t("confirm_factory"))) return;
+  post("/api/factory", {}).then(() => post("/api/reboot", {}));
+}
+function rebootNow() {
+  if (!confirm(t("confirm_reboot"))) return;
+  post("/api/reboot", {});
 }
 
 /* ---------- boot ---------- */
@@ -675,7 +878,7 @@ async function loadQuick() {
   let j;
   try { j = await get("/api/scan?limit=3"); } catch (e) { return; }
   if (!j.ok || !(j.items || []).length) {
-    box.innerHTML = "<span class='dim'>Nothing yet. Switch to Sniff and wait a few seconds.</span>";
+    box.innerHTML = "<span class='dim'>" + esc(t("cap_nothing") + " " + t("cap_idle")) + "</span>";
     return;
   }
   box.innerHTML = "";
@@ -684,14 +887,15 @@ async function loadQuick() {
     row.className = "row";
     row.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0;justify-content:space-between";
     row.innerHTML =
-      "<div><div>" + (d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor) : (d.name || "BLE advertisement")) +
+      "<div><div>" + (d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor) : (d.name || t("cap_ble_adv"))) +
       "</div><div class='mono dim'>" + d.rssi + "dBm · " + (d.itvl_ms || "?") + "ms</div></div>" +
-      "<button class='btn pri sm'>Clone</button>";
+      "<button class='btn pri sm'>" + t("btn_clone_sm") + "</button>";
     row.querySelector("button").onclick = () => cloneSignal(d.addr, row.querySelector("button"));
     box.appendChild(row);
   });
 }
 
+applyLang();
 if (token) { hideLogin(); boot(); } else { showLogin(); }
 </script>
 </body>

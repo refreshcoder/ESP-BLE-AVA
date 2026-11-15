@@ -40,7 +40,8 @@ time-sharing contention on a single-radio SoC.
 | **Exclusive modes** | `sniff` / `clone` / `idle` arbitrated by one module (`radio.c`) with a mutex — no self-capture, no radio contention |
 | **3 profile slots** | Stored atomically in NVS; when full the least-recently-used non-active slot is overwritten |
 | **Persistent capture archive** | Last 32 captures in a FATFS+wear-levelling ring file, survives power loss, written once per clone |
-| **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (10 KB) — no internet, no CDN, no app install |
+| **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) — no internet, no CDN, no app install |
+| **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
 | **LED + one button** | Six LED states distinguishable on a *single-colour* LED; single click / double click / long press |
@@ -95,7 +96,8 @@ See [docs/flashing.md](docs/flashing.md) for ports, first-boot expectations and 
 
 1. The board brings up SoftAP `BeaconGW-XXXX`, password `beaconXXXX` (last two MAC bytes,
    also printed on the serial console).
-2. Join it, open <http://192.168.4.1/>.
+2. Join it, open <http://192.168.4.1/>. The UI follows the browser language; the `EN | 中文`
+   selector in the header switches it and the choice sticks.
 3. Log in with the AP password → you get an API token.
 4. **Capture** tab → wait a few seconds, find the target, tap **Copy**.
    The device stops scanning, creates a RAW profile and starts broadcasting it.
@@ -261,7 +263,7 @@ Verified locally with **ESP-IDF v5.5.6** / riscv32-esp-elf 14.2.0:
 | Image | 1144 KB in a 1536 KB slot (392 KB headroom) | **973 KB** in the same slot (563 KB headroom) |
 | Static RAM | 186,786 / 452,112 B = **41.3 %** | 151,520 / 321,296 B = **47.2 %** |
 | Dynamic heap headroom | ~265 KB | **~166 KB** (tighter, still comfortable) |
-| Frontend | gzip-embedded, 10,216 B (26.6 KB raw) | same |
+| Frontend | gzip-embedded, 14,621 B (47.6 KB raw) | same |
 | Presets | `APP_BOARD=1` and `=2` | `APP_BOARD=4` (default) and `=5` |
 
 Target-specific defaults live in `sdkconfig.defaults.esp32c6` / `sdkconfig.defaults.esp32c3`;
@@ -318,11 +320,13 @@ main/
 ├── btn.[ch]           single click / double click / long press
 ├── net_ap.[ch]        SoftAP + station accounting
 ├── web_server.[ch]    REST API + embedded SPA + bearer auth
-└── www/index.html     single-page UI (gzipped at build time)
+└── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time)
 
 docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
-tools/                 flash.sh / flash.bat / merge.sh helpers
 docs/hardware.md       pinout, power options, antenna and console notes
+tools/                 flash.sh / flash.bat / merge.sh helpers
+                       check_i18n.js - key/attribute/syntax check for the SPA
+                       ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
 .github/workflows      CI: builds both board presets on ESP-IDF v5.5
 ```
 
@@ -337,7 +341,9 @@ idf.py set-target esp32c3 && idf.py -DAPP_BOARD=4 build
 ```
 
 CI runs exactly these three builds on every push. Keep changes to `main/www/index.html`
-self-contained (no CDN, no external fonts) — the device has no internet access.
+self-contained (no CDN, no external fonts) — the device has no internet access. Any UI
+string must go through the `I18N` table in that file (`data-i18n` attributes for markup,
+`t()` / `tf()` in JS); `node tools/check_i18n.js` fails on a missing or unbalanced key.
 
 ## License
 

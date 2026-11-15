@@ -24,7 +24,7 @@ static const char *TAG = "web";
 static httpd_handle_t s_srv;
 
 /* The SPA (main/www/index.html) is gzipped at build time and embedded:
- * 26.6 KB of HTML becomes ~10 KB of rodata. */
+ * 47.6 KB of HTML (UI strings for EN + zh) becomes ~15 KB of rodata. */
 extern const uint8_t index_html_gz_start[] asm("_binary_index_html_gz_start");
 extern const uint8_t index_html_gz_end[]   asm("_binary_index_html_gz_end");
 
