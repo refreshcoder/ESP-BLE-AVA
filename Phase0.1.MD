@@ -169,7 +169,11 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 `beacon_adv.c` 出站时 `a[k] = rand_addr[5-k]`，`|0xC0` 改为 `rand_addr[0]`。
 
 > 因此之前"克隆体地址 ≠ 原件地址"的结论要拆成两个原因：字节序 bug（已修）+
-> 这台 midea 本身是 NRPA（会轮换，克隆无意义）。
+> 旧 profile 里存的倒序字节没有迁移。
+>
+> 定性（实测）：那台 midea 的规范地址是 `24:59:e5:b6:e6:1a`（public，稳定，不轮换），
+> 它的厂商数据用小端写了自家 MAC（`1a:e6:b6:e5:59:24`），而 bug 期存下的 `src` 正好是这句
+> 的字节倒序 —— 之前"地址在轮换"的判断是错的，起因是从脱敏占位符不同推出来的。
 
 ## 后续改动（本次全新增加，**未编译、未上板**）
 
