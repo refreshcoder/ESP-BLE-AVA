@@ -165,6 +165,9 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 **已验证（受控实验）**：UI 里把广播地址指定为 `00:01:22:33:44:55` 后，空口最强的那条
 （−46 dBm，midea payload）地址确实等于该值 → `esp_iface_mac_addr_set(ESP_MAC_BT, …)` 在 C6 上生效。
 
+**模式持久化已验证**：点击克隆后，用 esptool 触发一次重启（未按任何键），重启后空口仍然是
+−46 dBm、地址 `00:01:22:33:44:55` 的克隆广播 → `cfg.last_mode` 恢复生效。
+
 同时发现并修复两个问题：
 
 1. **重启后总是回到 sniff**（设计如此，但地址切换必须重启 → 克隆会静默停掉）：模式现在持久化在
