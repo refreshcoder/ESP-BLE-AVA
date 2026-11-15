@@ -128,17 +128,13 @@ esp_err_t radio_clone(void)
 void radio_on_ble_ready(void)
 {
     cfg_lock();
-    bool scan_en = cfg_get()->scan.enabled;
     int  active  = cfg_get()->active;
     uint8_t last = cfg_get()->last_mode;
     cfg_unlock();
 
-    /* Resume what the device was doing before the reboot (an address change is applied by
-     * rebooting, so defaulting to sniff would silently drop the clone). First boot after a
-     * factory reset has last_mode = CFG_MODE_SNIFF, which keeps "capture first" as default. */
+    /* Manual sniffing: a boot restores "broadcasting" or "parked with the radio off".
+     * Scanning is only ever started from the management page (or the button), never
+     * automatically -- so last_mode == SNIFF simply means "idle" after a reboot. */
     if (last == CFG_MODE_CLONE && active >= 0)     radio_clone();
-    else if (last == CFG_MODE_IDLE)                radio_stop();
-    else if (scan_en)                              radio_sniff();
-    else if (active >= 0)                          radio_clone();
     else                                           radio_stop();
 }

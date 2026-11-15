@@ -132,6 +132,7 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <h2><span data-i18n="cap_this_session">This session</span> <span class="dim" id="cap-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
         <button class="btn sm" id="btn-freeze" onclick="toggleFreeze()" data-i18n="btn_freeze">Freeze</button>
+        <button class="btn sm pri" onclick="setMode('sniff')" data-i18n="btn_sniff">Sniff (capture)</button>
         <button class="btn sm" onclick="loadCaptures()" data-i18n="btn_refresh">Refresh</button>
         <button class="btn sm dan" onclick="clearCapture()" data-i18n="btn_clear">Clear</button>
       </div>
@@ -144,6 +145,19 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <table><thead><tr><th data-i18n="th_signal">Signal</th><th data-i18n="th_rssi">RSSI</th><th data-i18n="th_itvl">Interval</th><th></th></tr></thead>
       <tbody id="cap-body"></tbody></table>
       <div class="dim" style="margin-top:8px;font-size:12px" data-i18n-html="cap_note">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
+    </div>
+
+    <div class="card">
+      <h2><span data-i18n="rec_title">Recorded in this browser</span><span class="dim" id="rec-stat"></span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn sm" onclick="exportRecs()" data-i18n="btn_export_recs">Export JSON</button>
+        <label class="btn sm" style="margin:0;display:inline-flex;align-items:center"><span data-i18n="btn_import">Import</span>
+          <input type="file" accept="application/json" style="display:none" onchange="importRecs(this)">
+        </label>
+        <button class="btn sm dan" onclick="clearRecs()" data-i18n="btn_clear_recs">Clear records</button>
+      </div>
+      <div id="rec-body" class="dim">—</div>
+      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="rec_hint">Every poll is merged into this browser's local storage, so records survive a board reboot, a page reload and the board's 16-entry table. Cloning from an old row still needs the device to be in the board's live table.</div>
     </div>
 
     <div class="card">
@@ -323,8 +337,14 @@ const I18N = {
     hist_no_store: "Storage partition not mounted.",
     hist_empty: "Empty. One record is written each time you clone.",
     hist_boot: "boot #",
+    rec_title: "Recorded in this browser", btn_export_recs: "Export JSON", btn_clear_recs: "Clear records",
+    rec_empty: "Nothing recorded yet. Open this page while the board is sniffing.",
+    rec_hint: "Every poll is merged into this browser's local storage, so records survive a board reboot, a page reload and the board's 16-entry table. Cloning from an old row still needs the device to be in the board's live table.",
+    rec_full: "browser storage is full - oldest records dropped",
+    rec_now: "just now", rec_seen: "last seen ",
     toast_archive_cleared: "Archive cleared", err_failed: "failed",
     confirm_clear_archive: "Clear the capture archive?",
+    confirm_clear_recs: "Clear the records stored in this browser?",
     prof_title: "Profiles (max 3)", form_edit: "Edit",
     prof_note: "When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.",
     prof_empty: "No profiles yet. Capture a signal and tap Clone.",
@@ -410,8 +430,14 @@ const I18N = {
     hist_no_store: "存储分区未挂载。",
     hist_empty: "空。每次克隆会写入一条记录。",
     hist_boot: "启动#",
+    rec_title: "本机记录（浏览器）", btn_export_recs: "导出 JSON", btn_clear_recs: "清空记录",
+    rec_empty: "还没有记录。板子在嗅探时打开本页即可。",
+    rec_hint: "每次轮询都会合并进本浏览器的本地存储，所以记录能跨板子重启、跨页面刷新，也不受板子 16 条表限制。在旧记录上点克隆仍要求目标还在板子的实时表里。",
+    rec_full: "浏览器存储已满，已丢弃最旧记录",
+    rec_now: "刚刚", rec_seen: "最后 ",
     toast_archive_cleared: "归档已清空", err_failed: "失败",
     confirm_clear_archive: "确定清空捕获归档？",
+    confirm_clear_recs: "确定清空本浏览器里的记录？",
     prof_title: "配置（最多 3 个）", form_edit: "编辑",
     prof_note: "三个槽位用满后，再次克隆会覆盖最久未使用且当前未在广播的那条配置。",
     prof_empty: "还没有配置。先捕获信号，再点「克隆」。",
@@ -631,6 +657,8 @@ async function loadCaptures() {
   try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
   if (!j.ok) return;
   caps = j.items || [];
+  recMerge(caps);
+  renderRecs();
   $("cap-stat").textContent = caps.length + " / " + (S.scan_pkts || 0) + " " + t("st_packets");
   renderCaps();
 }
@@ -679,6 +707,148 @@ async function cloneSignal(addr, btn) {
   toast(tf("toast_cloning", { itvl: r.adv_itvl_ms }) + (r.replaced ? t("toast_replaced") : ""));
   await refreshStatus();
   document.querySelector('nav button[data-tab="profiles"]').click();
+}
+
+/* ---------- browser-side capture store ----------
+ * The board's table is 16 entries of RAM, cleared on reboot. Everything the page sees is
+ * merged into localStorage, so records survive reboots, reloads and LRU eviction. */
+const REC_KEY = "bgw_recs_v1";
+const REC_MAX = 2000;                  /* hard cap on records kept here */
+const REC_BYTES = 3.5e6;                /* soft cap on the serialised size */
+let recs = {};                          /* address -> record */
+
+function recLoad() {
+  try {
+    const j = JSON.parse(localStorage.getItem(REC_KEY) || "{}");
+    recs = (j && typeof j === "object" && !Array.isArray(j)) ? j : {};
+  } catch (e) { recs = {}; }
+}
+
+function recSave() {
+  const trim = n => {
+    const ks = Object.keys(recs).sort((a, b) => (recs[a].l || 0) - (recs[b].l || 0));
+    ks.slice(0, Math.max(1, Math.ceil(ks.length * n))).forEach(k => delete recs[k]);
+  };
+  let s = JSON.stringify(recs);
+  if (s.length > REC_BYTES) { trim(0.25); s = JSON.stringify(recs); toast(t("rec_full"), true); }
+  try {
+    localStorage.setItem(REC_KEY, s);
+  } catch (e) {
+    trim(0.5);
+    try { localStorage.setItem(REC_KEY, JSON.stringify(recs)); } catch (e2) { /* give up quietly */ }
+    toast(t("rec_full"), true);
+  }
+}
+
+/* Merge one /api/scan page into the store. Returns how many devices were new. */
+function recMerge(items) {
+  if (!items || !items.length) return 0;
+  const now = Date.now();
+  let added = 0;
+  items.forEach(d => {
+    if (!d || !d.addr) return;
+    let r = recs[d.addr];
+    if (!r) { r = { f: now, rmax: -127, c: 0 }; recs[d.addr] = r; added++; }
+    r.t = d.adv_type;
+    r.r = d.rssi;
+    r.rmax = Math.max(r.rmax, d.rssi);
+    r.c = Math.max(r.c || 0, d.count || 0);
+    r.i = d.itvl_ms;
+    r.l = now;
+    if (d.raw) r.raw = d.raw;
+    if (d.rsp) r.rsp = d.rsp;
+    if (d.name) r.name = d.name;
+    if (d.ibeacon) { r.ib = 1; r.uuid = d.uuid; r.maj = d.major; r.min = d.minor; }
+  });
+  const ks = Object.keys(recs);
+  if (ks.length > REC_MAX) {
+    ks.sort((a, b) => (recs[a].l || 0) - (recs[b].l || 0));
+    ks.slice(0, ks.length - REC_MAX).forEach(k => delete recs[k]);
+  }
+  recSave();
+  return added;
+}
+
+function fmtAgo(ms) {
+  if (!ms) return "—";
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 5) return t("rec_now");
+  return s + t("cap_ago");
+}
+
+function renderRecs() {
+  const box = $("rec-body");
+  if (!box) return;
+  const ks = Object.keys(recs);
+  const kb = Math.round(((localStorage.getItem(REC_KEY) || "").length) / 1024);
+  $("rec-stat").textContent = " " + ks.length + " · " + kb + " KB";
+  if (!ks.length) {
+    box.innerHTML = "<span class='dim'>" + esc(t("rec_empty")) + "</span>";
+    return;
+  }
+  ks.sort((a, b) => (recs[b].l || 0) - (recs[a].l || 0));
+  box.innerHTML = "";
+  ks.slice(0, 30).forEach(a => {
+    const r = recs[a];
+    const title = r.ib ? ("iBeacon " + r.maj + "/" + r.min)
+                       : (r.name ? esc(r.name) : t("cap_ble_adv"));
+    const row = document.createElement("div");
+    row.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0";
+    row.innerHTML =
+      "<div>" + title + " <span class='dim mono'>" + fmtAddr(a) + "</span></div>" +
+      "<div class='mono dim'>" + (r.r || 0) + "dBm · " + (r.c || 0) + " " + t("st_packets") + " · " +
+        (r.i || "?") + "ms · " + t("rec_seen") + fmtAgo(r.l) + "</div>" +
+      (r.raw ? "<details style='margin-top:4px'><summary>" + t("cap_raw") +
+        (r.raw.length / 2) + "B</summary><div class='hexbox'>" + hexPairs(r.raw) + "</div>" +
+        (r.rsp ? "<div class='dim' style='margin-top:6px'>" + esc(t("form_rsp")) +
+          "</div><div class='hexbox'>" + hexPairs(r.rsp) + "</div>" : "") + "</details>" : "") +
+      "<div class='row' style='margin-top:6px'><button class='btn pri sm'>" + t("btn_clone_sm") + "</button></div>";
+    row.querySelector("button").onclick = () => cloneSignal(a, row.querySelector("button"));
+    box.appendChild(row);
+  });
+}
+
+function exportRecs() {
+  const payload = { ver: 1, exported: new Date().toISOString(), records: recs };
+  const b = new Blob([JSON.stringify(payload, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(b);
+  a.download = "beacon-captures-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importRecs(inp) {
+  const f = inp.files[0];
+  inp.value = "";
+  if (!f) return;
+  let j;
+  try { j = JSON.parse(await f.text()); } catch (e) { toast(t("err_bad_json"), true); return; }
+  const src = (j && j.records) ? j.records : j;
+  let n = 0;
+  for (const k in src) {
+    if (!src[k] || !/^[0-9a-f]{12}$/i.test(k)) continue;
+    const old = recs[k];
+    if (!old || (src[k].l || 0) > (old.l || 0)) { recs[k] = src[k]; n++; }
+  }
+  recSave();
+  renderRecs();
+  toast(t("toast_imported") + " " + n);
+}
+
+function clearRecs() {
+  if (!confirm(t("confirm_clear_recs"))) return;
+  recs = {};
+  recSave();
+  renderRecs();
+}
+
+/* Poll without rendering, so recording continues on any tab */
+async function recPoll() {
+  let j;
+  try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
+  if (!j || !j.ok) return;
+  if (recMerge(j.items || [])) renderRecs();
 }
 
 /* ---------- archive ---------- */
@@ -901,6 +1071,8 @@ function rebootNow() {
 async function boot() {
   const j = await refreshStatus();
   if (!j) return;
+  recLoad();
+  renderRecs();
   loadQuick();
   loadProfiles();
   loadCaptures();
@@ -910,7 +1082,7 @@ async function boot() {
     refreshStatus();
     const cur = document.querySelector("nav button.active").dataset.tab;
     if (cur === "home") loadQuick();
-    if (cur === "capture") loadCaptures();
+    if (cur === "capture") loadCaptures(); else recPoll();
     if (cur === "log") loadLog(false);
   }, 2500);
 }

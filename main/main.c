@@ -69,11 +69,12 @@ esp_err_t app_apply_active(void)
 
 /* ---------------- button: single = toggle mode, long = factory reset ---------------- */
 
-/* Single click: sniff <-> clone (the most common field action) */
+/* Single click: clone on / off. Scanning is manual-only (from the management page), so the
+ * button no longer starts a scan -- a stray click must not put the radio into sniff. */
 static void on_btn_short(void)
 {
     if (radio_mode() == RMODE_CLONE) {
-        radio_sniff();
+        radio_stop();
     } else {
         /* With no active profile, fall back to the first enabled one */
         cfg_lock();

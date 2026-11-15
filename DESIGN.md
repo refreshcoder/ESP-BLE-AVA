@@ -231,11 +231,19 @@ RMODE_IDLE ──┬─▶ RMODE_SNIFF   (scan only, records raw[31])
 
 Transitions: UI buttons, `POST /api/mode`, or the BOOT button.
 
-**The mode is persisted (`cfg.last_mode`) and resumed after a reboot.** The very first boot
-(and any boot after a factory reset) starts in `SNIFF`, because "capture first" is the primary
-action — but every later boot restores what the device was doing. This is not cosmetic: the BLE
-public address can only be applied at boot (§3.5), so an address switch *is* a reboot, and
-defaulting back to sniff would silently stop the clone it was switching to.
+**Scanning is manual-only.** It never starts by itself: not at boot, and not from the BOOT
+button. The button is a broadcast on/off toggle, and a boot restores either "broadcasting" or
+"parked with the radio off" (`cfg.last_mode`); sniffing is started from the management page and
+stops when you leave it. Rationale: the previous "capture first" default meant a reboot could
+silently put a beacon that must keep transmitting into scan mode — which is exactly what happens
+after an address switch, since that needs a reboot (§3.5).
+
+Scanning still has its own persisted flag (`scan.enabled`), but asking for sniff explicitly now
+overrides it, so the button can never appear dead.
+
+Off-board retention: every UI poll is mirrored into the browser's `localStorage`, so captures
+survive board reboots and the 16-entry RAM table. The board keeps only the ring archive
+(one record per clone) — see §8.
 
 Scan duty cycle is capped at **50 %** of the interval (`blescan_start()`); above that the
 SoftAP stops answering. Higher duty improves capture probability, so the cap is exposed
