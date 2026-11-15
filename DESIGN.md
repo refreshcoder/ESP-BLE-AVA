@@ -241,6 +241,11 @@ after an address switch, since that needs a reboot (§3.5).
 Scanning still has its own persisted flag (`scan.enabled`), but asking for sniff explicitly now
 overrides it, so the button can never appear dead.
 
+A manual sniff **stops on its own after 30 s** (`radio_sniff_timed_out()` checked by the 1 s
+tick, then `radio_stop()`), so a forgotten browser tab cannot leave the radio scanning forever;
+tapping Sniff restarts the window. The window length is one `#define` in `radio.c`, not a setting:
+anymore knobs and the "why did it stop" question gets a different answer every time.
+
 Off-board retention: every UI poll is mirrored into the browser's `localStorage`, so captures
 survive board reboots and the 16-entry RAM table. The board keeps only the ring archive
 (one record per clone) — see §8.

@@ -17,12 +17,13 @@ typedef enum {
 
 esp_err_t   radio_init(void);
 
-esp_err_t   radio_sniff(void);   /* stop advertising -> start scanning */
+esp_err_t   radio_sniff(void);   /* stop advertising -> start scanning (30 s, then idle) */
 esp_err_t   radio_clone(void);   /* stop scanning -> advertise the active profile */
 esp_err_t   radio_stop(void);    /* stop both */
 
 rmode_t     radio_mode(void);
 const char *radio_mode_str(rmode_t m);
+bool        radio_sniff_timed_out(void);   /* manual sniff window elapsed */
 
 /* Called by main once the BLE host is synced: picks the initial mode */
 void        radio_on_ble_ready(void);

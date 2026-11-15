@@ -144,6 +144,7 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       </div>
       <table><thead><tr><th data-i18n="th_signal">Signal</th><th data-i18n="th_rssi">RSSI</th><th data-i18n="th_itvl">Interval</th><th></th></tr></thead>
       <tbody id="cap-body"></tbody></table>
+      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="sniff_tmo">Sniffing stops by itself after 30 s - tap Sniff again to extend.</div>
       <div class="dim" style="margin-top:8px;font-size:12px" data-i18n-html="cap_note">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
     </div>
 
@@ -323,6 +324,7 @@ const I18N = {
     f_all: "All", f_ibe: "iBeacon", f_name: "Named", f_rssi: "Strongest",
     th_signal: "Signal", th_rssi: "RSSI", th_itvl: "Interval",
     cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.",
+    sniff_tmo: "Sniffing stops by itself after 30 s - tap Sniff again to extend.",
     cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
     cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
     cap_avg: "avg", cap_ago: "s ago", cap_raw: "raw bytes, ",
@@ -416,6 +418,7 @@ const I18N = {
     f_all: "全部", f_ibe: "iBeacon", f_name: "有名", f_rssi: "最强",
     th_signal: "信号", th_rssi: "RSSI", th_itvl: "间隔",
     cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会同时写入下方掉电保留的归档。",
+    sniff_tmo: "嗅探会在 30 秒后自动停止，再点一次「嗅探」可重新计时。",
     cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
     cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",
     cap_avg: "均值", cap_ago: "秒前", cap_raw: "原始字节，",

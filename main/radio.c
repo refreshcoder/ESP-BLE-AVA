@@ -11,8 +11,11 @@
 
 static const char *TAG = "radio";
 
+#define SNIFF_TIMEOUT_US (30 * 1000 * 1000)   /* manual sniff stops by itself */
+
 static SemaphoreHandle_t s_mtx;
 static volatile rmode_t  s_mode = RMODE_IDLE;
+static int64_t           s_sniff_deadline;      /* 0 = not sniffing */
 
 static void addr_reboot_cb(void *arg) { esp_restart(); }
 
@@ -41,6 +44,12 @@ const char *radio_mode_str(rmode_t m)
 
 rmode_t radio_mode(void) { return s_mode; }
 
+/* Scanning is started by hand, so it must not keep running forever. */
+bool radio_sniff_timed_out(void)
+{
+    return s_sniff_deadline != 0 && esp_timer_get_time() >= s_sniff_deadline;
+}
+
 esp_err_t radio_init(void)
 {
     s_mtx = xSemaphoreCreateMutex();
@@ -54,6 +63,7 @@ esp_err_t radio_stop(void)
     blescan_stop();
     beacon_adv_stop();
     s_mode = RMODE_IDLE;
+    s_sniff_deadline = 0;
     xSemaphoreGive(s_mtx);
     remember_mode(s_mode);
     ESP_LOGI(TAG, "mode=idle");
@@ -82,6 +92,7 @@ esp_err_t radio_sniff(void)
 
     esp_err_t e = blescan_start(&sc);
     s_mode = blescan_running() ? RMODE_SNIFF : RMODE_IDLE;
+    s_sniff_deadline = (s_mode == RMODE_SNIFF) ? esp_timer_get_time() + SNIFF_TIMEOUT_US : 0;
     xSemaphoreGive(s_mtx);
     remember_mode(s_mode);
 
@@ -106,6 +117,7 @@ esp_err_t radio_clone(void)
     esp_err_t e = beacon_adv_apply(&snap);
     bool on = beacon_adv_is_running();
     s_mode = on ? RMODE_CLONE : RMODE_IDLE;
+    s_sniff_deadline = 0;
     xSemaphoreGive(s_mtx);
     remember_mode(s_mode);
 

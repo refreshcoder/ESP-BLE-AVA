@@ -181,6 +181,14 @@ static void tick_cb(void *arg)
         s_adv_retry = 0;
     }
 
+    /* Manual sniffing stops by itself: a forgotten browser tab must not leave the radio
+     * scanning forever. Tapping Sniff again simply restarts the 30 s window. */
+    if (radio_mode() == RMODE_SNIFF && radio_sniff_timed_out()) {
+        ESP_LOGI(TAG, "sniff window elapsed -> idle");
+        applog_add(LOG_T_SCAN, 0, "sniff timeout -> idle");
+        radio_stop();
+    }
+
     update_led();
 }
 
