@@ -57,6 +57,14 @@ static void update_led(void)
     }
 }
 
+/* Stack margin probe: the clone chain (NVS + NimBLE adv start) runs in whichever task asks
+ * for it, so every such task needs room. Measured, not guessed -- logged after each apply. */
+static void log_stack_margin(const char *where)
+{
+    ESP_LOGI(TAG, "%s: stack low-water %u B", where,
+             (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
+}
+
 /* Re-enter clone mode with the current active profile (arbitrated by radio.c) */
 esp_err_t app_apply_active(void)
 {
@@ -84,7 +92,10 @@ static void on_btn_short(void)
             }
         }
         cfg_unlock();
-        radio_clone();
+        esp_err_t e = radio_clone();
+        /* Silent failure here looked exactly like "the button does nothing" */
+        if (e != ESP_OK) status_led_set(LED_ERROR);
+        log_stack_margin("btn 1x");
     }
     update_led();
     applog_add(LOG_T_ACT, 0, "btn 1x: mode=%s", radio_mode_str(radio_mode()));
@@ -117,6 +128,7 @@ static void on_btn_hold(btn_hold_t ev)
         applog_add(LOG_T_CFG, 0, "factory reset by button");
         cfg_factory_reset();
         app_apply_active();
+        log_stack_margin("btn hold");
 
         esp_timer_handle_t t;
         const esp_timer_create_args_t a = { .callback = reboot_cb, .name = "rst" };
@@ -177,6 +189,7 @@ static void tick_cb(void *arg)
 
     if (apply) {
         app_apply_active();
+        log_stack_margin("tick rotation");
         applog_add(LOG_T_ACT, 0, "rotation -> %d", newid);
     }
 
@@ -189,6 +202,7 @@ static void tick_cb(void *arg)
             ESP_LOGW(TAG, "advertising dropped in clone mode -> re-apply");
             applog_add(LOG_T_ERR, 0, "adv dropped in clone mode, re-applying");
             app_apply_active();
+            log_stack_margin("tick self-heal");
         }
     } else {
         s_adv_retry = 0;

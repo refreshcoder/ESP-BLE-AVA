@@ -196,6 +196,39 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 | 嗅探 | 每 1.6 s 双闪 |
 | 射频错误 | 每 1.2 s 六连急闪 |
 
+### D7（已修）按键单击导致栈溢出 panic：`btn` 任务只有 2560 B
+
+实测日志（单击一次 BOOT）：
+
+```
+I (68694) btn: single click
+I (68696) adv: clone on: 'copy-midea' ... (scannable)
+Guru Meditation Error: Core 0 panic'ed (Stack protection fault).
+Detected in task "btn"
+Stack pointer: 0x4087e400
+Stack bounds:  0x4087e404 - 0x4087ee00     <-- SP 跌到栈底之下
+...
+W (518) app: board=XIAO ESP32-C6 reset=panic boots=67
+```
+
+现象伪装成“按键没反应”：单击 → 克隆真的启动了 → 一百多字节后栈溢出 → 重启 →
+`last_mode` 恢复成 idle → 灯回到“每 3 s 短闪”。
+
+根因：回调里直接跑 `radio_clone()`（NVS 读 + NimBLE 广播启动，flash 操作按 KB 级吃栈），
+而 `btn` 任务只给了 2560 B。这条调用链**同一个陷阱存在于三个栈**：
+
+| 任务 | 原栈大小 | 现在 | 跑什么 |
+|---|---|---|---|
+| `btn` | 2560 | **8192** | 单击/双击/长按 回调 |
+| esp_timer（1 s tick） | 3584（默认） | **8192** | 轮换、广播自愈 → `app_apply_active()` |
+| NimBLE host | 4096 | **6144** | 启动后 `radio_on_ble_ready()` 恢复克隆 |
+
+栈大小不再拍脑袋：每次 apply 后打印 `stack low-water`（`uxTaskGetStackHighWaterMark`），
+用实测量决定要不要再调。
+
+附带修一处静默失败：`on_btn_short()` 之前丢掉 `radio_clone()` 的返回值，失败时模式仍是 idle、
+灯也不变 —— 与“按键坏了”无法区分。现在失败会点 `LED_ERROR`。
+
 ## 后续改动（本次全新增加，**未编译、未上板**）
 
 ### SCAN_RSP 复制

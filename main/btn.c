@@ -9,6 +9,10 @@
 
 static const char *TAG = "btn";
 
+/* The callbacks run radio_clone() in this task: NVS reads and NimBLE advertising start are
+ * stack hungry (this overflowed at 2560 B and panicked). 8 KB leaves a measured margin. */
+#define BTN_TASK_STACK 8192
+
 static btn_single_cb_t s_single;
 static btn_double_cb_t s_double;
 static btn_hold_cb_t   s_hold;
@@ -87,6 +91,7 @@ static void btn_task(void *arg)
                 if (s_double) s_double();
             }
             clicks = 0;
+            ESP_LOGI(TAG, "stack low-water %u B", (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
         }
 
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -109,7 +114,7 @@ void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_hold_cb_
     };
     gpio_config(&io);
 
-    xTaskCreate(btn_task, "btn", 2560, NULL, 4, NULL);
+    xTaskCreate(btn_task, "btn", BTN_TASK_STACK, NULL, 4, NULL);
     ESP_LOGI(TAG, "button gpio%d: 1click=clone on/off, 2click=radio off, hold %dms=warn/%dms=factory reset",
              BOARD_BTN_GPIO, BOARD_BTN_LONG_MS, BOARD_BTN_COMMIT_MS);
 }
