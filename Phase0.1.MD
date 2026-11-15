@@ -162,6 +162,16 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 
 ### 公开地址克隆（`clone_public`，切换配置自动重启）
 
+**已验证（受控实验）**：UI 里把广播地址指定为 `00:01:22:33:44:55` 后，空口最强的那条
+（−46 dBm，midea payload）地址确实等于该值 → `esp_iface_mac_addr_set(ESP_MAC_BT, …)` 在 C6 上生效。
+
+同时发现并修复两个问题：
+
+1. **重启后总是回到 sniff**（设计如此，但地址切换必须重启 → 克隆会静默停掉）：模式现在持久化在
+   `cfg.last_mode`，重启后恢复上次模式；只有首次启动/恢复出厂后才是 sniff。
+2. **SPA 被浏览器缓存**：`Cache-Control: max-age=3600` 导致刷完固件仍加载旧 UI（缺字段），
+   已改为 `no-cache`。
+
 之前结论里"公开地址物理上不可复制"已被乐鑫文档推翻：`esp_iface_mac_addr_set(ESP_MAC_BT, …)`
 可在**不烧 eFuse** 的前提下在 RAM 里改 BLE public 地址，代价是必须在任何网络接口初始化前
 调用 → **每次启动只能一个地址**。

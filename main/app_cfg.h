@@ -53,6 +53,12 @@ typedef struct {
     uint16_t win_ms;
 } scan_cfg_t;
 
+/* Mode to resume after a reboot. An address change is applied by rebooting, so defaulting
+ * back to sniff would silently stop the clone. */
+#define CFG_MODE_SNIFF 0
+#define CFG_MODE_CLONE 1
+#define CFG_MODE_IDLE  2
+
 typedef struct {
     char ssid[CFG_SSID_MAX + 1];
     char pass[CFG_PASS_MAX + 1];
@@ -64,6 +70,7 @@ typedef struct {
     int      active;          /* -1 = nothing active */
     bool     rotation;
     uint16_t rotation_s;
+    uint8_t  last_mode;       /* CFG_MODE_*: mode to restore at boot */
     uint32_t seq_gen;         /* use_seq generator, persisted with the config */
     scan_cfg_t scan;
     ap_cfg_t   ap;

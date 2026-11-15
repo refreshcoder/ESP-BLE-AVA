@@ -91,6 +91,7 @@ void cfg_defaults(beacon_cfg_t *c)
     c->active     = 0;
     c->rotation   = false;
     c->rotation_s = 30;
+    c->last_mode  = CFG_MODE_SNIFF;   /* first boot after a factory reset still starts sniffing */
     c->scan.enabled = true;
     c->scan.itvl_ms = 300;
     c->scan.win_ms  = 60;
@@ -276,6 +277,7 @@ cJSON *cfg_to_json(const beacon_cfg_t *c)
     cJSON *rot = cJSON_AddObjectToObject(root, "rotation");
     cJSON_AddBoolToObject(rot, "enabled", c->rotation);
     cJSON_AddNumberToObject(rot, "seconds", c->rotation_s);
+    cJSON_AddNumberToObject(root, "mode", c->last_mode);
 
     cJSON *sc = cJSON_AddObjectToObject(root, "scan");
     cJSON_AddBoolToObject(sc, "enabled", c->scan.enabled);
@@ -322,9 +324,10 @@ bool cfg_from_json(const char *js, beacon_cfg_t *c, char *err, size_t errlen)
 
     const cJSON *rot = cJSON_GetObjectItemCaseSensitive(root, "rotation");
     if (cJSON_IsObject(rot)) {
-        tmp.rotation   = jbool(rot, "enabled", false);
-        int sec        = jint(rot, "seconds", 30);
+        tmp.rotation   = jbool(rot, "enabled", false);        int sec        = jint(rot, "seconds", 30);
         tmp.rotation_s = (uint16_t)(sec < 5 ? 5 : sec > 3600 ? 3600 : sec);
+    int lm = jint(root, "mode", CFG_MODE_SNIFF);
+    tmp.last_mode = (uint8_t)(lm < 0 || lm > CFG_MODE_IDLE ? CFG_MODE_SNIFF : lm);
     }
     const cJSON *sc = cJSON_GetObjectItemCaseSensitive(root, "scan");
     if (cJSON_IsObject(sc)) {

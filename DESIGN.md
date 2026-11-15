@@ -229,8 +229,13 @@ RMODE_IDLE ──┬─▶ RMODE_SNIFF   (scan only, records raw[31])
              └─▶ RMODE_CLONE   (advertise only, verbatim bytes)
 ```
 
-Transitions: UI buttons, `POST /api/mode`, or the BOOT button. Boot default is `SNIFF`,
-because "capture first" is the primary action.
+Transitions: UI buttons, `POST /api/mode`, or the BOOT button.
+
+**The mode is persisted (`cfg.last_mode`) and resumed after a reboot.** The very first boot
+(and any boot after a factory reset) starts in `SNIFF`, because "capture first" is the primary
+action — but every later boot restores what the device was doing. This is not cosmetic: the BLE
+public address can only be applied at boot (§3.5), so an address switch *is* a reboot, and
+defaulting back to sniff would silently stop the clone it was switching to.
 
 Scan duty cycle is capped at **50 %** of the interval (`blescan_start()`); above that the
 SoftAP stops answering. Higher duty improves capture probability, so the cap is exposed

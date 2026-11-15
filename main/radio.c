@@ -16,6 +16,20 @@ static volatile rmode_t  s_mode = RMODE_IDLE;
 
 static void addr_reboot_cb(void *arg) { esp_restart(); }
 
+/* Persist the mode so a reboot (e.g. to apply a new public address) resumes it instead of
+ * falling back to sniffing. Mode changes are user-driven, so one NVS write each is fine. */
+static void remember_mode(rmode_t m)
+{
+    uint8_t v = m == RMODE_CLONE ? CFG_MODE_CLONE
+              : m == RMODE_SNIFF ? CFG_MODE_SNIFF : CFG_MODE_IDLE;
+    cfg_lock();
+    if (cfg_get()->last_mode != v) {
+        cfg_get()->last_mode = v;
+        cfg_save();
+    }
+    cfg_unlock();
+}
+
 const char *radio_mode_str(rmode_t m)
 {
     switch (m) {
@@ -41,6 +55,7 @@ esp_err_t radio_stop(void)
     beacon_adv_stop();
     s_mode = RMODE_IDLE;
     xSemaphoreGive(s_mtx);
+    remember_mode(s_mode);
     ESP_LOGI(TAG, "mode=idle");
     return ESP_OK;
 }
@@ -60,6 +75,7 @@ esp_err_t radio_sniff(void)
     esp_err_t e = blescan_start(&sc);
     s_mode = blescan_running() ? RMODE_SNIFF : RMODE_IDLE;
     xSemaphoreGive(s_mtx);
+    remember_mode(s_mode);
 
     ESP_LOGI(TAG, "mode=%s (scan win=%ums/%ums)", radio_mode_str(s_mode),
              (unsigned)sc.win_ms, (unsigned)sc.itvl_ms);
@@ -83,6 +99,7 @@ esp_err_t radio_clone(void)
     bool on = beacon_adv_is_running();
     s_mode = on ? RMODE_CLONE : RMODE_IDLE;
     xSemaphoreGive(s_mtx);
+    remember_mode(s_mode);
 
     ESP_LOGI(TAG, "mode=%s (%s)", radio_mode_str(s_mode), esp_err_to_name(e));
     applog_add(LOG_T_ACT, 0, "mode=clone %s", on ? "on" : "off");
@@ -105,10 +122,15 @@ void radio_on_ble_ready(void)
     cfg_lock();
     bool scan_en = cfg_get()->scan.enabled;
     int  active  = cfg_get()->active;
+    uint8_t last = cfg_get()->last_mode;
     cfg_unlock();
 
-    /* Default to sniffing (capture first, then clone); clone directly if scanning is off */
-    if (scan_en)                 radio_sniff();
-    else if (active >= 0)        radio_clone();
-    else                         radio_stop();
+    /* Resume what the device was doing before the reboot (an address change is applied by
+     * rebooting, so defaulting to sniff would silently drop the clone). First boot after a
+     * factory reset has last_mode = CFG_MODE_SNIFF, which keeps "capture first" as default. */
+    if (last == CFG_MODE_CLONE && active >= 0)     radio_clone();
+    else if (last == CFG_MODE_IDLE)                radio_stop();
+    else if (scan_en)                              radio_sniff();
+    else if (active >= 0)                          radio_clone();
+    else                                           radio_stop();
 }
