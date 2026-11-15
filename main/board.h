@@ -74,8 +74,8 @@
 /* ---- Seeed XIAO ESP32-C6 ---- */
 #define BOARD_NAME            "XIAO ESP32-C6"
 #define BOARD_LED_GPIO        15
-#define BOARD_LED_WS2812      0        /* single-colour user LED, not WS2812 */
-#define BOARD_LED_ACTIVE_LEVEL 1       /* flip to 0 if the LED stays dark */
+#define BOARD_LED_WS2812      0        /* single yellow LED, not WS2812 */
+#define BOARD_LED_ACTIVE_LEVEL 0       /* LED sits between 3V3 and GPIO15: low = lit */
 
 #elif BOARD_ID == BOARD_WAVESHARE_ZERO
 /* ---- Waveshare ESP32-C6-Zero (verify with schematic/silkscreen) ---- */
