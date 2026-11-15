@@ -160,7 +160,8 @@ esp_err_t beacon_adv_apply(const beacon_cfg_t *c)
     uint8_t own = s_own_addr_type;
     if (p->use_rand_addr) {
         uint8_t a[6];
-        memcpy(a, p->rand_addr, 6);
+        /* rand_addr is stored in display order; NimBLE wants it little-endian */
+        for (int k = 0; k < 6; k++) a[k] = p->rand_addr[5 - k];
         a[5] |= 0xC0;                       /* top two bits = 11: static random */
         if (ble_hs_id_set_rnd(a) == 0) own = BLE_OWN_ADDR_RANDOM;
         else ESP_LOGW(TAG, "set_rnd failed, fallback to public");

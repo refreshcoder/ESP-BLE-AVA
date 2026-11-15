@@ -63,10 +63,15 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     s_pkts++;
 
+    /* NimBLE keeps the address little-endian (on-air order); everything else in this project
+     * (UI, logs, NVS blob, esp_read_mac) uses display order. Convert once, here. */
+    uint8_t abe[6];
+    for (int k = 0; k < 6; k++) abe[k] = desc->addr.val[5 - k];
+
     detection_t *slot = NULL;
     for (int i = 0; i < s_used; i++) {
         if (s_tab[i].addr_type == desc->addr.type &&
-            memcmp(s_tab[i].addr, desc->addr.val, 6) == 0) {
+            memcmp(s_tab[i].addr, abe, 6) == 0) {
             slot = &s_tab[i];
             break;
         }
@@ -81,7 +86,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
             slot = &s_tab[oldest];
         }
         memset(slot, 0, sizeof(*slot));
-        memcpy(slot->addr, desc->addr.val, 6);
+        memcpy(slot->addr, abe, 6);
         slot->addr_type = desc->addr.type;
         slot->adv_type  = desc->event_type;
         slot->first_ms  = t;

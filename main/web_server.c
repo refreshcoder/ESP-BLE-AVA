@@ -633,7 +633,7 @@ static esp_err_t h_clone(httpd_req_t *req)
          * active profile, and radio_clone() reboots when a switch needs another one. */
         if (d.addr_type == ADDR_TYPE_RANDOM) {
             memcpy(p->rand_addr, addr, 6);
-            p->rand_addr[5] |= 0xC0;
+            p->rand_addr[0] |= 0xC0;          /* display order: top two bits of the first octet */
             p->use_rand_addr = true;
         } else {
             p->use_rand_addr = false;

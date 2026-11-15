@@ -145,6 +145,22 @@ python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset rea
 
 ---
 
+### D5（已修）地址字节序反了：NimBLE 是小端，工程其余部分是大端
+
+`ble_gap_disc_desc.addr.val[]` 是**空口顺序（小端）**，而 UI / 日志 / NVS / `esp_read_mac()` 都是
+**显示顺序（大端）**。原代码直接 `memcpy(slot->addr, desc->addr.val, 6)`，于是：
+
+- 扫描列表里的地址是 nRF Connect 显示的**倒序**（用户实测：克隆出来的地址与原件的"完全相反"）
+- `h_clone` 把倒序字节存进 `src_addr` → `esp_iface_mac_addr_set()` 设置的是倒序地址
+- 随机地址分支的 `rand_addr[5] |= 0xC0` 也落在错误的字节（"最高两位"在显示顺序下是**第一个**八位组）
+- 手输地址的受控实验能通过，是因为它绕过了 `desc->addr.val` 这条路径
+
+修法：只在两个边界转一次，内部统一大端——`beacon_scan.c` 入站时 `abe[k] = val[5-k]`，
+`beacon_adv.c` 出站时 `a[k] = rand_addr[5-k]`，`|0xC0` 改为 `rand_addr[0]`。
+
+> 因此之前"克隆体地址 ≠ 原件地址"的结论要拆成两个原因：字节序 bug（已修）+
+> 这台 midea 本身是 NRPA（会轮换，克隆无意义）。
+
 ## 后续改动（本次全新增加，**未编译、未上板**）
 
 ### SCAN_RSP 复制

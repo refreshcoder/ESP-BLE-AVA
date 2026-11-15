@@ -203,7 +203,7 @@ bool cfg_profile_from_json(const cJSON *j, beacon_profile_t *p, char *err, size_
     s = jstr(j, "rand_addr");
     if (s && *s) {
         if (!cfg_hex_from_str(s, p->rand_addr, 6)) { snprintf(err, errlen, "rand_addr must be 12 hex chars"); return false; }
-        p->rand_addr[5] |= 0xC0;          /* static random */
+        p->rand_addr[0] |= 0xC0;          /* display order: top two bits of the first octet */
         p->use_rand_addr = jbool(j, "use_rand_addr", true);
     } else {
         p->use_rand_addr = false;
