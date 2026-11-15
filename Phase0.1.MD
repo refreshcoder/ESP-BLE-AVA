@@ -115,6 +115,18 @@ esp_err_t e = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, (esp_power_level_t)v);
 **处置**：抓串口时不要 kill 抓包进程，让它按 `--seconds` 自然超时退出（实验 3 已证明优雅
 关闭不会复位）；需要中断就先记下这次会重启板子。固件无需改动。
 
+**副作用（已踩）**：`dtr=0/rts=0` 同时把 GPIO9 拉低，芯片重启后会停在 **ROM 下载模式**
+——应用不跑，表现为 LED 全黑、无广播、AP 也起不来。判据：`esptool --before no-reset`
+能直接接上 bootloader（应用在跑时必然 `Write timeout`）。恢复：
+
+```powershell
+python -m esptool --chip esp32c6 -p COM10 --before no-reset --after hard-reset read-mac
+# 复查：这条应报 Write timeout，说明 ROM 不再应答、应用已启动
+python -m esptool --chip esp32c6 -p COM10 --before no-reset --after no-reset read-mac
+```
+
+→ 不要手动摆弄 DTR/RTS；要重启就用 `--after hard-reset` 或按 RESET 键。
+
 ### D4（已修）`tx_dbm` 与实际不符
 
 随 D1 一并解决：`s_tx_dbm` 现在只记录**设置成功后**的实际档位。
