@@ -15,7 +15,7 @@ WinRT/bleak 被动/主动扫描）抓空口，同一时间用 pyserial 抓 COM10
 |---|---|---|
 | 1 | 刷机（合并镜像 @0x0） | ✅ 校验通过，启动正常 |
 | 2 | 克隆功能（RAW 逐字节重放） | ✅ 空口 payload 与固件 raw 完全一致，两次独立复现 |
-| 3 | "断开 AP 后自动回到 sniff" | ❌ 不存在该逻辑；实际是板子**复位**后按设计回到 sniff |
+| 3 | "断开 AP 后自动回到 sniff" | ❌ 不存在该逻辑；实际是主机强制关闭串口导致复位（见 D3） |
 | 4 | TX 功率设置 | ❌ 每次 `ESP_FAIL`（单位/枚举用错），实际功率为控制器默认值 |
 | 5 | 广播"自己消失" | ⚠️ 观察到两次；`s_mode` 不跟随，UI 会显示"克隆中 + ADV off" |
 | 6 | 空口包率 | ⚠️ 25 s 收到 4 包（配置 1725 ms 应有 ~14），见"未解" |
@@ -58,7 +58,7 @@ I (630488) radio: mode=clone (ESP_OK)
   rotation tick、`radio_on_ble_ready()`（**仅在 BLE 协议栈 sync 时调用 = 启动/复位后**）。
 - `main/net_ap.c:36` 的 `WIFI_EVENT_AP_STADISCONNECTED` 只做 `s_sta--` 和打日志。
 - 判定依据：按键**之前** LED 是双闪（=sniff）。既然没有任何断连路径，只能是复位。
-- 旁证：串口 uptime 从 2096 s 掉到 288 s，说明这期间确实重启过。
+- 旁证：串口 uptime 从 2096 s 掉到 288 s，说明这期间确实重启过（真因见 D3）。
 
 → **假象定案："断连导致回 sniff" 不成立，真因是复位后 `radio_on_ble_ready()` 默认 sniff。**
 
@@ -90,15 +90,30 @@ esp_err_t e = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, (esp_power_level_t)v);
 修法：`main.c` 的 1 s tick 加自愈——`radio_mode()==RMODE_CLONE && !beacon_adv_is_running()`
 时每 10 s 重新 apply 一次并写日志（与 rotation 复用同一条 `app_apply_active()` 路径）。
 
-### D3（未解）复位原因
+### D3（已定案，非固件问题）复位原因 = 主机侧强制关闭串口
 
-可能：供电（clone 峰值 350–420 mA）/ panic / watchdog / USB 掉电。判据在串口第一条：
+`reset: unknown` + `brownout` 计数从未写入。三次受控实验（同一台 PC，COM10）：
 
-```
-W (xxx) app: board=... reset=<power_on|software|panic|task_wdt|int_wdt|brownout|unknown> boots=N brownouts=M
-```
+| # | 动作 | 结果 |
+|---|---|---|
+| 1 | 正常 `Serial()` 打开 → 静置 6 s | 不复位 |
+| 2 | 同一句柄上 `dtr=False; rts=False` | **复位**，`rst:0x15 (USB_UART_HPSYS)` |
+| 3 | `close()` 后立刻重新打开 | 不复位 |
 
-下次复位时抓 `tools/ser.log` 即可定性（见"复现"）。
+`rst:0x15` 是 USB-Serial/JTAG 外设发出的芯片复位，ESP-IDF 的 `esp_reset_reason()` 把它映射成
+`ESP_RST_UNKNOWN` —— 与界面上看到的 `reset: unknown` 一致。
+
+触发源头是**抓包进程被 `Stop-Process -Force` 杀掉**：句柄被硬断，USB CDC 拆除时 DTR/RTS
+落到电平，芯片随之复位。时间线与 `boots` 完全对得上（每次 kill + 重启抓包，uptime 归零）：
+
+- 2096 s → 288 s（12:5x）↔ `killed 34888 / killed 34004`
+- 覆盖到 "ready: 2 profile(s)" 的那次（13:10）↔ `killed 26580` + 重启抓包
+
+行为符合设计：复位后 `radio_on_ble_ready()` 会把模式拉回 sniff，所以现象是"没人动它就从
+克隆回到双闪"。`boots=9` 里还包括 esptool write/read-flash 的 3 次 hard reset。
+
+**处置**：抓串口时不要 kill 抓包进程，让它按 `--seconds` 自然超时退出（实验 3 已证明优雅
+关闭不会复位）；需要中断就先记下这次会重启板子。固件无需改动。
 
 ### D4（已修）`tx_dbm` 与实际不符
 
@@ -108,12 +123,11 @@ W (xxx) app: board=... reset=<power_on|software|panic|task_wdt|int_wdt|brownout|
 
 ## 未解 / 待验
 
-1. **D3 复位原因**——需要板上跑一段时间后读串口首行。
-2. **空口包率**：25 s 只有 4 包。干扰因素有两个，尚未分离：
+1. **空口包率**：25 s 只有 4 包。干扰因素有两个，尚未分离：
    - Windows 侧扫描占空比本身很低（工具侧限制）；
    - SoftAP 仍在广播，官方共存评级 SoftAP×BLE = `C1`「支持但不稳定」（DESIGN.md §6）。
    目前固件**没有关闭 SoftAP 的接口**，要分离变量需要先加开关。
-3. `flags` 段（`02 01 06`）本机工具看不到，`MATCH` 是按段匹配的；完整 31 字节仍需
+2. `flags` 段（`02 01 06`）本机工具看不到，`MATCH` 是按段匹配的；完整 31 字节仍需
    nRF Connect 的 RAW 视图或 WinRT 直接读 `DataSections`。
 
 ---
@@ -121,7 +135,7 @@ W (xxx) app: board=... reset=<power_on|software|panic|task_wdt|int_wdt|brownout|
 ## 复现命令
 
 ```powershell
-# 1) 串口对照（另开一个窗口/进程，抓 900 s）
+# 1) 串口对照（后台起一个进程，让它自己到点退出；**不要 kill**，硬断句柄会复位板子，见 D3）
 python $env:TEMP\bgw_serial_cap.py COM10 tools\ser.log 900
 
 # 2) 空口判定：--expect 用串口 clone on 打印的 raw
