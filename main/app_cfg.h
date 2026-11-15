@@ -48,7 +48,6 @@ typedef struct {
 } beacon_profile_t;
 
 typedef struct {
-    bool     enabled;
     uint16_t itvl_ms;
     uint16_t win_ms;
 } scan_cfg_t;

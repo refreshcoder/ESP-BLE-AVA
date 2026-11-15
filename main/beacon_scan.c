@@ -194,10 +194,6 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
 {
     if (!s_mtx) return ESP_ERR_INVALID_STATE;
     blescan_stop();
-    if (!sc->enabled) {
-        ESP_LOGI(TAG, "scan disabled");
-        return ESP_OK;
-    }
 
     uint32_t itvl = sc->itvl_ms < 20 ? 20 : sc->itvl_ms;
     uint32_t win  = sc->win_ms  < 2  ? 2  : sc->win_ms;

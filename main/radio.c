@@ -80,14 +80,6 @@ esp_err_t radio_sniff(void)
 
     cfg_lock();
     scan_cfg_t sc = cfg_get()->scan;
-    /* An explicit sniff request overrides the stored "scanning enabled" flag: otherwise the
-     * button would silently do nothing and look like the capture feature is broken. */
-    if (!sc.enabled) {
-        cfg_get()->scan.enabled = true;
-        sc.enabled = true;
-        cfg_save();
-        ESP_LOGW(TAG, "scan was disabled in settings -> enabling it for this sniff request");
-    }
     cfg_unlock();
 
     esp_err_t e = blescan_start(&sc);

@@ -231,6 +231,11 @@ RMODE_IDLE ──┬─▶ RMODE_SNIFF   (scan only, records raw[31])
 
 Transitions: UI buttons, `POST /api/mode`, or the BOOT button.
 
+**`idle` is not a working mode, it is the truthful name for "neither scanning nor advertising".**
+It has to exist: turning broadcast off, a sniff window expiring, no active profile, and an
+`adv_start` failure all land there, and reporting any of those as `clone` would be exactly the
+lied-about state that used to make the UI show "cloning" with ADV off.
+
 **Scanning is manual-only.** It never starts by itself: not at boot, and not from the BOOT
 button. The button is a broadcast on/off toggle, and a boot restores either "broadcasting" or
 "parked with the radio off" (`cfg.last_mode`); sniffing is started from the management page and
@@ -238,8 +243,9 @@ stops when you leave it. Rationale: the previous "capture first" default meant a
 silently put a beacon that must keep transmitting into scan mode — which is exactly what happens
 after an address switch, since that needs a reboot (§3.5).
 
-Scanning still has its own persisted flag (`scan.enabled`), but asking for sniff explicitly now
-overrides it, so the button can never appear dead.
+There is no "scanning enabled" flag any more: sniffing is a manual, time-limited action, and a
+second switch that could contradict the mode was the source of a silent no-op (tapping Sniff with
+the flag off did nothing). Saving scan parameters while a window is open restarts it.
 
 A manual sniff **stops on its own after 30 s** (`radio_sniff_timed_out()` checked by the 1 s
 tick, then `radio_stop()`), so a forgotten browser tab cannot leave the radio scanning forever;

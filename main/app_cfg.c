@@ -91,8 +91,9 @@ void cfg_defaults(beacon_cfg_t *c)
     c->active     = 0;
     c->rotation   = false;
     c->rotation_s = 30;
-    c->last_mode  = CFG_MODE_SNIFF;   /* first boot after a factory reset still starts sniffing */
-    c->scan.enabled = true;
+    c->last_mode  = CFG_MODE_SNIFF;   /* first boot after a factory reset starts parked */
+    c->scan.itvl_ms = 300;
+    c->scan.win_ms  = 60;
     c->scan.itvl_ms = 300;
     c->scan.win_ms  = 60;
 
@@ -280,7 +281,6 @@ cJSON *cfg_to_json(const beacon_cfg_t *c)
     cJSON_AddNumberToObject(root, "mode", c->last_mode);
 
     cJSON *sc = cJSON_AddObjectToObject(root, "scan");
-    cJSON_AddBoolToObject(sc, "enabled", c->scan.enabled);
     cJSON_AddNumberToObject(sc, "itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(sc, "win_ms", c->scan.win_ms);
 
@@ -331,12 +331,11 @@ bool cfg_from_json(const char *js, beacon_cfg_t *c, char *err, size_t errlen)
     }
     const cJSON *sc = cJSON_GetObjectItemCaseSensitive(root, "scan");
     if (cJSON_IsObject(sc)) {
-        tmp.scan.enabled = jbool(sc, "enabled", true);
         int iv = jint(sc, "itvl_ms", 300), wv = jint(sc, "win_ms", 60);
         tmp.scan.itvl_ms = (uint16_t)(iv < 20 ? 20 : iv > 10240 ? 10240 : iv);
         tmp.scan.win_ms  = (uint16_t)(wv < 2 ? 2 : wv > 10240 ? 10240 : wv);
     } else {
-        tmp.scan.enabled = true; tmp.scan.itvl_ms = 300; tmp.scan.win_ms = 60;
+        tmp.scan.itvl_ms = 300; tmp.scan.win_ms = 60;
     }
 
     /* AP credentials: derived from the MAC when absent. WPA2 needs >=8 chars. */

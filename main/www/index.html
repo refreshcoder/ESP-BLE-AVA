@@ -225,7 +225,6 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
   <section id="tab-settings">
     <div class="card"><h2 data-i18n="card_scan">Scan parameters</h2>
       <div class="grid2">
-        <div><label data-i18n="lb_enabled">Scanning enabled</label><input id="s-en" type="checkbox"></div>
         <div><label data-i18n="lb_scan_itvl">Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
         <div><label data-i18n="lb_scan_win">Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
       </div>
@@ -295,7 +294,7 @@ const I18N = {
     nav_status: "Status", nav_capture: "Capture", nav_profiles: "Profiles", nav_log: "Log", nav_settings: "Settings",
     adv_on: "ADV on", adv_off: "ADV off", clients: "clients",
     home_mode: "Current mode",
-    mode_sniff: "Sniffing", mode_clone: "Cloning", mode_idle: "Radio off",
+    mode_sniff: "Sniffing", mode_clone: "Cloning", mode_idle: "Idle (radio off)",
     btn_sniff: "Sniff (capture)", btn_clone: "Clone (advertise)", btn_stop_radio: "Stop radio",
     mode_hint: "Capture and advertising are mutually exclusive: entering one stops the other.",
     card_runtime: "Runtime", loading: "loading…",
@@ -389,7 +388,7 @@ const I18N = {
     nav_status: "状态", nav_capture: "捕获", nav_profiles: "配置", nav_log: "日志", nav_settings: "设置",
     adv_on: "广播 开", adv_off: "广播 关", clients: "客户端",
     home_mode: "当前模式",
-    mode_sniff: "嗅探中", mode_clone: "克隆中", mode_idle: "射频关闭",
+    mode_sniff: "嗅探中", mode_clone: "克隆中", mode_idle: "待命（射频关闭）",
     btn_sniff: "嗅探（捕获）", btn_clone: "克隆（广播）", btn_stop_radio: "关闭射频",
     mode_hint: "捕获与广播互斥：进入其中一个会停止另一个。",
     card_runtime: "运行状态", loading: "加载中…",
@@ -1024,7 +1023,6 @@ async function clearLog() { const r = await del("/api/log"); toast(r.ok ? t("toa
 async function loadSettings() {
   const j = await get("/api/profiles");
   if (!j.ok) return;
-  $("s-en").checked = !!(j.scan && j.scan.enabled);
   $("s-itvl").value = j.scan ? j.scan.itvl_ms : 300;
   $("s-win").value = j.scan ? j.scan.win_ms : 60;
   $("s-ssid").value = j.ap ? j.ap.ssid : "";
@@ -1033,8 +1031,7 @@ async function loadSettings() {
   $("s-rot-s").value = (j.rotation && j.rotation.seconds) || 30;
 }
 async function saveScan() {
-  const r = await post("/api/scan", {
-    enabled: $("s-en").checked, itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value });
+  const r = await post("/api/scan", { itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value });
   toast(r.ok ? t("toast_scan_saved") : (r.err || t("err_failed")), !r.ok);
   refreshStatus();
 }

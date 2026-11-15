@@ -37,11 +37,12 @@ console.log("ok  referenced keys: " + refs.size);
 // 4) unused keys (informational)
 [...en].filter(k => !refs.has(k)).forEach(k => console.log("warn unused key: " + k));
 
-// 5) ids preserved vs git HEAD
+// 5) ids preserved vs git HEAD ('s-en' etc. are deliberately retired)
+const RETIRED = new Set(["s-en"]);
 const oldHtml = execFileSync("git", ["show", "HEAD:" + file], { encoding: "utf8" });
 const ids = s => new Set([...s.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
 const a = ids(oldHtml), b = ids(html);
-[...a].filter(x => !b.has(x)).forEach(x => bad("removed id: " + x));
+[...a].filter(x => !b.has(x) && !RETIRED.has(x)).forEach(x => bad("removed id: " + x));
 [...b].filter(x => !a.has(x)).forEach(x => console.log("info new id: " + x));
 
 // 6) every $("id") in script exists in html (hint-limit is optional by design)

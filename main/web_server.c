@@ -487,19 +487,20 @@ static esp_err_t h_scan_post(httpd_req_t *req)
 
     cfg_lock();
     beacon_cfg_t *c = cfg_get();
-    const cJSON *en = cJSON_GetObjectItemCaseSensitive(j, "enabled");
     const cJSON *iv = cJSON_GetObjectItemCaseSensitive(j, "itvl_ms");
     const cJSON *wv = cJSON_GetObjectItemCaseSensitive(j, "win_ms");
-    if (cJSON_IsBool(en)) c->scan.enabled = cJSON_IsTrue(en);
     if (cJSON_IsNumber(iv))c->scan.itvl_ms = (uint16_t)(iv->valueint < 20 ? 20 : iv->valueint > 10240 ? 10240 : iv->valueint);
     if (cJSON_IsNumber(wv))c->scan.win_ms  = (uint16_t)(wv->valueint < 2 ? 2 : wv->valueint > 10240 ? 10240 : wv->valueint);
-    scan_cfg_t sc = c->scan;
     cfg_save();
     cfg_unlock();
     cJSON_Delete(j);
 
-    esp_err_t e = sc.enabled ? radio_sniff() : radio_stop();
-    if (e != ESP_OK) return fail(req, "500 Internal Server Error", "scan start failed");
+    /* Scanning is manual-only, so saving the parameters just restarts an open sniff window
+     * with the new interval/window (and restarts its 30 s). */
+    if (radio_mode() == RMODE_SNIFF) {
+        esp_err_t e = radio_sniff();
+        if (e != ESP_OK) return fail(req, "500 Internal Server Error", "scan restart failed");
+    }
     return ok_msg(req, "scan updated");
 }
 
