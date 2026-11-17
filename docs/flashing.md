@@ -141,6 +141,48 @@ Get-PnpDevice -Class Ports | Format-Table FriendlyName, InstanceId
 | Device shows as "Unknown device" | Cable is charge-only, or the board is in a bad state — hold **BOOT** while replugging |
 | Prefer the Linux workflow | WSL2 does not see USB by default; attach it with [usbipd-win](https://github.com/dorssel/usbipd-win) (`usbipd attach --wsl --busid <n>`) and then use `tools/flash.sh` |
 
+### Remote Windows host: the runbook that does not cut your own connection
+
+Order matters. Everything below is safe to run over RDP **except** joining the board's
+SoftAP:
+
+```powershell
+# 0) is the board there, and is it already running our firmware?
+Get-PnpDevice -Class Ports | Format-Table FriendlyName, InstanceId     # look for 303A / COMx
+py -m pip install -U esptool
+py -m esptool --chip esp32c6 -p COM7 chip_id                            # works on a blank chip too
+
+# 1) get the repo (either clone, or download the ZIP and extract)
+git clone https://github.com/refreshcoder/ESP-BLE-AVA
+cd ESP-BLE-AVA
+
+# 2) flash (downloads the merged image itself)
+.\tools\flash.ps1 -Url https://github.com/refreshcoder/ESP-BLE-AVA/raw/main/firmware/beacon_gw-c6-board2-full.bin
+
+# 3) verify WITHOUT touching the network adapter
+py -m serial.tools.miniterm COM7 115200      # expect: board=..., mode=sniff, then Ctrl+]
+netsh wlan show networks mode=bssid | Select-String BeaconGW
+```
+
+**The trap: do not join `BeaconGW-XXXX` from the machine you are RDP-ing into** if that
+machine reaches you over Wi-Fi — switching its Wi-Fi to the board's SoftAP drops your
+session and you lose the box. Options, in order of preference:
+
+| Option | Note |
+|---|---|
+| Host is on Ethernet | Join the SoftAP freely; RDP keeps running |
+| Host has one Wi-Fi adapter only | Do the flashing and serial verification, then confirm the AP from a *scan* (`netsh wlan show networks`) instead of joining |
+| You need the web UI from that host | Add a cheap USB Wi-Fi dongle for the AP, or drive it from another machine on the same bench |
+| Console is enough | `serial.tools.miniterm` shows `ready: ... ap='BeaconGW-xxxx'`, which is all the confirmation flashing needs |
+
+Once the firmware is up, `tools/ble_watch.py` on that host (Windows BLE, `pip install
+bleak`) is the cheapest way to prove the clone is on air — no network change involved:
+
+```powershell
+py -m pip install bleak
+python tools\ble_watch.py -s 20 --expect <raw hex from the serial "clone on" line>
+```
+
 ### No Python at all?
 
 Espressif's **Flash Download Tool** (Windows GUI) can do it too: pick ESP32-C6, add a
