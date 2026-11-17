@@ -19,12 +19,13 @@ Flash it with `esptool.py write_flash 0x0 <file>` or any Web Serial flasher
 
 | | |
 |---|---|
-| Built from commit | `3be5751` |
-| Source size | 1,302,640 bytes |
-| SHA-256 | `c8991afd6073ed865c3abc9590502faf5f3757dca537196e354b77b06aa88a86` |
+| Built from commit | `16f0e74` |
+| Source size | 1,314,368 bytes |
+| SHA-256 | `45c4f1fd8d4d753fbfc3b5441edc6ac225c37bb7d19048275de3c7ed00495174` |
 
 After flashing, the board raises `BeaconGW-XXXX` (password `beaconXXXX`) and the UI is at
 <http://192.168.4.1/>. The LED double-blinks while sniffing, which is the boot default.
 
-> These files are rebuilt by hand when the format or the flashing path changes, so they
-> can lag `main`. Check the commit above before reporting a bug.
+> Rebuilt by hand at the commit above. The image **can lag `main`** — the previous one
+> predated the bench-run fixes (LED polarity, button stack overflow, address byte order),
+> so re-check the commit and SHA-256 before reporting a bug.
