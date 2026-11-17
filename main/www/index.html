@@ -315,6 +315,7 @@ const I18N = {
     cap_rsp: "scan response, ", form_rsp: "Scan response (replayed verbatim, cannot be edited)",
     cap_ble_adv: "BLE advertisement", btn_clone_sm: "Clone",
     cap_mfg: "mfg", cap_mfg_rsp: "in scan response",
+    cap_svc: "service",
     toast_session_cleared: "Session captures cleared",
     toast_cloning: "Cloning now (interval {itvl}ms)",
     toast_replaced: ", replaced the least recently used profile",
@@ -409,6 +410,7 @@ const I18N = {
     cap_rsp: "扫描响应，", form_rsp: "扫描响应（原样重放，不可编辑）",
     cap_ble_adv: "BLE 广播", btn_clone_sm: "克隆",
     cap_mfg: "厂商", cap_mfg_rsp: "在扫描响应中",
+    cap_svc: "服务",
     toast_session_cleared: "本次会话捕获已清空",
     toast_cloning: "正在克隆（间隔 {itvl}ms）",
     toast_replaced: "，已替换最久未使用的配置",
@@ -625,7 +627,21 @@ const capMfg = d => {
   return "<div class='dim mono' style='margin-top:2px'>" + t("cap_mfg") + " " +
     esc(vendor || companyName(company)) + (hex ? " · " + hexPairs(hex) : "") +
     (src ? " · " + t("cap_mfg_rsp") : "") + "</div>";
-};/* addr_type: 0 = public (stable), 1 = random (may rotate) */
+};
+
+/* 16-bit service UUID: the only way to name a device that carries neither a local name
+ * nor manufacturer data (e.g. 0xFCB2 asset trackers). 0 = the firmware saw none. */
+const capSvc = d => {
+  if (!d || (d.svc === undefined && d.svc_name === undefined)) return "";
+  const name = d.svc_name || d.svc;
+  if (!name) return "";
+  /* the firmware falls back to the hex id when it has no name: do not print it twice */
+  const dup = !d.svc_name || !d.svc || d.svc_name === d.svc;
+  return "<div class='dim mono' style='margin-top:2px'>" + t("cap_svc") + " " + esc(name) +
+    (dup ? "" : " · " + esc(d.svc)) + "</div>";
+};
+
+/* addr_type: 0 = public (stable), 1 = random (may rotate) */
 const addrTag = at => " <span class='tag'>" +
   (at === 1 ? t("tag_randaddr") : t("tag_pubaddr")) + "</span>";
 
@@ -710,7 +726,7 @@ function renderCaps() {
     const tr = document.createElement("tr");
     tr.innerHTML =
       "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
-        "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" + capMfg(d) +
+        "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" + capMfg(d) + capSvc(d) +
         "<details style='margin-top:4px'><summary>" + t("cap_raw") + d.adv_len + "B</summary>" +
         "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details>" +
         (d.rsp_len ? "<details style='margin-top:2px'><summary>" + t("cap_rsp") + d.rsp_len + "B</summary>" +
@@ -794,6 +810,7 @@ function recMerge(items) {
       if (!m) { m = adMfg(d.rsp); src = 1; }
       if (m) { r.mf = m.payload; r.mc = m.company; r.mv = companyName(m.company); r.ms = src; }
     }
+    if (d.svc) { r.sv = d.svc; r.sn = d.svc_name; }
     if (d.ibeacon) { r.ib = 1; r.uuid = d.uuid; r.maj = d.major; r.min = d.minor; }
   });
   const ks = Object.keys(recs);
@@ -835,6 +852,7 @@ function renderRecs() {
       "<div class='mono dim'>" + (r.r || 0) + "dBm · " + (r.c || 0) + " " + t("st_packets") + " · " +
         (r.i || "?") + "ms · " + t("rec_seen") + fmtAgo(r.l) + "</div>" +
       capMfg({ raw: r.raw, rsp: r.rsp, mfg: r.mf, mfg_company: r.mc, mfg_vendor: r.mv, mfg_src: r.ms }) +
+      capSvc({ svc: r.sv, svc_name: r.sn }) +
       (r.raw ? "<details style='margin-top:4px'><summary>" + t("cap_raw") +
         (r.raw.length / 2) + "B</summary><div class='hexbox'>" + hexPairs(r.raw) + "</div>" +
         (r.rsp ? "<div class='dim' style='margin-top:6px'>" + esc(t("form_rsp")) +
@@ -886,6 +904,8 @@ function recView(addr, r) {
     mfg_vendor: vendor || "",
     mfg_src: (src === 1 ? "scan_rsp" : (company === undefined ? "" : "adv")),
     mfg_payload: payload || "",
+    svc: r.sv || "",
+    svc_name: r.sn || "",
     raw: r.raw || "",
     rsp: r.rsp || "",
     first_seen: r.f ? new Date(r.f).toISOString() : "",
@@ -909,6 +929,7 @@ function exportCsv() {
   const cols = ["addr", "addr_type", "kind", "uuid", "major", "minor", "name",
                 "rssi_last", "rssi_max", "packets", "itvl_ms", "adv_type",
                 "mfg_company", "mfg_vendor", "mfg_src", "mfg_payload",
+                "svc", "svc_name",
                 "raw", "rsp", "first_seen", "last_seen"];
   const rows = recViews();
   const lines = [cols.join(",")];
