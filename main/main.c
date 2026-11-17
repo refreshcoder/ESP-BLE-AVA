@@ -8,6 +8,7 @@
 #include "web_server.h"
 #include "status_led.h"
 #include "btn.h"
+#include "usb_console.h"
 #include "board.h"
 #include <string.h>
 #include "esp_log.h"
@@ -230,6 +231,13 @@ void app_main(void)
     ESP_ERROR_CHECK(cfg_init());
     applog_init();
 
+    /* storage.c owns the FATFS capture archive and web_server reads it, but nothing ever
+     * called storage_init(): the partition stayed erased and every storage_capture_add()
+     * returned ESP_ERR_INVALID_STATE, so the archive and /api/records were dead. */
+    if (storage_init() != ESP_OK) {
+        ESP_LOGW(TAG, "capture archive unavailable (matches/reasons still work)");
+    }
+
     esp_reset_reason_t rr = esp_reset_reason();
     cfg_stat_bump("boots", 1);
     if (rr == ESP_RST_BROWNOUT) cfg_stat_bump("brownout", 1);
@@ -277,4 +285,7 @@ void app_main(void)
     ESP_LOGI(TAG, "ready: %d profile(s), active=%d, ap='%s', http://192.168.4.1/",
              cfg_get()->count, cfg_get()->active, cfg_get()->ap.ssid);
     cfg_unlock();
+
+    /* Last: everything the console reports on must already be up (USB-JTAG read side) */
+    usb_console_init();
 }

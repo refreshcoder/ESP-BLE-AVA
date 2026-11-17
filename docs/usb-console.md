@@ -1,0 +1,84 @@
+# USB console
+
+The board exposes the same read/control surface as the HTTP API **over the USB cable**, with
+no network involved. That is the only way to drive a board whose SoftAP you cannot join —
+joining `BeaconGW-xxxx` costs the host its own Wi-Fi, and on a remote machine that means
+losing the session you are working through.
+
+The console shares the native USB-Serial/JTAG port with `esptool`/`idf.py monitor`, so only
+one of them can own the port at a time.
+
+## Protocol
+
+Line-oriented, ASCII, `\r` or `\n` terminated. One command per line:
+
+```
+status
+{...one JSON object...}
+#END
+```
+
+* results are printed as **one JSON object per line**
+* the reply always ends with `#END` (that is what a host should wait for)
+* a failure prints `#ERR <reason>` before `#END`
+* anything else on the port is ordinary `ESP_LOG` output — ignore it
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `help` | print the command list |
+| `status` | one line: `mode`, `adv`, `scan`, `detected`, `heap`, `boots`, `brownouts`, `reset_reason`, `adv_starts`, `tx_dbm`, `scan_pkts`, `storage`, profile count/active |
+| `scan` | JSONL: the live capture table — `addr`, `name`, `rssi`, `itvl_ms`, `raw` / `rsp` / `mfg` **hex** |
+| `profiles` | JSONL: the stored profiles (`id`, `active`, `raw`, `rsp`, address mode, ...) |
+| `records` | JSONL: the persistent capture archive (`storage` partition) |
+| `logs [since_seq]` | JSONL: ring log records |
+| `mode sniff\|clone\|idle` | switch the radio (arbitrated by `radio.c`, same as the UI) |
+| `use <id>` / `use -1` | activate profile `id` / broadcast nothing |
+| `clone <addr>` | copy one row of the capture table into a profile and start advertising |
+| `clear` | empty the capture table |
+| `records clear` | empty the persistent archive |
+| `reboot` | restart |
+| `factory yes` | factory reset, then restart |
+
+`clone <addr>` and `POST /api/clone` are the same code (`main/clone_op.c`), so a clone made
+over USB is byte-identical to one made from the browser: profile creation, address handling
+(random pinned as static / public applied at boot), one archive write, radio switch.
+
+## Host side
+
+```bash
+pip install pyserial
+
+python tools/usb_cli.py -p COM3 status
+python tools/usb_cli.py -p COM3 scan
+python tools/usb_cli.py -p COM3 mode sniff      # 30 s capture window
+python tools/usb_cli.py -p COM3 clone a4c1382a5122
+```
+
+`--raw` shows the raw lines (including log noise), `--timeout` widens the wait for slow
+commands. Port names: `COM3` (Windows), `/dev/ttyACM0` (Linux), `/dev/cu.usbmodem*` (macOS).
+
+A typical capture-then-clone session over USB only:
+
+```
+mode sniff        -> wait for the 30 s window, or just watch `scan`
+scan              -> pick the row you want (raw hex included)
+clone <addr>      -> becomes the active profile and starts advertising
+status            -> verify mode=clone, adv=true
+```
+
+## Caveats
+
+* **DTR/RTS**. USB-Serial/JTAG maps them onto BOOT/EN, so a tool that asserts them on open
+  can reset the board (that reset is exactly what `esptool` wants). `tools/usb_cli.py` leaves
+  them de-asserted; if your terminal program resets the board on attach, that is why.
+* **One writer at a time**. `idf.py monitor`, `esptool` and this console all want the port.
+  Closing the handle abruptly has reset the board in the past — exit `monitor` with `Ctrl+]`,
+  close `usb_cli.py` normally.
+* **Public-address clones reboot once** (see `radio_clone()`); the console reply is sent
+  before the restart, so a `#END` followed by a boot banner is expected.
+* **Log and reply share the port.** Nothing is lost, but a host that parses JSON must skip
+  lines that do not start with `{`.
+* `storage` only archives on clone (one write per clone), never per packet — that invariant
+  did not change.

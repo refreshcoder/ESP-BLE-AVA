@@ -6,6 +6,7 @@
 #include "beacon_scan.h"
 #include "status_led.h"
 #include "storage.h"
+#include "clone_op.h"
 #include "board.h"
 #include "net_ap.h"
 #include <string.h>
@@ -597,8 +598,6 @@ static esp_err_t h_history_delete(httpd_req_t *req)
 
 /* ------------------------- one-tap clone ------------------------- */
 
-#define ADDR_TYPE_RANDOM 1   /* BLE_ADDR_RANDOM; keeps nimble headers out of the HTTP layer */
-
 static esp_err_t h_clone(httpd_req_t *req)
 {
     if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
@@ -614,88 +613,15 @@ static esp_err_t h_clone(httpd_req_t *req)
     cJSON_Delete(j);
     if (!ok_addr) return fail(req, "400 Bad Request", "addr must be 12 hex chars");
 
-    detection_t d;
-    if (!blescan_find(addr, &d))
-        return fail(req, "404 Not Found", "not in capture table, run a scan first");
-    if (d.raw_len < 2)
-        return fail(req, "409 Conflict", "no payload captured (try active scan)");
-
+    /* The clone itself lives in clone_op.c: the USB console does the same thing */
+    char msg[64] = {0};
     int id = -1;
+    uint16_t itvl = 0;
     bool replaced = false;
-    uint16_t itvl = d.itvl_ms;
-    if (itvl < 20)    itvl = 100;      /* only one packet seen: conservative default */
-    if (itvl > 10240) itvl = 10240;
-
-    cfg_lock();
-    beacon_cfg_t *c = cfg_get();
-    int slot = cfg_pick_slot(c);       /* free slot first, else evict the LRU idle profile */
-    if (slot >= 0) {
-        replaced = (slot < c->count);
-        beacon_profile_t *p = &c->p[slot];
-        memset(p, 0, sizeof(*p));
-        if (d.is_ibeacon)
-            snprintf(p->name, sizeof(p->name), "copy-%u/%u", d.major, d.minor);
-        else if (d.name[0])
-            snprintf(p->name, sizeof(p->name), "copy-%.11s", d.name);
-        else
-            snprintf(p->name, sizeof(p->name), "copy-%02X%02X%02X", addr[3], addr[4], addr[5]);
-
-        p->kind     = PROFILE_KIND_RAW;     /* verbatim: replicating anything */
-        p->enabled  = true;
-        memcpy(p->raw, d.raw, d.raw_len);
-        p->raw_len  = d.raw_len;
-        memcpy(p->rsp, d.rsp, d.rsp_len);
-        p->rsp_len  = d.rsp_len;            /* 0 when no SCAN_RSP was captured */
-        memcpy(p->src_addr, addr, 6);
-        p->src_adv_type = d.adv_type;
-        if (d.is_ibeacon) {
-            memcpy(p->uuid, d.uuid, 16);
-            p->major    = d.major;
-            p->minor    = d.minor;
-            p->ref_rssi = d.ref_rssi;
-        } else {
-            p->ref_rssi = -59;
-        }
-        p->radio_dbm   = 9;
-        p->adv_itvl_ms = itvl;
-        /* Keep scannability when the source was ADV_IND/ADV_SCAN_IND, otherwise
-         * advertise non-connectable and non-scannable. A captured scan response implies
-         * the source answered SCAN_REQ, so it was scannable. */
-        p->scannable   = (d.adv_type == 0x00 || d.adv_type == 0x02) || d.rsp_len > 0;
-        /* Address: a random address clones exactly (same bytes, top two bits forced to 11).
-         * A public address cannot be chosen per advertising instance, but it can be set for
-         * the whole boot with esp_iface_mac_addr_set(ESP_MAC_BT) -- app_main does that for the
-         * active profile, and radio_clone() reboots when a switch needs another one. */
-        if (d.addr_type == ADDR_TYPE_RANDOM) {
-            memcpy(p->rand_addr, addr, 6);
-            p->rand_addr[0] |= 0xC0;          /* display order: top two bits of the first octet */
-            p->use_rand_addr = true;
-        } else {
-            p->use_rand_addr = false;
-            p->clone_public_addr = true;      /* takes effect after the reboot below */
-        }
-
-        if (!replaced) c->count++;
-        c->active = slot;
-        cfg_touch(c, slot);
-        id = slot;
-        cfg_save();
-        applog_add(LOG_T_CFG, d.rssi_last, "clone %02x%02x%02x%02x%02x%02x (%s) -> #%d raw%d itvl%ums",
-                   addr[0], addr[1], addr[2], addr[3], addr[4], addr[5],
-                   d.addr_type == ADDR_TYPE_RANDOM ? "random, pinned as static" : "public, applied at boot",
-                   id, d.raw_len, (unsigned)itvl);
-    }
-    cfg_unlock();
-
-    if (id < 0)
-        return fail(req, "409 Conflict",
-                    "config full and only the active profile is left; delete one first");
-
-    /* Persistent archive: exactly one write here, so the rate is negligible */
-    storage_capture_add(&d, cfg_stat_get("boots"));
-
-    esp_err_t e = radio_clone();
-    if (e != ESP_OK) return fail(req, "500 Internal Server Error", "clone apply failed");
+    esp_err_t e = clone_op_from_addr(addr, &id, &itvl, &replaced, msg, sizeof(msg));
+    if (e == ESP_ERR_NOT_FOUND)     return fail(req, "404 Not Found", msg);
+    if (e == ESP_ERR_INVALID_STATE) return fail(req, "409 Conflict", msg);
+    if (e != ESP_OK)                return fail(req, "500 Internal Server Error", "clone apply failed");
 
     cJSON *o = cJSON_CreateObject();
     cJSON_AddBoolToObject(o, "ok", true);

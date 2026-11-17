@@ -96,6 +96,8 @@ tools\flash.bat COM7                                   # Windows cmd
 
 | 文件 | 职责 |
 |---|---|
+| `main/usb_console.c` | **USB 命令台**（USB-Serial/JTAG，无需网络）：`status/scan/profiles/records/logs/mode/use/clone/reboot` |
+| `main/clone_op.c` | 一键克隆的唯一实现，HTTP 与 USB 共用（别在两处各写一份） |
 | `main/radio.c` | **RF 模式仲裁（唯一入口）**：`radio_sniff / radio_clone / radio_stop`，内部互斥锁保证"先停旧的再启新的" |
 | `main/beacon_scan.c` | 被动+主动扫描、16 条 LRU 探测表、存 `raw[31]` 与 `rsp[31]`、间隔 EMA、AD 解析（名字 / iBeacon / **厂商数据 0xFF**） |
 | `main/beacon_adv.c` | NimBLE 广播：iBeacon 结构化 or **raw 逐字节重放**；`SCAN_RSP` 重放；地址（random / public boot override）；TX 功率映射 |
@@ -135,6 +137,7 @@ tools\flash.bat COM7                                   # Windows cmd
 | D5 | 克隆的地址反了 | NimBLE 地址是小端，工程其余部分是大端 |
 | D6 | 灯全反（看起来像死机） | **XIAO C6 的灯是低电平点亮** |
 | D7 | 单击按键 panic | `btn` 任务栈只有 2560 B → 栈溢出 |
+| D8 | 捕获归档永远为空（`storage` 分区 832 KB 全 `0xFF`）、`/api/records` 恒 `available:false` | **`storage_init()` 全工程没有调用点**：`s_ready` 恒 false → `storage_capture_add()` 直接返回 `ESP_ERR_INVALID_STATE`。已在 `app_main()` 补上 |
 
 **编译期才暴露的三个坑**（同样勿回退）：
 
@@ -175,7 +178,8 @@ OTA 的技术底座已就绪：分区表 `ota_0/ota_1` 各 1536 KB + `otadata` 8
 
 | 场景 | 坑 | 处理 |
 |---|---|---|
-| 远端 Windows + 单 Wi-Fi 网卡 | 连板子 SoftAP 会**掐断自己的 RDP** | 用串口 + `netsh wlan show networks` 确认；或让宿主走网线 |
+| 远端 Windows + 单 Wi-Fi 网卡 | 连板子 SoftAP 会**掐断自己的 RDP** | 用 `tools/usb_cli.py` 走 USB 命令台，完全不碰网络 |
+| 远端 Windows + 无 Python | `py`/`python` 只是 Store 的 stub，跑起来什么都不输出 | `winget install Python.Python.3.12 --scope user`（user scope，不需要管理员），再 `python -m pip install esptool`；esptool v5 子命令是 `read-flash` 不是 `read_flash` |
 | 远端刷机 | RDP **注销**会杀掉刷写进程（断开没事） | 只断开；或 `schtasks` 起任务 |
 | Linux 刷机 | **ModemManager 抢串口**导致刷一半失败 | `sudo systemctl stop ModemManager` |
 | 刷完看日志 | **硬 kill 串口进程会复位板子**（D3） | `Ctrl+]` 正常退出 |
@@ -200,6 +204,12 @@ idf.py size                                          # 体积/RAM
 ./tools/flash.sh /dev/ttyACM0                        # 刷 build/
 node tools/check_i18n.js                             # UI 文案键完整性
 node tools/test_mfg.js                               # 前端 AD 解析单测（15 例）
+
+# USB 命令台（无需网络；需要 pip install pyserial）
+python tools/usb_cli.py -p COM7 status
+python tools/usb_cli.py -p COM7 scan
+python tools/usb_cli.py -p COM7 mode sniff
+python tools/usb_cli.py -p COM7 clone a4c1382a5122
 
 # 空口判定（Windows，需要 pip install bleak）
 python tools/ble_watch.py -s 20 --expect <固件 raw hex>

@@ -8,7 +8,8 @@ Scan nearby BLE advertisements, then **replicate them byte-for-byte**.
 > Picking this up on another machine? Start with [HANDOFF.md](HANDOFF.md).
 > Documentation: [docs/flashing.md](docs/flashing.md) (how to get firmware onto the board,
 > no toolchain needed) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna,
-> console) · [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
+> console) · [docs/usb-console.md](docs/usb-console.md) (read/control over the USB cable,
+> no Wi-Fi at all) · [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
 > decisions).
 
 Built for a single **ESP32-C6** (or **ESP32-C3**) running ESP-IDF. Capturing and broadcasting are
@@ -45,6 +46,7 @@ time-sharing contention on a single-radio SoC.
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
+| **USB console** | Same read/control surface over the cable when the SoftAP is out of reach: `status`, `scan` (raw hex), `mode`, `clone <addr>` — see [docs/usb-console.md](docs/usb-console.md) |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
 | **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click / double click / two-stage hold |
 
@@ -332,13 +334,17 @@ main/
 ├── btn.[ch]           single click / double click / two-stage hold
 ├── net_ap.[ch]        SoftAP + station accounting
 ├── web_server.[ch]    REST API + embedded SPA + bearer auth
+├── clone_op.[ch]      one-tap clone, shared by the REST API and the USB console
+├── usb_console.[ch]   line/JSON console on the USB-Serial/JTAG port
 └── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time)
 
 docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
 docs/hardware.md       pinout, power options, antenna and console notes
+docs/usb-console.md    USB console: commands, protocol, host tool
 tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
+                       usb_cli.py    - drive the USB console from the host (pyserial)
 .github/workflows      CI: builds both board presets on ESP-IDF v5.5
 ```
 
