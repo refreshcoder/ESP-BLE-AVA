@@ -5,6 +5,7 @@
 
 Scan nearby BLE advertisements, then **replicate them byte-for-byte**.
 
+> Picking this up on another machine? Start with [HANDOFF.md](HANDOFF.md).
 > Documentation: [docs/flashing.md](docs/flashing.md) (how to get firmware onto the board,
 > no toolchain needed) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna,
 > console) · [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
@@ -301,8 +302,9 @@ Three issues were found by actually compiling (do not reintroduce them):
    rotation is paused while one is in use. It is also impersonation of an IEEE-assigned
    identity — keep it to owned or authorised devices.
 4. **No OTA** in this version; update over USB.
-5. Compile-verified but **not yet run on hardware** — RF behaviour, LED polarity and
-   supply headroom still need a bench run.
+5. Bench-verified for flashing, raw cloning, public-address cloning and scan-response
+   replay (see [Phase0.1.MD](Phase0.1.MD)). The manufacturer-data parsing, the JSON/CSV/raw
+   exports and the browser-side AD fallback are still **compile-verified only**.
 
 ### Coexistence note (why modes are exclusive)
 
