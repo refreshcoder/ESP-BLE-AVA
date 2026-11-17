@@ -109,6 +109,44 @@ There is no OTA endpoint in this version, so updating always means a cable.
 
 ---
 
+## Flashing on Windows (including a remote desktop session)
+
+Windows 10/11 needs **no driver** for the ESP32 USB-Serial/JTAG peripheral — it enumerates
+as `USB Serial Device (COMx)`.
+
+```powershell
+py -m pip install -U esptool          # one time; needs Python 3
+
+# one-shot: download the merged image and flash it at 0x0
+.\tools\flash.ps1 -Url https://github.com/refreshcoder/ESP-BLE-AVA/raw/main/firmware/beacon_gw-c6-board2-full.bin
+
+# or flash a local build
+.\tools\flash.ps1 -Port COM7
+```
+
+The script finds the port by VID (`303A`), downloads if you pass `-Url`, and prints
+diagnostics on failure. Check what is attached with:
+
+```powershell
+Get-PnpDevice -Class Ports | Format-Table FriendlyName, InstanceId
+```
+
+### Remote-desktop / headless specifics
+
+| Issue | Fix |
+|---|---|
+| Another program holds the port (`could not open port COMx`) | Close Arduino IDE, PuTTY, ESP-IDF monitor, or any serial terminal |
+| Session logs off mid-flash | Disconnecting keeps the session; **logging off kills the process**. Start the flash in a window and only disconnect, or wrap it: `schtasks /create /tn flash /tr "powershell -File C:\path\tools\flash.ps1" /sc once /st 00:00` |
+| Machine sleeps during flash | `powercfg /change standby-timeout-ac 0` (and disable hibernate) |
+| Device shows as "Unknown device" | Cable is charge-only, or the board is in a bad state — hold **BOOT** while replugging |
+| Prefer the Linux workflow | WSL2 does not see USB by default; attach it with [usbipd-win](https://github.com/dorssel/usbipd-win) (`usbipd attach --wsl --busid <n>`) and then use `tools/flash.sh` |
+
+### No Python at all?
+
+Espressif's **Flash Download Tool** (Windows GUI) can do it too: pick ESP32-C6, add a
+single file at `0x0` (the merged image), or the four files at `0x0 / 0x8000 / 0xf000 /
+0x20000`. It is slower and click-heavy, which is why the script exists.
+
 ## Flashing from an Android phone
 
 Possible, and it works fine for this chip because the **ESP32-C6 USB-Serial/JTAG

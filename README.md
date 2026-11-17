@@ -89,7 +89,9 @@ Already have a built image? Skip the toolchain entirely — the CI artifacts con
 four files needed, and `tools/flash.sh` (or `tools\flash.bat`) flashes them:
 
 ```bash
-./tools/flash.sh /dev/ttyACM0
+./tools/flash.sh /dev/ttyACM0                    # Linux / macOS
+tools\flash.bat COM7                            # Windows cmd
+.\tools\flash.ps1 -Port COM7                    # Windows PowerShell
 ```
 
 See [docs/flashing.md](docs/flashing.md) for ports, first-boot expectations and recovery.
@@ -331,7 +333,7 @@ main/
 
 docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
 docs/hardware.md       pinout, power options, antenna and console notes
-tools/                 flash.sh / flash.bat / merge.sh helpers
+tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
 .github/workflows      CI: builds both board presets on ESP-IDF v5.5
