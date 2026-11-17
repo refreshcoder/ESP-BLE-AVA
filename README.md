@@ -42,6 +42,7 @@ time-sharing contention on a single-radio SoC.
 | **Persistent capture archive** | Last 32 captures in a FATFS+wear-levelling ring file, survives power loss, written once per clone |
 | **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) — no internet, no CDN, no app install |
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
+| **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
 | **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click / double click / two-stage hold |

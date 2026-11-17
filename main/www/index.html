@@ -139,6 +139,8 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <h2><span data-i18n="rec_title">Recorded in this browser</span><span class="dim" id="rec-stat"></span></h2>
       <div class="row" style="margin-bottom:8px">
         <button class="btn sm" onclick="exportRecs()" data-i18n="btn_export_recs">Export JSON</button>
+        <button class="btn sm" onclick="exportCsv()" data-i18n="btn_export_csv">Export CSV</button>
+        <button class="btn sm" onclick="exportRaw()" data-i18n="btn_export_raw">Export raw</button>
         <label class="btn sm" style="margin:0;display:inline-flex;align-items:center"><span data-i18n="btn_import">Import</span>
           <input type="file" accept="application/json" style="display:none" onchange="importRecs(this)">
         </label>
@@ -323,8 +325,9 @@ const I18N = {
     hist_empty: "Empty. One record is written each time you clone.",
     hist_boot: "boot #",
     rec_title: "Recorded in this browser", btn_export_recs: "Export JSON", btn_clear_recs: "Clear records",
+    btn_export_csv: "Export CSV", btn_export_raw: "Export raw", toast_exported: "exported",
     rec_empty: "Nothing recorded yet. Open this page while the board is sniffing.",
-    rec_hint: "Every poll is merged into this browser's local storage, so records survive a board reboot, a page reload and the board's 16-entry table. Cloning from an old row still needs the device to be in the board's live table.",
+    rec_hint: "Every poll is merged into this browser's local storage, so records survive a board reboot, a page reload and the board's 16-entry table. JSON re-imports cleanly; CSV is for spreadsheets; raw dumps the on-air bytes only. Cloning from an old row still needs the device to be in the board's live table.",
     rec_full: "browser storage is full - oldest records dropped",
     rec_now: "just now", rec_seen: "last seen ",
     toast_archive_cleared: "Archive cleared", err_failed: "failed",
@@ -416,8 +419,9 @@ const I18N = {
     hist_empty: "空。每次克隆会写入一条记录。",
     hist_boot: "启动#",
     rec_title: "本机记录（浏览器）", btn_export_recs: "导出 JSON", btn_clear_recs: "清空记录",
+    btn_export_csv: "导出 CSV", btn_export_raw: "导出原始数据", toast_exported: "已导出",
     rec_empty: "还没有记录。板子在嗅探时打开本页即可。",
-    rec_hint: "每次轮询都会合并进本浏览器的本地存储，所以记录能跨板子重启、跨页面刷新，也不受板子 16 条表限制。在旧记录上点克隆仍要求目标还在板子的实时表里。",
+    rec_hint: "每次轮询都会合并进本浏览器的本地存储，所以记录能跨板子重启、跨页面刷新，也不受板子 16 条表限制。JSON 可原样导回；CSV 给表格软件用；raw 只导出空口字节，便于脚本分析。在旧记录上点克隆仍要求目标还在板子的实时表里。",
     rec_full: "浏览器存储已满，已丢弃最旧记录",
     rec_now: "刚刚", rec_seen: "最后 ",
     toast_archive_cleared: "归档已清空", err_failed: "失败",
@@ -575,17 +579,53 @@ const modeTxt = m => (MODE_KEY[m] ? t(MODE_KEY[m]) : m);
 const capTitle = d => d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
                                 : (d.name ? esc(d.name) : t("cap_ble_adv"));
 const capSub = d => d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
-/* manufacturer specific data: company id + payload, and where it was found */
+/* Walk the AD structures of a raw hex blob and return the first manufacturer
+ * specific block ({company, payload} with payload as a hex string), or null.
+ * The SPA does this itself so that records captured before the firmware learned
+ * to parse 0xFF (and records imported from a JSON export) still show vendor data. */
+function adMfg(hex) {
+  if (!hex || hex.length < 6) return null;
+  const b = [];
+  for (let i = 0; i + 1 < hex.length; i += 2) b.push(parseInt(hex.substr(i, 2), 16));
+  let i = 0;
+  while (i + 1 < b.length) {
+    const l = b[i];
+    if (l === 0 || i + 1 + l > b.length) break;
+    if (b[i + 1] === 0xFF && l >= 3) {
+      let p = "";
+      for (let k = i + 4; k < i + 1 + l; k++) p += b[k].toString(16).padStart(2, "0");
+      return { company: b[i + 2] | (b[i + 3] << 8), payload: p };
+    }
+    i += l + 1;
+  }
+  return null;
+}
+
+/* Mirrors blescan_company_name() on the device; unknown ids fall back to 0xXXXX */
+function companyName(id) {
+  const m = {
+    0x004C: "Apple", 0x0006: "Microsoft", 0x0075: "Samsung", 0x0059: "Nordic",
+    0x00E0: "Google", 0x027D: "Huawei", 0x0157: "Huami", 0x0499: "Ruuvi"
+  };
+  return m[id] || ("0x" + id.toString(16).toUpperCase().padStart(4, "0"));
+}
+
+/* manufacturer data line: prefer what the firmware reported, fall back to parsing
+ * raw/rsp ourselves, and say whether it came from the scan response */
 const capMfg = d => {
-  if (!d || (d.mfg_company === undefined && !d.mfg_len)) return "";
-  const vendor = d.mfg_vendor ||
-    ("0x" + (d.mfg_company || 0).toString(16).toUpperCase().padStart(4, "0"));
-  const hex = d.mfg ? hexPairs(d.mfg) : "";
-  const src = d.mfg_src ? " · " + t("cap_mfg_rsp") : "";
+  if (!d) return "";
+  let company = d.mfg_company, hex = d.mfg, src = d.mfg_src, vendor = d.mfg_vendor;
+  if (company === undefined) {
+    let m = adMfg(d.raw);
+    src = 0;
+    if (!m) { m = adMfg(d.rsp); src = 1; }
+    if (!m) return "";
+    company = m.company; hex = m.payload; vendor = companyName(company);
+  }
   return "<div class='dim mono' style='margin-top:2px'>" + t("cap_mfg") + " " +
-         esc(vendor) + (hex ? " · " + hex : "") + src + "</div>";
-};
-/* addr_type: 0 = public (stable), 1 = random (may rotate) */
+    esc(vendor || companyName(company)) + (hex ? " · " + hexPairs(hex) : "") +
+    (src ? " · " + t("cap_mfg_rsp") : "") + "</div>";
+};/* addr_type: 0 = public (stable), 1 = random (may rotate) */
 const addrTag = at => " <span class='tag'>" +
   (at === 1 ? t("tag_randaddr") : t("tag_pubaddr")) + "</span>";
 
@@ -737,6 +777,7 @@ function recMerge(items) {
     let r = recs[d.addr];
     if (!r) { r = { f: now, rmax: -127, c: 0 }; recs[d.addr] = r; added++; }
     r.t = d.adv_type;
+    r.at = d.addr_type;
     r.r = d.rssi;
     r.rmax = Math.max(r.rmax, d.rssi);
     r.c = Math.max(r.c || 0, d.count || 0);
@@ -745,7 +786,14 @@ function recMerge(items) {
     if (d.raw) r.raw = d.raw;
     if (d.rsp) r.rsp = d.rsp;
     if (d.name) r.name = d.name;
-    if (d.mfg_company !== undefined) { r.mf = d.mfg; r.mc = d.mfg_company; r.mv = d.mfg_vendor; r.ms = d.mfg_src; }
+    if (d.mfg_company !== undefined) {
+      r.mf = d.mfg; r.mc = d.mfg_company; r.mv = d.mfg_vendor; r.ms = d.mfg_src;
+    } else if (r.mc === undefined) {
+      /* pre-parse firmware, or a record imported without mfg: derive it once from raw */
+      let m = adMfg(d.raw), src = 0;
+      if (!m) { m = adMfg(d.rsp); src = 1; }
+      if (m) { r.mf = m.payload; r.mc = m.company; r.mv = companyName(m.company); r.ms = src; }
+    }
     if (d.ibeacon) { r.ib = 1; r.uuid = d.uuid; r.maj = d.major; r.min = d.minor; }
   });
   const ks = Object.keys(recs);
@@ -786,7 +834,7 @@ function renderRecs() {
       "<div>" + title + " <span class='dim mono'>" + fmtAddr(a) + "</span></div>" +
       "<div class='mono dim'>" + (r.r || 0) + "dBm · " + (r.c || 0) + " " + t("st_packets") + " · " +
         (r.i || "?") + "ms · " + t("rec_seen") + fmtAgo(r.l) + "</div>" +
-      capMfg({ mfg: r.mf, mfg_company: r.mc, mfg_vendor: r.mv, mfg_src: r.ms, mfg_len: r.mf ? r.mf.length / 2 : 0 }) +
+      capMfg({ raw: r.raw, rsp: r.rsp, mfg: r.mf, mfg_company: r.mc, mfg_vendor: r.mv, mfg_src: r.ms }) +
       (r.raw ? "<details style='margin-top:4px'><summary>" + t("cap_raw") +
         (r.raw.length / 2) + "B</summary><div class='hexbox'>" + hexPairs(r.raw) + "</div>" +
         (r.rsp ? "<div class='dim' style='margin-top:6px'>" + esc(t("form_rsp")) +
@@ -797,14 +845,92 @@ function renderRecs() {
   });
 }
 
-function exportRecs() {
-  const payload = { ver: 1, exported: new Date().toISOString(), records: recs };
-  const b = new Blob([JSON.stringify(payload, null, 1)], { type: "application/json" });
+function stamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+}
+function download(name, text, mime) {
+  const b = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = "beacon-captures-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+  a.download = name;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function csvCell(v) {
+  const s = (v === undefined || v === null) ? "" : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+/* One normalised view per record: same fields the rows show, with the manufacturer
+ * block derived from raw/rsp when the record predates the firmware parser. */
+function recView(addr, r) {
+  let company = r.mc, payload = r.mf, src = r.ms, vendor = r.mv;
+  if (company === undefined) {
+    let m = adMfg(r.raw), s = 0;
+    if (!m) { m = adMfg(r.rsp); s = 1; }
+    if (m) { company = m.company; payload = m.payload; vendor = companyName(company); src = s; }
+  }
+  return {
+    addr: addr,
+    addr_type: (r.at === undefined ? "" : (r.at === 1 ? "random" : "public")),
+    kind: r.ib ? "ibeacon" : "ble",
+    uuid: r.uuid || "",
+    major: (r.maj === undefined ? "" : r.maj),
+    minor: (r.min === undefined ? "" : r.min),
+    name: r.name || "",
+    rssi_last: (r.r === undefined ? "" : r.r),
+    rssi_max: (r.rmax === undefined ? "" : r.rmax),
+    packets: (r.c || 0),
+    itvl_ms: (r.i === undefined ? "" : r.i),
+    adv_type: (r.t === undefined ? "" : r.t),
+    mfg_company: (company === undefined ? "" : "0x" + company.toString(16).toUpperCase().padStart(4, "0")),
+    mfg_vendor: vendor || "",
+    mfg_src: (src === 1 ? "scan_rsp" : (company === undefined ? "" : "adv")),
+    mfg_payload: payload || "",
+    raw: r.raw || "",
+    rsp: r.rsp || "",
+    first_seen: r.f ? new Date(r.f).toISOString() : "",
+    last_seen: r.l ? new Date(r.l).toISOString() : ""
+  };
+}
+function recViews() {
+  return Object.keys(recs)
+    .sort((a, b) => (recs[b].l || 0) - (recs[a].l || 0))
+    .map(a => recView(a, recs[a]));
+}
+
+/* Structured JSON: what Import expects back (the raw store, plus a derived view) */
+function exportRecs() {
+  const payload = { ver: 1, exported: new Date().toISOString(), records: recs, view: recViews() };
+  download("beacon-captures-" + stamp() + ".json", JSON.stringify(payload, null, 1), "application/json");
+}
+
+/* Spreadsheet friendly: one row per device, hex payloads included */
+function exportCsv() {
+  const cols = ["addr", "addr_type", "kind", "uuid", "major", "minor", "name",
+                "rssi_last", "rssi_max", "packets", "itvl_ms", "adv_type",
+                "mfg_company", "mfg_vendor", "mfg_src", "mfg_payload",
+                "raw", "rsp", "first_seen", "last_seen"];
+  const rows = recViews();
+  const lines = [cols.join(",")];
+  rows.forEach(v => lines.push(cols.map(c => csvCell(v[c])).join(",")));
+  // BOM so Excel opens UTF-8 names correctly
+  download("beacon-captures-" + stamp() + ".csv", "\ufeff" + lines.join("\r\n"), "text/csv");
+  toast(t("toast_exported") + " " + rows.length);
+}
+
+/* Raw dump: only the on-air bytes, tab separated, easy to diff or pipe into a script */
+function exportRaw() {
+  const rows = recViews();
+  const out = [];
+  out.push("# beacon-gw raw dump");
+  out.push("# exported: " + new Date().toISOString());
+  out.push("# records: " + rows.length);
+  out.push("# columns: addr<TAB>adv_hex<TAB>scan_rsp_hex<TAB>rssi<TAB>packets");
+  rows.forEach(v => {
+    out.push([v.addr, v.raw || "-", v.rsp || "-", v.rssi_last, v.packets].join("\t"));
+  });
+  download("beacon-raw-" + stamp() + ".txt", out.join("\n") + "\n");
+  toast(t("toast_exported") + " " + rows.length);
 }
 
 async function importRecs(inp) {

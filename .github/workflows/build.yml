@@ -81,3 +81,8 @@ jobs:
           PY
           node --check /tmp/ui.js
           echo "SPA script parses"
+
+      - name: i18n keys and AD parser
+        run: |
+          node tools/check_i18n.js
+          node tools/test_mfg.js

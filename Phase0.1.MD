@@ -260,6 +260,27 @@ W (518) app: board=XIAO ESP32-C6 reset=panic boots=67
 已验证：`idf.py build`（esp32c6）**零警告**通过；`node tools/check_i18n.js` 通过（en/zh 各 176 键）。
 **未上板** —— 真机只需确认一件事：目标设备的厂商数据是否落进 `mfg`、`mfg_src` 是 0 还是 1。
 
+### 浏览器端 AD 解析回填（方案 B）+ 三种导出
+
+固件解析 0xFF 之后，"升级前采集的老记录"仍然是空白的（合并逻辑只在设备再次出现时才补字段）。
+所以把解析搬到前端：**旧记录、别人 export 出来的 JSON，都能立刻显示厂商数据**。
+
+| 文件 | 改动 |
+|---|---|
+| `index.html` | 新增 `adMfg(hex)`（按 AD 结构走，取第一段 0xFF，返回 `{company, payload}`）与 `companyName(id)`（与固件 `blescan_company_name()` 同一张表）；`capMfg()` 优先用固件给的字段，缺失时回退解析 `raw` → `rsp`，并标出来源；`recMerge()` 在固件没给 mfg 时解析一次并**持久化**（导出也带）；记录合并额外保存 `addr_type`（`r.at`） |
+| `tools/test_mfg.js` | 15 条单测：iBeacon 载荷、只有公司 ID、无 0xFF、AD 长度越界、小端 ID、第二段 0xFF、空/空串/过短输入、厂名表与回退 |
+| `.github/workflows/build.yml` | Frontend job 增加 `check_i18n.js` + `test_mfg.js` |
+
+导出（"本机记录"卡片，均带时间戳文件名）：
+
+| 按钮 | 内容 |
+|---|---|
+| **Export JSON** | `{ver, exported, records, view}` —— `records` 是原始存储，**可原样 Import 回去**；`view` 是规范化后的每台设备一行 |
+| **Export CSV** | 20 列（addr/addr_type/kind/uuid/major/minor/name/rssi_last/rssi_max/packets/itvl_ms/adv_type/mfg_company/mfg_vendor/mfg_src/mfg_payload/raw/rsp/first_seen/last_seen），**带 UTF-8 BOM**，Excel 直接开不乱码 |
+| **Export raw** | 纯空口字节：`addr<TAB>adv_hex<TAB>scan_rsp_hex<TAB>rssi<TAB>packets`，前置 `#` 注释说明列定义，方便脚本/diff |
+
+已验证：`node tools/check_i18n.js`（en/zh 各 179 键）、`node tools/test_mfg.js`（15/15）、`idf.py build` 零警告。
+
 ### 公开地址克隆（`clone_public`，切换配置自动重启）
 
 **已验证（受控实验）**：UI 里把广播地址指定为 `00:01:22:33:44:55` 后，空口最强的那条
