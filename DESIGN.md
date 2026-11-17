@@ -338,6 +338,10 @@ the smallest `use_seq` that is not currently active (never evicting what is on a
 ```c
 typedef struct {
     uint8_t  addr[6], addr_type, adv_type, raw_len, raw[31];
+    uint8_t  rsp_len, rsp[31];            /* raw scan response, if one answered us */
+    uint16_t mfg_company;                 /* AD 0xFF company id, as it appears on air */
+    uint8_t  mfg_len, mfg[27];            /* payload after the company id */
+    uint8_t  mfg_src;                     /* 0 = advertisement, 1 = scan response */
     bool     is_ibeacon;
     uint8_t  uuid[16]; uint16_t major, minor; int8_t ref_rssi;
     int8_t   rssi_last, rssi_max, rssi_avg;   // avg = IIR (avg*7 + new)/8
@@ -345,6 +349,12 @@ typedef struct {
     uint16_t itvl_ms;                          // EMA of gaps
 } detection_t;                                  // ~95 B × 16 slots
 ```
+
+Manufacturer data is kept even when it is not iBeacon: the first AD `0xFF` block is
+recorded with its company identifier (`blescan_company_name()` maps the common ones), and
+`mfg_src` records whether it came from the advertisement or from a scan response — many
+devices put it in the latter, which is why active scanning matters. Replication never
+depends on this parsing: the raw bytes are what gets replayed.
 
 ### 7.4 Capture archive (flash, ring)
 

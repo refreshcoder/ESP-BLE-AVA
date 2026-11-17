@@ -20,8 +20,8 @@ Flash it with `esptool.py write_flash 0x0 <file>` or any Web Serial flasher
 | | |
 |---|---|
 | Built from commit | `16f0e74` |
-| Source size | 1,314,368 bytes |
-| SHA-256 | `45c4f1fd8d4d753fbfc3b5441edc6ac225c37bb7d19048275de3c7ed00495174` |
+| Source size | 1,315,552 bytes |
+| SHA-256 | `65d28f898bce0ec7235de21a7d621ea0b4f9068f105bd79c7948f876d8422f0e` |
 
 After flashing, the board raises `BeaconGW-XXXX` (password `beaconXXXX`) and the UI is at
 <http://192.168.4.1/>. The LED double-blinks while sniffing, which is the boot default.

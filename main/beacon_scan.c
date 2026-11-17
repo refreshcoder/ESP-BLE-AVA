@@ -1,6 +1,7 @@
 #include "beacon_scan.h"
 #include "app_log.h"
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -25,6 +26,47 @@ static uint32_t          s_since_ms;    /* scan start timestamp */
 static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
 /* Walk the AD structures; fills name/adv_len for non-iBeacon packets too */
+/* Walk the AD structures and keep the first manufacturer specific block.
+ * Layout on air: len | 0xFF | company id (2, little-endian) | payload...
+ * iBeacon is just a special case of this (company 0x004C), parsed separately. */
+static void parse_mfg(const uint8_t *d, uint8_t len, detection_t *r, uint8_t src)
+{
+    uint8_t i = 0;
+    while (i + 1 < len) {
+        uint8_t l = d[i];
+        if (l == 0 || (int)i + 1 + l > (int)len) break;
+        if (d[i + 1] == 0xFF && l >= 3) {
+            const uint8_t *v = &d[i + 2];
+            r->mfg_company = (uint16_t)(v[0] | (v[1] << 8));
+            int n = l - 3;                       /* minus type byte and company id */
+            if (n > (int)sizeof(r->mfg)) n = sizeof(r->mfg);
+            memcpy(r->mfg, &v[2], (size_t)n);
+            r->mfg_len = (uint8_t)n;
+            r->mfg_src = src;
+            return;                              /* first one wins */
+        }
+        i = (uint8_t)(i + l + 1);
+    }
+}
+
+const char *blescan_company_name(uint16_t id)
+{
+    static char buf[8];
+    switch (id) {
+    case 0x004C: return "Apple";
+    case 0x0006: return "Microsoft";
+    case 0x0075: return "Samsung";
+    case 0x0059: return "Nordic";
+    case 0x00E0: return "Google";
+    case 0x027D: return "Huawei";
+    case 0x0157: return "Huami";
+    case 0x0499: return "Ruuvi";
+    default:
+        snprintf(buf, sizeof(buf), "0x%04X", id);
+        return buf;
+    }
+}
+
 static void parse_adv(const uint8_t *d, uint8_t len, detection_t *r)
 {
     uint8_t i = 0;
@@ -103,6 +145,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
         if (rn > SCAN_RAW_MAX) rn = SCAN_RAW_MAX;
         memcpy(slot->rsp, desc->data, rn);
         slot->rsp_len = rn;
+        parse_mfg(desc->data, rn, slot, 1);
         xSemaphoreGive(s_mtx);
         return;
     }
@@ -130,6 +173,7 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
     slot->raw_len = n;
 
     parse_adv(desc->data, desc->length_data, slot);
+    parse_mfg(desc->data, desc->length_data, slot, 0);
 
     /* Throttle logging to one line per device per 5 minutes */
     if (was_new || (t - slot->last_log_ms) > 300000u) {

@@ -244,6 +244,22 @@ W (518) app: board=XIAO ESP32-C6 reset=panic boots=67
 | `web_server.c` | `/api/scan` 输出 `rsp`/`rsp_len`；`/api/clone` 复制 rsp，并把"抓到过扫描响应"视为源可扫描 |
 | `index.html` | 捕获行多一个"扫描响应"十六进制折叠块；高级编辑显示 rsp；保存时保留 rsp |
 
+### 厂商数据解析（Manufacturer Specific Data，AD type 0xFF）
+
+之前 `parse_adv()` 只认 iBeacon（0xFF + `4C 00 02 15`）和设备名，其余厂商数据（小米、私有格式…）
+在界面上跟"无名 BLE 广播"长得一样，只能靠人读原始 hex 分辨。
+
+| 文件 | 改动 |
+|---|---|
+| `beacon_scan.h` | `detection_t` 新增 `mfg_company`（空口小端公司 ID）、`mfg_len`、`mfg[27]`（公司 ID 之后的载荷）、`mfg_src`（0=广播 / 1=扫描响应） |
+| `beacon_scan.c` | 新增 `parse_mfg()`：遍历 AD 结构取**第一段** 0xFF，`company = v[0] | v[1]<<8`，载荷长 `l-3`；SCAN_RSP 分支也会调用（不少设备把厂商数据放在扫描响应里）；新增 `blescan_company_name()` 友好名（Apple/Microsoft/Samsung/Nordic/Google/Huawei/Huami/Ruuvi，未知回退 `0xXXXX`） |
+| `storage.h/.c` | `cap_rec_t` 增 `mfg_*`；`REC_MAGIC`→`0xCA9E0002`、`HDR_MAGIC`→`0xCA9E0003`，旧归档会被判无效并自动重建（归档是缓存） |
+| `web_server.c` | `/api/scan` 与 `/api/history` 输出 `mfg_company` / `mfg_vendor` / `mfg`(hex) / `mfg_len` / `mfg_src` |
+| `index.html` | 捕获行、浏览器本地记录、归档条目各多一行 `厂商 Apple · 02 15 E2 C5 …`；新增 i18n 键 `cap_mfg` / `cap_mfg_rsp`（en/zh 同步） |
+
+已验证：`idf.py build`（esp32c6）**零警告**通过；`node tools/check_i18n.js` 通过（en/zh 各 176 键）。
+**未上板** —— 真机只需确认一件事：目标设备的厂商数据是否落进 `mfg`、`mfg_src` 是 0 还是 1。
+
 ### 公开地址克隆（`clone_public`，切换配置自动重启）
 
 **已验证（受控实验）**：UI 里把广播地址指定为 `00:01:22:33:44:55` 后，空口最强的那条

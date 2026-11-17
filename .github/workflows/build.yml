@@ -46,6 +46,11 @@ jobs:
           idf.py size | tee size.txt
           idf.py size-components > /dev/null
 
+      - name: Merge into a single image
+        run: |
+          . $IDF_PATH/export.sh
+          ./tools/merge.sh
+
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
@@ -55,6 +60,7 @@ jobs:
             build/bootloader/bootloader.bin
             build/partition_table/partition-table.bin
             build/ota_data_initial.bin
+            build/beacon_gw-full.bin
             size.txt
           if-no-files-found: error
           retention-days: 30

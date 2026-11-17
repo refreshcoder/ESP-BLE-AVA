@@ -480,6 +480,15 @@ static esp_err_t h_scan_get(httpd_req_t *req)
             cJSON_AddStringToObject(o, "raw", rh);
             cJSON_AddBoolToObject(o, "clonable", d->raw_len >= 2);
         }
+        if (d->mfg_len || d->mfg_company) {
+            char mh[sizeof(d->mfg) * 2 + 1];
+            cfg_hex_to_str(d->mfg, d->mfg_len, mh);
+            cJSON_AddNumberToObject(o, "mfg_company", d->mfg_company);
+            cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(d->mfg_company));
+            cJSON_AddStringToObject(o, "mfg", mh);
+            cJSON_AddNumberToObject(o, "mfg_len", d->mfg_len);
+            cJSON_AddNumberToObject(o, "mfg_src", d->mfg_src);
+        }
         cJSON_AddNumberToObject(o, "rsp_len", d->rsp_len);
         if (d->rsp_len) {
             char sh[SCAN_RAW_MAX * 2 + 1];
@@ -561,6 +570,15 @@ static esp_err_t h_history_get(httpd_req_t *req)
         cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
         cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
         cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+        if (r->mfg_len || r->mfg_company) {
+            char mh[sizeof(r->mfg) * 2 + 1];
+            cfg_hex_to_str(r->mfg, r->mfg_len, mh);
+            cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
+            cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
+            cJSON_AddStringToObject(o, "mfg", mh);
+            cJSON_AddNumberToObject(o, "mfg_len", r->mfg_len);
+            cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
+        }
         cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
         cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
         cJSON_AddItemToArray(arr, o);

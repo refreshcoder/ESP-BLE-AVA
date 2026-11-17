@@ -31,12 +31,16 @@ typedef struct {
     uint8_t  adv_type;
     uint8_t  raw_len;
     uint8_t  raw[31];
+    uint8_t  mfg_len;         /* manufacturer data payload, company id excluded */
+    uint8_t  mfg_src;         /* 0 = advertisement, 1 = scan response */
+    uint8_t  mfg[27];
+    uint16_t mfg_company;
     uint8_t  uuid[16];
     uint16_t major, minor;
     uint16_t itvl_ms;
     int8_t   rssi;
     int8_t   ref_rssi;
-} cap_rec_t;                 /* ~70B */
+} cap_rec_t;                 /* ~100B */
 
 esp_err_t   storage_init(void);
 bool        storage_ready(void);

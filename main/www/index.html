@@ -312,6 +312,7 @@ const I18N = {
     cap_avg: "avg", cap_ago: "s ago", cap_raw: "raw bytes, ",
     cap_rsp: "scan response, ", form_rsp: "Scan response (replayed verbatim, cannot be edited)",
     cap_ble_adv: "BLE advertisement", btn_clone_sm: "Clone",
+    cap_mfg: "mfg", cap_mfg_rsp: "in scan response",
     toast_session_cleared: "Session captures cleared",
     toast_cloning: "Cloning now (interval {itvl}ms)",
     toast_replaced: ", replaced the least recently used profile",
@@ -404,6 +405,7 @@ const I18N = {
     cap_avg: "均值", cap_ago: "秒前", cap_raw: "原始字节，",
     cap_rsp: "扫描响应，", form_rsp: "扫描响应（原样重放，不可编辑）",
     cap_ble_adv: "BLE 广播", btn_clone_sm: "克隆",
+    cap_mfg: "厂商", cap_mfg_rsp: "在扫描响应中",
     toast_session_cleared: "本次会话捕获已清空",
     toast_cloning: "正在克隆（间隔 {itvl}ms）",
     toast_replaced: "，已替换最久未使用的配置",
@@ -573,6 +575,16 @@ const modeTxt = m => (MODE_KEY[m] ? t(MODE_KEY[m]) : m);
 const capTitle = d => d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
                                 : (d.name ? esc(d.name) : t("cap_ble_adv"));
 const capSub = d => d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
+/* manufacturer specific data: company id + payload, and where it was found */
+const capMfg = d => {
+  if (!d || (d.mfg_company === undefined && !d.mfg_len)) return "";
+  const vendor = d.mfg_vendor ||
+    ("0x" + (d.mfg_company || 0).toString(16).toUpperCase().padStart(4, "0"));
+  const hex = d.mfg ? hexPairs(d.mfg) : "";
+  const src = d.mfg_src ? " · " + t("cap_mfg_rsp") : "";
+  return "<div class='dim mono' style='margin-top:2px'>" + t("cap_mfg") + " " +
+         esc(vendor) + (hex ? " · " + hex : "") + src + "</div>";
+};
 /* addr_type: 0 = public (stable), 1 = random (may rotate) */
 const addrTag = at => " <span class='tag'>" +
   (at === 1 ? t("tag_randaddr") : t("tag_pubaddr")) + "</span>";
@@ -658,7 +670,7 @@ function renderCaps() {
     const tr = document.createElement("tr");
     tr.innerHTML =
       "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
-        "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" +
+        "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" + capMfg(d) +
         "<details style='margin-top:4px'><summary>" + t("cap_raw") + d.adv_len + "B</summary>" +
         "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details>" +
         (d.rsp_len ? "<details style='margin-top:2px'><summary>" + t("cap_rsp") + d.rsp_len + "B</summary>" +
@@ -733,6 +745,7 @@ function recMerge(items) {
     if (d.raw) r.raw = d.raw;
     if (d.rsp) r.rsp = d.rsp;
     if (d.name) r.name = d.name;
+    if (d.mfg_company !== undefined) { r.mf = d.mfg; r.mc = d.mfg_company; r.mv = d.mfg_vendor; r.ms = d.mfg_src; }
     if (d.ibeacon) { r.ib = 1; r.uuid = d.uuid; r.maj = d.major; r.min = d.minor; }
   });
   const ks = Object.keys(recs);
@@ -773,6 +786,7 @@ function renderRecs() {
       "<div>" + title + " <span class='dim mono'>" + fmtAddr(a) + "</span></div>" +
       "<div class='mono dim'>" + (r.r || 0) + "dBm · " + (r.c || 0) + " " + t("st_packets") + " · " +
         (r.i || "?") + "ms · " + t("rec_seen") + fmtAgo(r.l) + "</div>" +
+      capMfg({ mfg: r.mf, mfg_company: r.mc, mfg_vendor: r.mv, mfg_src: r.ms, mfg_len: r.mf ? r.mf.length / 2 : 0 }) +
       (r.raw ? "<details style='margin-top:4px'><summary>" + t("cap_raw") +
         (r.raw.length / 2) + "B</summary><div class='hexbox'>" + hexPairs(r.raw) + "</div>" +
         (r.rsp ? "<div class='dim' style='margin-top:6px'>" + esc(t("form_rsp")) +
@@ -843,6 +857,7 @@ async function loadHistory() {
       "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : t("cap_ble_adv")) +
         " <span class='dim mono'>" + it.rssi + "dBm · " + it.itvl_ms + "ms</span></div>" +
       "<div class='mono dim'>" + fmtAddr(it.addr) + " · " + t("hist_boot") + it.boot_seq + " +" + fmtDur(it.uptime_s) + "</div>" +
+      capMfg(it) +
       "<div class='hexbox'>" + hexPairs(it.raw) + "</div>";
     box.appendChild(div);
   });

@@ -12,8 +12,8 @@ static const char *TAG = "store";
 #define MOUNT_POINT   "/data"
 #define PART_LABEL    "storage"
 #define CAP_FILE      MOUNT_POINT "/cap.bin"
-#define REC_MAGIC     0xCA9E0001u
-#define HDR_MAGIC     0xCA9E0000u
+#define REC_MAGIC     0xCA9E0002u   /* bumped: cap_rec_t gained manufacturer data */
+#define HDR_MAGIC     0xCA9E0003u   /* bumped together with REC_MAGIC */
 
 typedef struct {
     uint32_t magic;
@@ -132,6 +132,10 @@ esp_err_t storage_capture_add(const detection_t *d, uint32_t boot_seq)
                 r.minor = d->minor;
                 r.ref_rssi = d->ref_rssi;
             }
+            r.mfg_company = d->mfg_company;
+            r.mfg_len     = d->mfg_len > sizeof(r.mfg) ? sizeof(r.mfg) : d->mfg_len;
+            memcpy(r.mfg, d->mfg, r.mfg_len);
+            r.mfg_src     = d->mfg_src;
             r.itvl_ms = d->itvl_ms;
             r.rssi    = d->rssi_last;
 

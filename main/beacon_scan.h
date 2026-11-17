@@ -16,6 +16,14 @@ typedef struct {
     uint8_t  rsp_len;          /* scan response length, 0 = none captured */
     uint8_t  rsp[SCAN_RAW_MAX];/* raw scan response, replayed verbatim */
 
+    /* manufacturer specific data (AD type 0xFF), first occurrence seen.
+     * Many devices put this in the scan response rather than the advertisement,
+     * which is why mfg_src records where it came from. */
+    uint16_t mfg_company;      /* company identifier as it appears on air (LE) */
+    uint8_t  mfg_len;          /* payload length after the 2-byte company id */
+    uint8_t  mfg[27];
+    uint8_t  mfg_src;          /* 0 = advertisement, 1 = scan response */
+
     /* iBeacon fields, when the payload matches */
     bool     is_ibeacon;
     uint8_t  uuid[16];
@@ -42,3 +50,6 @@ int       blescan_count(void);
 int       blescan_snapshot(detection_t *out, int max);  /* newest first, by last_ms */
 bool      blescan_find(const uint8_t addr[6], detection_t *out);
 void      blescan_clear(void);
+
+/* "Apple" for 0x004C, "0x027D" when unknown; never NULL */
+const char *blescan_company_name(uint16_t id);
