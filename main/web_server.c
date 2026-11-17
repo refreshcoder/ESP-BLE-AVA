@@ -490,6 +490,12 @@ static esp_err_t h_scan_get(httpd_req_t *req)
             cJSON_AddNumberToObject(o, "mfg_len", d->mfg_len);
             cJSON_AddNumberToObject(o, "mfg_src", d->mfg_src);
         }
+        if (d->svc_uuid) {
+            char sh[8];
+            snprintf(sh, sizeof(sh), "0x%04X", d->svc_uuid);
+            cJSON_AddStringToObject(o, "svc", sh);
+            cJSON_AddStringToObject(o, "svc_name", blescan_service_name(d->svc_uuid));
+        }
         cJSON_AddNumberToObject(o, "rsp_len", d->rsp_len);
         if (d->rsp_len) {
             char sh[SCAN_RAW_MAX * 2 + 1];

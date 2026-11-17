@@ -23,6 +23,8 @@ typedef struct {
     uint8_t  mfg_len;          /* payload length after the 2-byte company id */
     uint8_t  mfg[27];
     uint8_t  mfg_src;          /* 0 = advertisement, 1 = scan response */
+    uint16_t svc_uuid;         /* first 16-bit service UUID seen (0 = none): tells the
+                                * ecosystem for vendors that put everything in service data */
 
     /* iBeacon fields, when the payload matches */
     bool     is_ibeacon;
@@ -53,3 +55,6 @@ void      blescan_clear(void);
 
 /* "Apple" for 0x004C, "0x027D" when unknown; never NULL */
 const char *blescan_company_name(uint16_t id);
+
+/* "Fast Pair" for 0xFE2C, "0xFCB2" when unknown; never NULL */
+const char *blescan_service_name(uint16_t uuid);

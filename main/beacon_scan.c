@@ -49,22 +49,101 @@ static void parse_mfg(const uint8_t *d, uint8_t len, detection_t *r, uint8_t src
     }
 }
 
+/* Company ids below are the SIG "Company Identifier" codes (little-endian on air).
+ * Deliberately short labels: they are drawn in a fixed-width column of the UI. */
+typedef struct { uint16_t id; const char *name; } id_name_t;
+
+static const id_name_t k_company[] = {
+    { 0x004C, "Apple" },
+    { 0x0006, "Microsoft" },
+    { 0x0075, "Samsung" },
+    { 0x00E0, "Google" },
+    { 0x0059, "Nordic" },
+    { 0x027D, "Huawei" },
+    { 0x038F, "Xiaomi" },
+    /* DingTalk / Alipay / Tmall Genie devices all report under Alibaba's code */
+    { 0x0EC5, "Alibaba" },
+    { 0x013A, "Tencent" },
+    { 0x079A, "OPPO" },
+    { 0x0837, "vivo" },
+    { 0x072F, "OnePlus" },
+    { 0x03AB, "Meizu" },
+    { 0x02C5, "Lenovo" },
+    { 0x0958, "ZTE" },
+    { 0x0BC6, "TCL" },
+    /* appliances */
+    { 0x06A8, "Midea" },
+    { 0x0929, "Haier" },
+    { 0x0D23, "Gree" },
+    { 0x0F1F, "Ninebot" },
+    { 0x08AA, "DJI" },
+    { 0x0CC2, "Anker" },
+    { 0x0310, "SGL Italia" },
+    /* wearables + trackers */
+    { 0x0157, "Huami" },
+    { 0x0087, "Garmin" },
+    { 0x006B, "Polar" },
+    { 0x009F, "Suunto" },
+    { 0x03FF, "Withings" },
+    { 0x0304, "Oura" },
+    { 0x067C, "Tile" },
+    { 0x08C3, "Chipolo" },
+    { 0x015D, "Estimote" },
+    { 0x01FD, "Kontakt" },
+    /* audio */
+    { 0x009E, "Bose" },
+    { 0x012D, "Sony" },
+    { 0x0494, "Sennheiser" },
+    { 0x0057, "Harman" },
+    { 0x00CC, "Beats" },
+    { 0x01DA, "Logitech" },
+    { 0x0055, "Plantronics" },
+    /* health */
+    { 0x020E, "Omron" },
+    { 0x03BB, "Abbott" },
+    { 0x00D0, "Dexcom" },
+    { 0x01F9, "Medtronic" },
+    { 0x0170, "Roche" },
+    { 0x0167, "Ascensia" },
+    /* silicon: tells you the module, not the product */
+    { 0x0002, "Intel" },
+    { 0x000D, "TI" },
+    { 0x000A, "Qualcomm" },
+    { 0x005D, "Realtek" },
+    { 0x02E5, "Espressif" },
+    { 0x0131, "Cypress" },
+    { 0x000F, "Broadcom" },
+    { 0x0499, "Ruuvi" },
+};
+
 const char *blescan_company_name(uint16_t id)
 {
-    static char buf[8];
-    switch (id) {
-    case 0x004C: return "Apple";
-    case 0x0006: return "Microsoft";
-    case 0x0075: return "Samsung";
-    case 0x0059: return "Nordic";
-    case 0x00E0: return "Google";
-    case 0x027D: return "Huawei";
-    case 0x0157: return "Huami";
-    case 0x0499: return "Ruuvi";
-    default:
-        snprintf(buf, sizeof(buf), "0x%04X", id);
-        return buf;
+    for (size_t i = 0; i < sizeof(k_company) / sizeof(k_company[0]); i++) {
+        if (k_company[i].id == id) return k_company[i].name;
     }
+    static char buf[8];
+    snprintf(buf, sizeof(buf), "0x%04X", id);
+    return buf;
+}
+
+/* 16-bit service UUIDs worth naming in an advertisement (GATT services are not
+ * listed here: they never show up on air unless the device also advertises them). */
+static const id_name_t k_service[] = {
+    { 0xFCB2, "Location Enabled Adv" },   /* asset trackers / find-my style */
+    { 0xFE2C, "Fast Pair" },               /* Google */
+    { 0xFD6F, "Exposure Notification" },   /* Apple/Google */
+    { 0xFEAA, "Eddystone" },               /* Google */
+    { 0xFE59, "Nordic DFU" },
+};
+
+const char *blescan_service_name(uint16_t uuid)
+{
+    for (size_t i = 0; i < sizeof(k_service) / sizeof(k_service[0]); i++) {
+        if (k_service[i].id == uuid) return k_service[i].name;
+    }
+    static char buf[8];
+    snprintf(buf, sizeof(buf), "0x%04X", uuid);
+    return buf;
 }
 
 static void parse_adv(const uint8_t *d, uint8_t len, detection_t *r)
@@ -85,6 +164,12 @@ static void parse_adv(const uint8_t *d, uint8_t len, detection_t *r)
                 r->ref_rssi = (int8_t)v[24];
                 r->is_ibeacon = true;
             }
+        } else if ((type == 0x02 || type == 0x03) && l >= 3 && r->svc_uuid == 0) {
+            /* 16-bit service UUID list: the first entry is enough to classify */
+            r->svc_uuid = (uint16_t)(v[0] | (v[1] << 8));
+        } else if (type == 0x16 && l >= 3 && r->svc_uuid == 0) {
+            /* service data: carries the UUID that identifies the ecosystem */
+            r->svc_uuid = (uint16_t)(v[0] | (v[1] << 8));
         } else if ((type == 0x08 || type == 0x09) && l >= 2) {
             int n = l - 1;
             if (n > (int)sizeof(r->name) - 1) n = sizeof(r->name) - 1;

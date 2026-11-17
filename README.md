@@ -46,6 +46,7 @@ time-sharing contention on a single-radio SoC.
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
+| **Vendor lookup** | Manufacturer data is resolved against a ~55-entry SIG company table (Apple, Microsoft, Xiaomi, Alibaba/DingTalk, OPPO, vivo, Midea, Tile, Garmin, ...) plus the few 16-bit service UUIDs that show up on air (`0xFCB2` Location Enabled Adv, `0xFE2C` Fast Pair, `0xFD6F`, `0xFEAA`, `0xFE59`) |
 | **USB console** | Same read/control surface over the cable when the SoftAP is out of reach: `status`, `scan` (raw hex), `mode`, `clone <addr>` — see [docs/usb-console.md](docs/usb-console.md) |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
 | **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click / double click / two-stage hold |
