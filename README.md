@@ -46,7 +46,7 @@ time-sharing contention on a single-radio SoC.
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
-| **Vendor lookup** | Manufacturer data is resolved against a ~55-entry SIG company table (Apple, Microsoft, Xiaomi, Alibaba/DingTalk, OPPO, vivo, Midea, Tile, Garmin, ...) plus the few 16-bit service UUIDs that show up on air (`0xFCB2` Location Enabled Adv, `0xFE2C` Fast Pair, `0xFD6F`, `0xFEAA`, `0xFE59`) |
+| **Vendor lookup** | Manufacturer data is resolved against a ~55-entry SIG company table (Apple, Microsoft, Xiaomi, Alibaba/DingTalk, OPPO, vivo, Midea, Tile, Garmin, ...) plus the few 16-bit service UUIDs that show up on air (`0xFCB2` Location Enabled Adv, `0xFE2C` Fast Pair, `0xFD6F`, `0xFEAA`, `0xFE59`) and a name-based hint for devices that carry no company id at all — see [docs/attendance-vendors.md](docs/attendance-vendors.md) |
 | **USB console** | Same read/control surface over the cable when the SoftAP is out of reach: `status`, `scan` (raw hex), `mode`, `clone <addr>` — see [docs/usb-console.md](docs/usb-console.md) |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
 | **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click / double click / two-stage hold |
@@ -342,6 +342,7 @@ main/
 docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
 docs/hardware.md       pinout, power options, antenna and console notes
 docs/usb-console.md    USB console: commands, protocol, host tool
+docs/attendance-vendors.md  how 考勤机 / 门禁 terminals identify themselves over BLE
 tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)

@@ -58,3 +58,7 @@ const char *blescan_company_name(uint16_t id);
 
 /* "Fast Pair" for 0xFE2C, "0xFCB2" when unknown; never NULL */
 const char *blescan_service_name(uint16_t uuid);
+
+/* Vendor guessed from the advertised local name, for devices that carry no company id
+ * (most attendance/access-control terminals). NULL when nothing matches. */
+const char *blescan_name_vendor(const char *name);

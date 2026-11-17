@@ -496,6 +496,10 @@ static esp_err_t h_scan_get(httpd_req_t *req)
             cJSON_AddStringToObject(o, "svc", sh);
             cJSON_AddStringToObject(o, "svc_name", blescan_service_name(d->svc_uuid));
         }
+        {
+            const char *nv = blescan_name_vendor(d->name);
+            if (nv) cJSON_AddStringToObject(o, "name_vendor", nv);
+        }
         cJSON_AddNumberToObject(o, "rsp_len", d->rsp_len);
         if (d->rsp_len) {
             char sh[SCAN_RAW_MAX * 2 + 1];

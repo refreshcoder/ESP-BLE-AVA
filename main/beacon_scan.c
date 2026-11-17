@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -79,6 +80,19 @@ static const id_name_t k_company[] = {
     { 0x08AA, "DJI" },
     { 0x0CC2, "Anker" },
     { 0x0310, "SGL Italia" },
+    /* access control / attendance (see docs/attendance-vendors.md) */
+    { 0x0100, "TomTom" },        /* DingTalk's BLE check-in terminals advertise under this id */
+    { 0x0E25, "Hikvision" },
+    { 0x0124, "HID Global" },
+    { 0x013B, "Allegion" },
+    { 0x0C64, "dormakaba" },
+    { 0x0199, "SALTO" },
+    { 0x0B5D, "Newland" },
+    { 0x01F1, "Zebra" },
+    { 0x0526, "Honeywell" },
+    { 0x0E60, "Ant Group" },
+    { 0x011C, "Baidu" },
+    { 0x0025, "NXP" },
     /* wearables + trackers */
     { 0x0157, "Huami" },
     { 0x0087, "Garmin" },
@@ -144,6 +158,46 @@ const char *blescan_service_name(uint16_t uuid)
     static char buf[8];
     snprintf(buf, sizeof(buf), "0x%04X", uuid);
     return buf;
+}
+
+/* Most CN attendance / access-control terminals never advertise a SIG company id, so the
+ * local name is the only handle (see docs/attendance-vendors.md). Substring, case
+ * insensitive. NULL when nothing matches: the caller must not invent a vendor. */
+typedef struct { const char *needle; const char *vendor; } name_hint_t;
+
+static const name_hint_t k_name_hint[] = {
+    { "RTK_BT",   "DingTalk" },   /* DingTalk BLE check-in terminal, per field dumps */
+    { "ZKTECO",   "ZKTeco" },
+    { "ANVIZ",    "Anviz" },
+    { "SUPREMA",  "Suprema" },
+    { "HIKVISION", "Hikvision" },
+    { "DAHUA",    "Dahua" },
+    { "HANVON",   "Hanvon" },
+    { "SUNMI",    "Sunmi" },
+    { "TELPO",    "Telpo" },
+};
+
+static bool contains_nocase(const char *hay, const char *needle)
+{
+    size_t n = strlen(needle);
+    for (const char *p = hay; *p; p++) {
+        size_t i = 0;
+        while (i < n && p[i] &&
+               tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) {
+            i++;
+        }
+        if (i == n) return true;
+    }
+    return false;
+}
+
+const char *blescan_name_vendor(const char *name)
+{
+    if (!name || !name[0]) return NULL;
+    for (size_t i = 0; i < sizeof(k_name_hint) / sizeof(k_name_hint[0]); i++) {
+        if (contains_nocase(name, k_name_hint[i].needle)) return k_name_hint[i].vendor;
+    }
+    return NULL;
 }
 
 static void parse_adv(const uint8_t *d, uint8_t len, detection_t *r)

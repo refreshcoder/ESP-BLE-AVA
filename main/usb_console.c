@@ -179,6 +179,10 @@ static void cmd_scan(void)
             cJSON_AddStringToObject(o, "svc", sh);
             cJSON_AddStringToObject(o, "svc_name", blescan_service_name(d->svc_uuid));
         }
+        {
+            const char *nv = blescan_name_vendor(d->name);
+            if (nv) cJSON_AddStringToObject(o, "name_vendor", nv);
+        }
         if (d->is_ibeacon) {
             char u[33];
             cfg_uuid_to_str(d->uuid, u);
