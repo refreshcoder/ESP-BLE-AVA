@@ -116,7 +116,7 @@ bool storage_ready(void) { return s_ready; }
 esp_err_t storage_format(void)
 {
     if (s_ready) return ESP_ERR_INVALID_STATE;      /* would delete live records */
-    esp_err_t e = esp_vfs_fat_spiflash_format_rw_wl(PART_LABEL);
+    esp_err_t e = esp_vfs_fat_spiflash_format_rw_wl(MOUNT_POINT, PART_LABEL);
     if (e != ESP_OK) {
         ESP_LOGE(TAG, "format %s failed: %s", PART_LABEL, esp_err_to_name(e));
         return e;
