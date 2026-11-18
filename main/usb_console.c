@@ -111,6 +111,9 @@ static void cmd_status(void)
     cJSON_AddNumberToObject(o, "scan_itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(o, "scan_win_ms", c->scan.win_ms);
     cJSON_AddBoolToObject(o, "scan_filter", c->scan.filter_noise);
+    cJSON_AddBoolToObject(o, "scan_full_duty", c->scan.full_duty);
+    cJSON_AddBoolToObject(o, "scan_clear_rounds", c->scan.clear_each_round);
+    cJSON_AddNumberToObject(o, "scan_duration_s", c->scan.duration_s);
     cfg_unlock();
 
     uint32_t starts = 0;
@@ -370,6 +373,30 @@ static void cmd_logs(const char *since)
 
 /* ------------------------------- write side ------------------------------ */
 
+/* timing <itvl_ms> <win_ms> <duration_s>: scan timing without a browser */
+static void cmd_scan_cfg(const char *a1, const char *a2, const char *a3)
+{
+    if (!a1 || !a2 || !a3) { end_err("timing <itvl_ms> <win_ms> <duration_s>"); return; }
+    char *e1 = NULL, *e2 = NULL, *e3 = NULL;
+    long itvl = strtol(a1, &e1, 10), win = strtol(a2, &e2, 10), dur = strtol(a3, &e3, 10);
+    if (e1 == a1 || e2 == a2 || e3 == a3) { end_err("timing <itvl_ms> <win_ms> <duration_s>"); return; }
+    cfg_lock();
+    cfg_get()->scan.itvl_ms = (uint16_t)(itvl < 20 ? 20 : itvl > 10240 ? 10240 : itvl);
+    cfg_get()->scan.win_ms  = (uint16_t)(win < 2 ? 2 : win > 10240 ? 10240 : win);
+    cfg_get()->scan.duration_s = (uint16_t)(dur < 10 ? 10 : dur > 900 ? 900 : dur);
+    cfg_save();
+    uint16_t i2 = cfg_get()->scan.itvl_ms, w2 = cfg_get()->scan.win_ms, d2 = cfg_get()->scan.duration_s;
+    cfg_unlock();
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddNumberToObject(o, "itvl_ms", i2);
+    cJSON_AddNumberToObject(o, "win_ms", w2);
+    cJSON_AddNumberToObject(o, "duration_s", d2);
+    emit(o);
+    end_ok();
+}
+
 /* filter on|off: drop personal-device noise before it takes a table slot */
 static void cmd_filter(const char *arg)
 {
@@ -485,6 +512,13 @@ static void handle_line(char *line)
     else if (!strcmp(cmd, "profiles"))                  cmd_profiles();
     else if (!strcmp(cmd, "records"))                   cmd_records(a1);
     else if (!strcmp(cmd, "filter"))                    cmd_filter(a1);
+    else if (!strcmp(cmd, "timing")) {
+        /* sequential strtok_r calls: passing both in one call is an unspecified evaluation
+         * order, which silently swapped the arguments */
+        char *a2 = strtok_r(NULL, " 	", &save);
+        char *a3 = strtok_r(NULL, " 	", &save);
+        cmd_scan_cfg(a1, a2, a3);
+    }
     else if (!strcmp(cmd, "pins"))                      cmd_pins(a1);
     else if (!strcmp(cmd, "pin"))                       cmd_pin(a1);
     else if (!strcmp(cmd, "unpin"))                     cmd_unpin(a1);

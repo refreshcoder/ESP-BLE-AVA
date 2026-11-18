@@ -54,6 +54,14 @@ typedef struct {
      * slot in the capture table. On by default: a blind scan is about the fixed
      * infrastructure, and one busy room can otherwise fill all 128 slots with phones. */
     bool     filter_noise;
+    /* Listen for the whole interval (100% duty) while no Wi-Fi client is attached: in the
+     * field nobody is on the SoftAP, and full duty is what makes a walk-past capture
+     * reliable. Falls back to the 50% cap the moment a client joins. */
+    bool     full_duty;
+    /* Start every capture window from an empty table, so `packets` is a true per-window
+     * count (it is what you invert to get the real advertising interval). */
+    bool     clear_each_round;
+    uint16_t duration_s;      /* capture window length, 10..900 s */
 } scan_cfg_t;
 
 /* Mode to resume after a reboot. An address change is applied by rebooting, so defaulting

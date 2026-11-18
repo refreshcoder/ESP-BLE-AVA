@@ -11,7 +11,8 @@
 
 static const char *TAG = "radio";
 
-#define SNIFF_TIMEOUT_US (60 * 1000 * 1000)   /* manual sniff stops by itself */
+/* Fallback only: the real length comes from scan.duration_s (default 120 s). */
+#define SNIFF_TIMEOUT_US (60 * 1000 * 1000)
 
 static SemaphoreHandle_t s_mtx;
 static volatile rmode_t  s_mode = RMODE_IDLE;
@@ -94,12 +95,13 @@ esp_err_t radio_sniff(void)
 
     esp_err_t e = blescan_start(&sc);
     s_mode = blescan_running() ? RMODE_SNIFF : RMODE_IDLE;
-    s_sniff_deadline = (s_mode == RMODE_SNIFF) ? esp_timer_get_time() + SNIFF_TIMEOUT_US : 0;
+    int64_t win_us = (int64_t)(sc.duration_s ? sc.duration_s : 60) * 1000000;
+    s_sniff_deadline = (s_mode == RMODE_SNIFF) ? esp_timer_get_time() + win_us : 0;
     xSemaphoreGive(s_mtx);
     remember_mode(s_mode);
 
-    ESP_LOGI(TAG, "mode=%s (scan win=%ums/%ums)", radio_mode_str(s_mode),
-             (unsigned)sc.win_ms, (unsigned)sc.itvl_ms);
+    ESP_LOGI(TAG, "mode=%s (scan win=%ums/%ums, window=%us)", radio_mode_str(s_mode),
+             (unsigned)sc.win_ms, (unsigned)sc.itvl_ms, (unsigned)sc.duration_s);
     applog_add(LOG_T_SCAN, 0, "mode=sniff %s", e == ESP_OK ? "ok" : "fail");
     return e;
 }

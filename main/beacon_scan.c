@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "host/ble_hs.h"
+#include "net_ap.h"
 
 static const char *TAG = "scan";
 
@@ -471,14 +472,27 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     uint32_t win  = sc->win_ms  < 2  ? 2  : sc->win_ms;
     if (win > itvl) win = itvl;
 
-    /* Capture and advertising are exclusive, so the duty cap can be 50% (higher starves the SoftAP) */
-    uint32_t cap = itvl / 2;
-    if (cap < 2) cap = 2;
-    if (win > cap) {
-        ESP_LOGW(TAG, "scan duty %.0f%% too high -> capped 50%% (win=%ums)",
-                 (double)win * 100.0 / (double)itvl, (unsigned)cap);
-        win = cap;
+    /* Capture and advertising are exclusive. With a Wi-Fi client attached the scan has to
+     * leave the radio half the time (a >50% duty starves the SoftAP); with nobody on the AP
+     * -- i.e. every field scan -- it may listen continuously, which is what makes a
+     * walk-past capture reliable. */
+    bool ap_busy = sc->full_duty ? (net_ap_sta_count() > 0) : true;
+    if (!ap_busy) {
+        /* nobody is on the SoftAP: raise the window to the full interval. This is the whole
+         * point -- capping alone would leave the default 60/300 = 20% duty untouched. */
+        win = itvl;
+    } else {
+        uint32_t cap = itvl / 2;
+        if (cap < 2) cap = 2;
+        if (win > cap) {
+            ESP_LOGW(TAG, "scan duty %.0f%% too high with a Wi-Fi client -> capped at 50%% (win=%ums)",
+                     (double)win * 100.0 / (double)itvl, (unsigned)cap);
+            win = cap;
+        }
     }
+    /* Each window is its own snapshot: without this the table -- and `packets` -- carries
+     * over from the previous window, which makes the interval estimate meaningless. */
+    if (sc->clear_each_round) blescan_clear();
     s_itvl_ms = (uint16_t)itvl;
     s_win_ms  = (uint16_t)win;
     s_filter_noise = sc->filter_noise;

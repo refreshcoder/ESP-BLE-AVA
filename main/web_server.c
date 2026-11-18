@@ -211,6 +211,9 @@ static esp_err_t h_status(httpd_req_t *req)
     cJSON_AddNumberToObject(o, "scan_itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(o, "scan_win_ms", c->scan.win_ms);
     cJSON_AddBoolToObject(o, "scan_filter", c->scan.filter_noise);
+    cJSON_AddBoolToObject(o, "scan_full_duty", c->scan.full_duty);
+    cJSON_AddBoolToObject(o, "scan_clear_rounds", c->scan.clear_each_round);
+    cJSON_AddNumberToObject(o, "scan_duration_s", c->scan.duration_s);
     cfg_unlock();
 
     /* ---- serial-free diagnostics: enough to triage from a phone browser ---- */
@@ -528,9 +531,16 @@ static esp_err_t h_scan_post(httpd_req_t *req)
     const cJSON *iv = cJSON_GetObjectItemCaseSensitive(j, "itvl_ms");
     const cJSON *wv = cJSON_GetObjectItemCaseSensitive(j, "win_ms");
     const cJSON *fv = cJSON_GetObjectItemCaseSensitive(j, "filter_noise");
+    const cJSON *fdv = cJSON_GetObjectItemCaseSensitive(j, "full_duty");
+    const cJSON *fcv = cJSON_GetObjectItemCaseSensitive(j, "clear_each_round");
+    const cJSON *dv  = cJSON_GetObjectItemCaseSensitive(j, "duration_s");
     if (cJSON_IsNumber(iv))c->scan.itvl_ms = (uint16_t)(iv->valueint < 20 ? 20 : iv->valueint > 10240 ? 10240 : iv->valueint);
     if (cJSON_IsNumber(wv))c->scan.win_ms  = (uint16_t)(wv->valueint < 2 ? 2 : wv->valueint > 10240 ? 10240 : wv->valueint);
     if (cJSON_IsBool(fv))  c->scan.filter_noise = cJSON_IsTrue(fv);
+    if (cJSON_IsBool(fdv)) c->scan.full_duty = cJSON_IsTrue(fdv);
+    if (cJSON_IsBool(fcv)) c->scan.clear_each_round = cJSON_IsTrue(fcv);
+    if (cJSON_IsNumber(dv))
+        c->scan.duration_s = (uint16_t)(dv->valueint < 10 ? 10 : dv->valueint > 900 ? 900 : dv->valueint);
     cfg_save();
     cfg_unlock();
     cJSON_Delete(j);

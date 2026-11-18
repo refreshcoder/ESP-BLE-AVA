@@ -95,6 +95,9 @@ void cfg_defaults(beacon_cfg_t *c)
     c->scan.itvl_ms      = 300;
     c->scan.win_ms       = 60;
     c->scan.filter_noise = true;
+    c->scan.full_duty    = true;
+    c->scan.clear_each_round = true;
+    c->scan.duration_s   = 120;
 
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
@@ -283,6 +286,9 @@ cJSON *cfg_to_json(const beacon_cfg_t *c)
     cJSON_AddNumberToObject(sc, "itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(sc, "win_ms", c->scan.win_ms);
     cJSON_AddBoolToObject(sc, "filter_noise", c->scan.filter_noise);
+    cJSON_AddBoolToObject(sc, "full_duty", c->scan.full_duty);
+    cJSON_AddBoolToObject(sc, "clear_each_round", c->scan.clear_each_round);
+    cJSON_AddNumberToObject(sc, "duration_s", c->scan.duration_s);
 
     cJSON *ap = cJSON_AddObjectToObject(root, "ap");
     cJSON_AddStringToObject(ap, "ssid", c->ap.ssid);
@@ -335,8 +341,13 @@ bool cfg_from_json(const char *js, beacon_cfg_t *c, char *err, size_t errlen)
         tmp.scan.itvl_ms = (uint16_t)(iv < 20 ? 20 : iv > 10240 ? 10240 : iv);
         tmp.scan.win_ms  = (uint16_t)(wv < 2 ? 2 : wv > 10240 ? 10240 : wv);
         tmp.scan.filter_noise = jbool(sc, "filter_noise", true);
+        tmp.scan.full_duty    = jbool(sc, "full_duty", true);
+        tmp.scan.clear_each_round = jbool(sc, "clear_each_round", true);
+        int ds = jint(sc, "duration_s", 120);
+        tmp.scan.duration_s = (uint16_t)(ds < 10 ? 10 : ds > 900 ? 900 : ds);
     } else {
         tmp.scan.itvl_ms = 300; tmp.scan.win_ms = 60; tmp.scan.filter_noise = true;
+        tmp.scan.full_duty = true; tmp.scan.clear_each_round = true; tmp.scan.duration_s = 120;
     }
 
     /* AP credentials: derived from the MAC when absent. WPA2 needs >=8 chars. */

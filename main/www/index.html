@@ -227,10 +227,19 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <div class="grid2">
         <div><label data-i18n="lb_scan_itvl">Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
         <div><label data-i18n="lb_scan_win">Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
+        <div><label data-i18n="lb_scan_dur">Capture window (s)</label><input id="s-dur" type="number" min="10" max="900"></div>
         <div><label data-i18n="lb_scan_filter">Noise filter</label>
           <label class="dim" style="display:flex;gap:6px;align-items:center;font-size:12px">
             <input id="s-filter" type="checkbox" style="width:auto;margin:0">
             <span data-i18n="lb_scan_filter_hint">drop phones, watches, earbuds and Windows PCs</span>
+          </label>
+          <label class="dim" style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:4px">
+            <input id="s-full" type="checkbox" style="width:auto;margin:0">
+            <span data-i18n="lb_scan_full_hint">100% duty while no Wi-Fi client is connected</span>
+          </label>
+          <label class="dim" style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:4px">
+            <input id="s-clear" type="checkbox" style="width:auto;margin:0">
+            <span data-i18n="lb_scan_clear_hint">start each window from an empty table</span>
           </label>
         </div>
       </div>
@@ -328,6 +337,8 @@ const I18N = {
     cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> writes one record to the archive, and a finished capture window (double click / Sniff) writes the whole table.",
     sniff_tmo: "Sniffing stops by itself after 60 s - tap Sniff again to extend.",
     lb_scan_filter: "Noise filter", lb_scan_filter_hint: "drop phones, watches, earbuds and Windows PCs",
+    lb_scan_dur: "Capture window (s)", lb_scan_full_hint: "100% duty while no Wi-Fi client is connected",
+    lb_scan_clear_hint: "start each window from an empty table",
     st_filtered: "filtered",
     cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
     cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
@@ -433,6 +444,8 @@ const I18N = {
     cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会把其中一条写入下方归档；一次扫描窗口结束（双击 / 嗅探）会把整表写入。",
     sniff_tmo: "嗅探会在 60 秒后自动停止，再点一次「嗅探」可重新计时。",
     lb_scan_filter: "噪声过滤", lb_scan_filter_hint: "过滤手机、手表、耳机和 Windows 电脑",
+    lb_scan_dur: "捕获窗口（秒）", lb_scan_full_hint: "没有 Wi-Fi 客户端时 100% 占空比监听",
+    lb_scan_clear_hint: "每次窗口从空表开始",
     st_filtered: "已过滤",
     cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
     cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",
@@ -1263,6 +1276,9 @@ async function loadSettings() {
   $("s-itvl").value = j.scan ? j.scan.itvl_ms : 300;
   $("s-win").value = j.scan ? j.scan.win_ms : 60;
   $("s-filter").checked = j.scan ? !!j.scan.filter_noise : true;
+  $("s-full").checked = j.scan ? !!j.scan.full_duty : true;
+  $("s-clear").checked = j.scan ? !!j.scan.clear_each_round : true;
+  $("s-dur").value = j.scan ? (j.scan.duration_s || 120) : 120;
   $("s-ssid").value = j.ap ? j.ap.ssid : "";
   $("s-pass").value = j.ap ? j.ap.pass : "";
   $("s-rot").checked = !!(j.rotation && j.rotation.enabled);
@@ -1270,7 +1286,10 @@ async function loadSettings() {
 }
 async function saveScan() {
   const r = await post("/api/scan", { itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value,
-                                      filter_noise: $("s-filter").checked });
+                                      duration_s: +$("s-dur").value,
+                                      filter_noise: $("s-filter").checked,
+                                      full_duty: $("s-full").checked,
+                                      clear_each_round: $("s-clear").checked });
   toast(r.ok ? t("toast_scan_saved") : (r.err || t("err_failed")), !r.ok);
   refreshStatus();
 }
