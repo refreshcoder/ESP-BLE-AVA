@@ -110,6 +110,7 @@ static void cmd_status(void)
     cJSON_AddNumberToObject(o, "rotation_s", c->rotation_s);
     cJSON_AddNumberToObject(o, "scan_itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(o, "scan_win_ms", c->scan.win_ms);
+    cJSON_AddBoolToObject(o, "scan_filter", c->scan.filter_noise);
     cfg_unlock();
 
     uint32_t starts = 0;
@@ -122,6 +123,7 @@ static void cmd_status(void)
     blescan_stats(&pkts, &rms);
     cJSON_AddNumberToObject(o, "scan_pkts", pkts);
     cJSON_AddNumberToObject(o, "scan_running_ms", rms);
+    cJSON_AddNumberToObject(o, "scan_filtered", blescan_filtered());
 
     char sb[12];
     cJSON_AddStringToObject(o, "storage", storage_stat_str(sb, sizeof(sb)));
@@ -368,6 +370,24 @@ static void cmd_logs(const char *since)
 
 /* ------------------------------- write side ------------------------------ */
 
+/* filter on|off: drop personal-device noise before it takes a table slot */
+static void cmd_filter(const char *arg)
+{
+    if (!arg || (strcmp(arg, "on") && strcmp(arg, "off"))) { end_err("filter on|off"); return; }
+    cfg_lock();
+    cfg_get()->scan.filter_noise = !strcmp(arg, "on");
+    cfg_save();
+    bool on = cfg_get()->scan.filter_noise;
+    cfg_unlock();
+    applog_add(LOG_T_SCAN, 0, "scan filter %s", on ? "on" : "off");
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddBoolToObject(o, "filter_noise", on);
+    emit(o);
+    end_ok();
+}
+
 static void cmd_mode(const char *m)
 {
     esp_err_t e;
@@ -464,6 +484,7 @@ static void handle_line(char *line)
     else if (!strcmp(cmd, "scan"))                      cmd_scan();
     else if (!strcmp(cmd, "profiles"))                  cmd_profiles();
     else if (!strcmp(cmd, "records"))                   cmd_records(a1);
+    else if (!strcmp(cmd, "filter"))                    cmd_filter(a1);
     else if (!strcmp(cmd, "pins"))                      cmd_pins(a1);
     else if (!strcmp(cmd, "pin"))                       cmd_pin(a1);
     else if (!strcmp(cmd, "unpin"))                     cmd_unpin(a1);

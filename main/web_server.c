@@ -210,6 +210,7 @@ static esp_err_t h_status(httpd_req_t *req)
     cJSON_AddNumberToObject(o, "rotation_s", c->rotation_s);
     cJSON_AddNumberToObject(o, "scan_itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(o, "scan_win_ms", c->scan.win_ms);
+    cJSON_AddBoolToObject(o, "scan_filter", c->scan.filter_noise);
     cfg_unlock();
 
     /* ---- serial-free diagnostics: enough to triage from a phone browser ---- */
@@ -228,6 +229,7 @@ static esp_err_t h_status(httpd_req_t *req)
         blescan_stats(&pkts, &rms);
         cJSON_AddNumberToObject(o, "scan_pkts", pkts);
         cJSON_AddNumberToObject(o, "scan_running_ms", rms);
+        cJSON_AddNumberToObject(o, "scan_filtered", blescan_filtered());
     }
     cJSON_AddStringToObject(o, "led", led_state_name(radio_mode(), net_ap_sta_count()));
     cJSON_AddStringToObject(o, "board", BOARD_NAME);
@@ -525,8 +527,10 @@ static esp_err_t h_scan_post(httpd_req_t *req)
     beacon_cfg_t *c = cfg_get();
     const cJSON *iv = cJSON_GetObjectItemCaseSensitive(j, "itvl_ms");
     const cJSON *wv = cJSON_GetObjectItemCaseSensitive(j, "win_ms");
+    const cJSON *fv = cJSON_GetObjectItemCaseSensitive(j, "filter_noise");
     if (cJSON_IsNumber(iv))c->scan.itvl_ms = (uint16_t)(iv->valueint < 20 ? 20 : iv->valueint > 10240 ? 10240 : iv->valueint);
     if (cJSON_IsNumber(wv))c->scan.win_ms  = (uint16_t)(wv->valueint < 2 ? 2 : wv->valueint > 10240 ? 10240 : wv->valueint);
+    if (cJSON_IsBool(fv))  c->scan.filter_noise = cJSON_IsTrue(fv);
     cfg_save();
     cfg_unlock();
     cJSON_Delete(j);

@@ -227,6 +227,12 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <div class="grid2">
         <div><label data-i18n="lb_scan_itvl">Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
         <div><label data-i18n="lb_scan_win">Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
+        <div><label data-i18n="lb_scan_filter">Noise filter</label>
+          <label class="dim" style="display:flex;gap:6px;align-items:center;font-size:12px">
+            <input id="s-filter" type="checkbox" style="width:auto;margin:0">
+            <span data-i18n="lb_scan_filter_hint">drop phones, watches, earbuds and Windows PCs</span>
+          </label>
+        </div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveScan()" data-i18n="btn_save">Save</button></div>
       <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="scan_note">A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.</div>
@@ -321,6 +327,8 @@ const I18N = {
     th_signal: "Signal", th_rssi: "RSSI", th_itvl: "Interval",
     cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> writes one record to the archive, and a finished capture window (double click / Sniff) writes the whole table.",
     sniff_tmo: "Sniffing stops by itself after 60 s - tap Sniff again to extend.",
+    lb_scan_filter: "Noise filter", lb_scan_filter_hint: "drop phones, watches, earbuds and Windows PCs",
+    st_filtered: "filtered",
     cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
     cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
     cap_avg: "avg", cap_ago: "s ago", cap_raw: "raw bytes, ",
@@ -424,6 +432,8 @@ const I18N = {
     th_signal: "信号", th_rssi: "RSSI", th_itvl: "间隔",
     cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会把其中一条写入下方归档；一次扫描窗口结束（双击 / 嗅探）会把整表写入。",
     sniff_tmo: "嗅探会在 60 秒后自动停止，再点一次「嗅探」可重新计时。",
+    lb_scan_filter: "噪声过滤", lb_scan_filter_hint: "过滤手机、手表、耳机和 Windows 电脑",
+    st_filtered: "已过滤",
     cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
     cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",
     cap_avg: "均值", cap_ago: "秒前", cap_raw: "原始字节，",
@@ -710,6 +720,7 @@ async function refreshStatus() {
     L("st_ip", j.ip),
     L("st_profile", j.active < 0 ? t("st_none") : "#" + j.active + " / " + j.count),
     L("st_scan", j.scan_win_ms + "ms / " + j.scan_itvl_ms + "ms, " + j.scan_pkts + " " + t("st_packets") +
+      (j.scan_filtered ? " (" + j.scan_filtered + " " + t("st_filtered") + ")" : "") +
       (j.scan_running_ms ? " (" + fmtDur(j.scan_running_ms / 1000) + ")" : "")),
     L("st_detected", j.detected + " " + t("st_devices")) + "    " +
       L("st_tx", j.tx_dbm + " dBm (" + t("st_adv_starts") + " " + j.adv_starts + ")"),
@@ -1251,13 +1262,15 @@ async function loadSettings() {
   if (!j.ok) return;
   $("s-itvl").value = j.scan ? j.scan.itvl_ms : 300;
   $("s-win").value = j.scan ? j.scan.win_ms : 60;
+  $("s-filter").checked = j.scan ? !!j.scan.filter_noise : true;
   $("s-ssid").value = j.ap ? j.ap.ssid : "";
   $("s-pass").value = j.ap ? j.ap.pass : "";
   $("s-rot").checked = !!(j.rotation && j.rotation.enabled);
   $("s-rot-s").value = (j.rotation && j.rotation.seconds) || 30;
 }
 async function saveScan() {
-  const r = await post("/api/scan", { itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value });
+  const r = await post("/api/scan", { itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value,
+                                      filter_noise: $("s-filter").checked });
   toast(r.ok ? t("toast_scan_saved") : (r.err || t("err_failed")), !r.ok);
   refreshStatus();
 }

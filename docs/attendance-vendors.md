@@ -84,6 +84,22 @@ matches on:
 | `SUNMI` | Sunmi |
 | `TELPO` | Telpo |
 
+## The built-in noise filter
+
+A blind scan in a normal office fills every slot with phones, watches, earbuds and
+Windows PCs within seconds. `scan.filter_noise` (default **on**) therefore drops a frame
+*before* it takes a slot, when it is:
+
+* Apple Continuity — any Apple manufacturer data except **iBeacon** (subtype `0x02`)
+* Microsoft CDP / Swift Pair — company `0x0006`, payload starting `01 09 20 22`
+* a name containing `buds / airpods / freebuds / edifier / qcy / soundcore / amazfit /
+  mi band / smart band / smartwatch / watch`
+* a phone vendor (`Xiaomi, OPPO, vivo, Honor, Huawei, OnePlus, Samsung, Google`) **without**
+  a 16-bit service UUID — that keeps MiBeacon sensors (`0xFE95`) and friends
+
+`/api/status` reports `scan_filtered` (how many frames were dropped) next to
+`scan_pkts`, and the USB console has `filter on|off`.
+
 ## How to actually identify one
 
 ```bash

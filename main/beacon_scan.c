@@ -22,6 +22,8 @@ static SemaphoreHandle_t s_mtx;
 static volatile bool     s_running;
 static uint16_t          s_itvl_ms = 300, s_win_ms = 60;
 static uint32_t          s_pkts;        /* advertising packets received */
+static uint32_t          s_filtered;    /* ... of which dropped as personal-device noise */
+static bool              s_filter_noise = true;
 static uint32_t          s_since_ms;    /* scan start timestamp */
 
 static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
@@ -200,6 +202,80 @@ const char *blescan_name_vendor(const char *name)
     return NULL;
 }
 
+/* ---------------------- personal-device noise filter ---------------------- */
+
+/* Names of earbuds / wrist wearables: they carry no company id worth keeping and they are
+ * exactly what fills a blind scan. Substring, case-insensitive, bounded (no NUL in AD). */
+static const char *k_noise_words[] = {
+    "buds", "airpods", "freebuds", "edifier", "qcy", "soundcore", "amazfit",
+    "mi band", "smart band", "smartwatch", "watch",
+};
+
+/* Phone vendors: a hijacked slot for a phone is a slot a beacon cannot use. Only dropped
+ * when the payload carries no 16-bit service UUID, so Xiaomi MiBeacon sensors (0xFE95)
+ * and friends survive. */
+static bool is_phone_vendor(uint16_t cid)
+{
+    switch (cid) {
+    case 0x038F:  /* Xiaomi */      case 0x079A:  /* OPPO */
+    case 0x0837:  /* vivo */        case 0x09C6:  /* Honor */
+    case 0x027D:  /* Huawei */      case 0x072F:  /* OnePlus */
+    case 0x0075:  /* Samsung */     case 0x00E0:  /* Google */
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool mem_contains_nocase(const uint8_t *hay, int n, const char *needle)
+{
+    int nn = (int)strlen(needle);
+    for (int i = 0; i + nn <= n; i++) {
+        int k = 0;
+        while (k < nn && tolower(hay[i + k]) == tolower((unsigned char)needle[k])) k++;
+        if (k == nn) return true;
+    }
+    return false;
+}
+
+/* True when this advertisement belongs to a person rather than to the room:
+ * Apple Continuity (phones, watches, earbuds, Find My -- but NOT iBeacon),
+ * Microsoft CDP / Swift Pair (Windows PCs), earbud/wearable names, and phone vendors
+ * that advertise no service at all. */
+bool blescan_is_noise(const uint8_t *d, uint8_t len)
+{
+    if (!d || len < 3) return false;
+    bool phone_vendor = false, has_svc = false;
+    uint8_t i = 0;
+    while (i + 1 < len) {
+        uint8_t l = d[i];
+        if (l == 0 || (int)i + 1 + l > (int)len) break;
+        uint8_t type = d[i + 1];
+        const uint8_t *v = &d[i + 2];
+        if (type == 0xFF && l >= 3) {
+            uint16_t cid = (uint16_t)(v[0] | (v[1] << 8));
+            if (cid == 0x004C) {
+                if (l >= 4 && v[2] != 0x02) return true;   /* Apple Continuity, iBeacon kept */
+            } else if (cid == 0x0006) {
+                if (l >= 6 && v[2] == 0x01 && v[3] == 0x09 && v[4] == 0x20 && v[5] == 0x22)
+                    return true;                          /* Microsoft CDP (Windows) */
+            } else if (is_phone_vendor(cid)) {
+                phone_vendor = true;
+            }
+        } else if (type == 0x02 || type == 0x03 || type == 0x16) {
+            has_svc = true;
+        } else if (type == 0x08 || type == 0x09) {
+            for (size_t k = 0; k < sizeof(k_noise_words) / sizeof(k_noise_words[0]); k++) {
+                if (mem_contains_nocase(v, l - 1, k_noise_words[k])) return true;
+            }
+        }
+        i = (uint8_t)(i + l + 1);
+    }
+    return phone_vendor && !has_svc;
+}
+
+uint32_t blescan_filtered(void) { return s_filtered; }
+
 static void parse_adv(const uint8_t *d, uint8_t len, detection_t *r)
 {
     uint8_t i = 0;
@@ -243,6 +319,11 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
 
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     s_pkts++;
+    if (s_filter_noise && blescan_is_noise(desc->data, desc->length_data)) {
+        s_filtered++;
+        xSemaphoreGive(s_mtx);
+        return;
+    }
 
     /* NimBLE keeps the address little-endian (on-air order); everything else in this project
      * (UI, logs, NVS blob, esp_read_mac) uses display order. Convert once, here. */
@@ -392,6 +473,8 @@ esp_err_t blescan_start(const scan_cfg_t *sc)
     }
     s_itvl_ms = (uint16_t)itvl;
     s_win_ms  = (uint16_t)win;
+    s_filter_noise = sc->filter_noise;
+    s_filtered = 0;
 
     uint32_t u_itvl = itvl * 8 / 5;                 /* ms -> 0.625 ms units */
     uint32_t u_win  = win * 8 / 5;

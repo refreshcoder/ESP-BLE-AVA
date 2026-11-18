@@ -46,6 +46,11 @@ esp_err_t blescan_start(const scan_cfg_t *sc);
 void      blescan_stop(void);
 bool      blescan_running(void);
 
+/* Personal-device noise (Apple Continuity, Microsoft CDP, earbud/wearable names, phone
+ * vendors without a service UUID). Exposed so the table's own filter can be tested. */
+bool      blescan_is_noise(const uint8_t *d, uint8_t len);
+uint32_t  blescan_filtered(void);     /* packets dropped by the filter in this scan */
+
 /* stats: packets received in this scan + elapsed ms */
 void      blescan_stats(uint32_t *pkts, uint32_t *running_ms);
 int       blescan_count(void);

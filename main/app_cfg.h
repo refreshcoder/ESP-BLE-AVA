@@ -50,6 +50,10 @@ typedef struct {
 typedef struct {
     uint16_t itvl_ms;
     uint16_t win_ms;
+    /* Drop personal-device noise (phones, watches, earbuds, Windows PCs) before it takes a
+     * slot in the capture table. On by default: a blind scan is about the fixed
+     * infrastructure, and one busy room can otherwise fill all 128 slots with phones. */
+    bool     filter_noise;
 } scan_cfg_t;
 
 /* Mode to resume after a reboot. An address change is applied by rebooting, so defaulting
