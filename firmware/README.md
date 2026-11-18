@@ -25,8 +25,8 @@ Flash it with `esptool.py write_flash 0x0 <file>` or any Web Serial flasher
 
 | | |
 |---|---|
-| Built from commit | `614691e` (branch `feat/usb-console`, CI run 44229707447) |
-| `-app.bin` SHA-256 | `dea82023d740ff6c62490da2ee8a1948174fcb8691e9f5f1eaea45b11d5de2ab` |
+| Built from commit | `68f243c` (branch `feat/usb-console`, CI run 44235857953) |
+| `-app.bin` SHA-256 | `98b42442b353a924334d3af84c91fd5a52f074103d5c8ccfde74c821ce83d706` |
 | Source size | 1,317,488 bytes |
 | SHA-256 | `4b97992c2d99ad73b0613aa502a03b80867a71adbad549448f1ee7d1ee48dca1` |
 
