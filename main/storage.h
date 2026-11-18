@@ -52,6 +52,7 @@ typedef struct {
     int8_t   rssi_last, rssi_max, rssi_avg;
     uint16_t itvl_ms;         /* estimated advertising interval */
     uint16_t dwell_ms;        /* last_ms - first_ms, i.e. how long it stayed visible */
+    uint8_t  is_ibeacon;      /* 1 = the payload matched iBeacon (uuid/major/minor valid) */
     uint32_t count;           /* advertising packets seen */
 } cap_rec_t;                  /* 168 B, ring of 128 in one 21.5 KB file */
 

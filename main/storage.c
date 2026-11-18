@@ -160,6 +160,7 @@ static void rec_from(const detection_t *d, uint32_t boot_seq, cap_rec_t *r)
     r->rssi_max  = d->rssi_max;
     r->rssi_avg  = d->rssi_avg;
     r->itvl_ms   = d->itvl_ms;
+    r->is_ibeacon = d->is_ibeacon ? 1 : 0;
     uint32_t dwell = d->last_ms > d->first_ms ? d->last_ms - d->first_ms : 0;
     r->dwell_ms  = dwell > 0xFFFF ? 0xFFFF : (uint16_t)dwell;
     r->count     = d->count;
