@@ -565,22 +565,23 @@ static esp_err_t h_history_get(httpd_req_t *req)
     for (int i = 0; i < n; i++) {
         const cap_rec_t *r = &recs[i];
         cJSON *o = cJSON_CreateObject();
-        char h[70], u[33];
+        char h[CFG_RAW_MAX * 2 + 1], u[33];
+
         cfg_hex_to_str(r->addr, 6, h);
         cJSON_AddStringToObject(o, "addr", h);
+        cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
+        cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
+        cJSON_AddStringToObject(o, "name", r->name);
+
         cfg_hex_to_str(r->raw, r->raw_len, h);
         cJSON_AddStringToObject(o, "raw", h);
-        cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
-        if (r->is_ibeacon) {
-            cfg_uuid_to_str(r->uuid, u);
-            cJSON_AddStringToObject(o, "uuid", u);
-            cJSON_AddNumberToObject(o, "major", r->major);
-            cJSON_AddNumberToObject(o, "minor", r->minor);
-        }
-        cJSON_AddNumberToObject(o, "rssi", r->rssi);
-        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
-        cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
         cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+        if (r->rsp_len) {
+            cfg_hex_to_str(r->rsp, r->rsp_len, h);
+            cJSON_AddStringToObject(o, "rsp", h);
+        }
+        cJSON_AddNumberToObject(o, "rsp_len", r->rsp_len);
+
         if (r->mfg_len || r->mfg_company) {
             char mh[sizeof(r->mfg) * 2 + 1];
             cfg_hex_to_str(r->mfg, r->mfg_len, mh);
@@ -590,6 +591,28 @@ static esp_err_t h_history_get(httpd_req_t *req)
             cJSON_AddNumberToObject(o, "mfg_len", r->mfg_len);
             cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
         }
+        if (r->svc_uuid) {
+            char sh[8];
+            snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
+            cJSON_AddStringToObject(o, "svc", sh);
+            cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
+        }
+
+        cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
+        if (r->is_ibeacon) {
+            cfg_uuid_to_str(r->uuid, u);
+            cJSON_AddStringToObject(o, "uuid", u);
+            cJSON_AddNumberToObject(o, "major", r->major);
+            cJSON_AddNumberToObject(o, "minor", r->minor);
+            cJSON_AddNumberToObject(o, "ref_rssi", r->ref_rssi);
+        }
+
+        cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
+        cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
+        cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
+        cJSON_AddNumberToObject(o, "packets", r->count);
+        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
+        cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
         cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
         cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
         cJSON_AddItemToArray(arr, o);

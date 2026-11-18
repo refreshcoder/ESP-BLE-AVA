@@ -41,7 +41,7 @@ time-sharing contention on a single-radio SoC.
 | **Metadata replication** | Re-estimates the advertising interval (EMA over inter-arrival gaps), preserves scannability, optionally clones a static-random address |
 | **Exclusive modes** | `sniff` / `clone` / `idle` arbitrated by one module (`radio.c`) with a mutex — no self-capture, no radio contention |
 | **3 profile slots** | Stored atomically in NVS; when full the least-recently-used non-active slot is overwritten |
-| **Persistent capture archive** | Last 128 captures in a FATFS+wear-levelling ring file, survives power loss; one write per clone, and one batch write when a capture window ends (the button scan is meant to be read out later over USB) |
+| **Persistent capture archive** | Last 128 captures in a FATFS+wear-levelling ring file (168 B per record: raw + scan response + local name + company id + service UUID + packet count/dwell), survives power loss; one write per clone, one batch write when a capture window ends (the button scan is meant to be read out later over USB) |
 | **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) — no internet, no CDN, no app install |
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |

@@ -1017,11 +1017,16 @@ async function loadHistory() {
     const div = document.createElement("div");
     div.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0";
     div.innerHTML =
-      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : t("cap_ble_adv")) +
-        " <span class='dim mono'>" + it.rssi + "dBm · " + it.itvl_ms + "ms</span></div>" +
+      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor)
+                            : (it.name ? esc(it.name) : t("cap_ble_adv"))) +
+        " <span class='dim mono'>" + it.rssi + "dBm · " + it.itvl_ms + "ms · " +
+        (it.packets || 0) + " " + t("st_packets") + " · " + fmtDur(Math.round((it.dwell_ms || 0) / 1000)) +
+        "</span></div>" +
       "<div class='mono dim'>" + fmtAddr(it.addr) + " · " + t("hist_boot") + it.boot_seq + " +" + fmtDur(it.uptime_s) + "</div>" +
-      capMfg(it) +
-      "<div class='hexbox'>" + hexPairs(it.raw) + "</div>";
+      capMfg(it) + capSvc(it) +
+      "<div class='hexbox'>" + hexPairs(it.raw) + "</div>" +
+      (it.rsp ? "<div class='dim' style='margin-top:4px'>" + esc(t("form_rsp")) + "</div>" +
+                "<div class='hexbox'>" + hexPairs(it.rsp) + "</div>" : "");
     box.appendChild(div);
   });
 }

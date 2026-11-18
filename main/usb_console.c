@@ -238,26 +238,44 @@ static void cmd_records(const char *arg)
     cap_rec_t *recs = calloc(CAP_SLOTS, sizeof(cap_rec_t));
     if (!recs) { end_err("oom"); return; }
     int n = storage_capture_list(recs, CAP_SLOTS);
-    char h[SCAN_RAW_MAX * 2 + 1];
+    char h[CFG_RAW_MAX * 2 + 1];
 
     for (int i = 0; i < n; i++) {
         const cap_rec_t *r = &recs[i];
         cJSON *o = cJSON_CreateObject();
         cfg_hex_to_str(r->addr, 6, h);
         cJSON_AddStringToObject(o, "addr", h);
+        cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
         cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
-        cJSON_AddNumberToObject(o, "rssi", r->rssi);
-        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
-        cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+        cJSON_AddStringToObject(o, "name", r->name);
         cfg_hex_to_str(r->raw, r->raw_len, h);
         cJSON_AddStringToObject(o, "raw", h);
+        cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+        if (r->rsp_len) {
+            cfg_hex_to_str(r->rsp, r->rsp_len, h);
+            cJSON_AddStringToObject(o, "rsp", h);
+        }
         if (r->mfg_len || r->mfg_company) {
             char mh[sizeof(r->mfg) * 2 + 1];
             cfg_hex_to_str(r->mfg, r->mfg_len, mh);
             cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
-            cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
+            cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
             cJSON_AddStringToObject(o, "mfg", mh);
+            cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
         }
+        if (r->svc_uuid) {
+            char sh[8];
+            snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
+            cJSON_AddStringToObject(o, "svc", sh);
+            cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
+        }
+        cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
+        cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
+        cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
+        cJSON_AddNumberToObject(o, "packets", r->count);
+        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
+        cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
+        cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
         cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
         cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
         emit(o);

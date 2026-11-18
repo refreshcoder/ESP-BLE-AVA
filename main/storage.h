@@ -9,38 +9,51 @@
  * Capture archive (survives power loss)
  *
  * Location: storage partition (832K, FATFS + wear levelling), file /data/cap.bin
- * Layout  : 12-byte header + 32 fixed-size records, ring-buffer overwrite
+ * Layout  : 12-byte header + 128 fixed-size records (168 B each, ~21.5 KB), ring overwrite
  *
  * Why not JSON/NVS:
  *   - NVS is a small key/value store; it fits neither multi-field records nor ring
  *     overwrite, and frequent writes would chew through the 24K partition
- *   - a fixed 70 B binary record means a constant write volume (one record +
- *     the 12 B header per clone), no file growth, no garbage collection, and at
- *     worst the newest record is lost on power failure
+ *   - a fixed-size binary record means a constant write volume (records + the 12 B
+ *     header per capture, batched into one pass), no file growth, no garbage
+ *     collection, and at worst the newest batch is lost on power failure
  */
 
 #define CAP_SLOTS 128
 
 typedef struct {
-    uint32_t magic;          /* 0xCA9E0001: tells a valid record from an empty/garbage slot */
-    uint32_t uptime_s;       /* seconds since boot at capture time (no RTC; time = boot_seq + uptime_s) */
-    uint32_t boot_seq;       /* which boot this was */
-    uint8_t  is_ibeacon;
+    uint32_t magic;           /* REC_MAGIC: tells a valid record from an empty slot */
+    uint32_t boot_seq;        /* which boot this was */
+    uint32_t uptime_s;        /* seconds since boot at capture time (no RTC: time = boot_seq + uptime_s) */
     uint8_t  addr[6];
     uint8_t  addr_type;
-    uint8_t  adv_type;
+    uint8_t  adv_type;        /* BLE_HCI_ADV_RPT_EVTYPE_* */
+
+    /* the payload, exactly what a clone would replay */
     uint8_t  raw_len;
-    uint8_t  raw[31];
-    uint8_t  mfg_len;         /* manufacturer data payload, company id excluded */
+    uint8_t  raw[CFG_RAW_MAX];
+    uint8_t  rsp_len;         /* scan response, 0 = none captured */
+    uint8_t  rsp[CFG_RAW_MAX];
+
+    /* parsed hints, so the archive is readable without re-parsing raw */
+    uint16_t mfg_company;     /* SIG company id, LE on air */
+    uint16_t svc_uuid;        /* first 16-bit service UUID, 0 = none */
+    uint8_t  mfg_len;         /* payload length after the 2-byte company id */
     uint8_t  mfg_src;         /* 0 = advertisement, 1 = scan response */
     uint8_t  mfg[27];
-    uint16_t mfg_company;
+    char     name[16];        /* local name as advertised, NUL padded */
+
+    /* iBeacon, when the payload matched */
     uint8_t  uuid[16];
     uint16_t major, minor;
-    uint16_t itvl_ms;
-    int8_t   rssi;
     int8_t   ref_rssi;
-} cap_rec_t;                 /* ~100B */
+
+    /* radio statistics over the capture window */
+    int8_t   rssi_last, rssi_max, rssi_avg;
+    uint16_t itvl_ms;         /* estimated advertising interval */
+    uint16_t dwell_ms;        /* last_ms - first_ms, i.e. how long it stayed visible */
+    uint32_t count;           /* advertising packets seen */
+} cap_rec_t;                  /* 168 B, ring of 128 in one 21.5 KB file */
 
 esp_err_t   storage_init(void);
 bool        storage_ready(void);
@@ -50,6 +63,11 @@ esp_err_t   storage_capture_add(const detection_t *d, uint32_t boot_seq);
 
 /* Read up to max records, **newest first**; returns the count */
 int         storage_capture_list(cap_rec_t *out, int max);
+
+/* Append n captures in one open/write/close pass (a scan window archives up to
+ * SCAN_TAB_MAX rows at once; per-record file opens would be needlessly slow).
+ * Returns how many records were written. */
+int         storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq);
 
 esp_err_t   storage_capture_clear(void);
 

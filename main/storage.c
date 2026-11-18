@@ -12,8 +12,8 @@ static const char *TAG = "store";
 #define MOUNT_POINT   "/data"
 #define PART_LABEL    "storage"
 #define CAP_FILE      MOUNT_POINT "/cap.bin"
-#define REC_MAGIC     0xCA9E0002u   /* bumped: cap_rec_t gained manufacturer data */
-#define HDR_MAGIC     0xCA9E0004u   /* bumped again: CAP_SLOTS 32 -> 128 */
+#define REC_MAGIC     0xCA9E0005u   /* bumped: record gained rsp/name/svc/count/dwell */
+#define HDR_MAGIC     0xCA9E0006u   /* bumped together with REC_MAGIC */
 
 typedef struct {
     uint32_t magic;
@@ -125,53 +125,83 @@ esp_err_t storage_format(void)
     return storage_init();
 }
 
-esp_err_t storage_capture_add(const detection_t *d, uint32_t boot_seq)
+/* One row of the archive: everything a reader needs to understand the capture without
+ * touching the raw bytes again, but the raw bytes are still the source of truth. */
+static void rec_from(const detection_t *d, uint32_t boot_seq, cap_rec_t *r)
 {
-    if (!s_ready || !s_mtx || !d) return ESP_ERR_INVALID_STATE;
+    memset(r, 0, sizeof(*r));
+    r->magic      = REC_MAGIC;
+    r->boot_seq   = boot_seq;
+    r->uptime_s   = (uint32_t)(esp_timer_get_time() / 1000000);
+    memcpy(r->addr, d->addr, 6);
+    r->addr_type  = d->addr_type;
+    r->adv_type   = d->adv_type;
 
+    r->raw_len    = d->raw_len > CFG_RAW_MAX ? CFG_RAW_MAX : d->raw_len;
+    memcpy(r->raw, d->raw, r->raw_len);
+    r->rsp_len    = d->rsp_len > CFG_RAW_MAX ? CFG_RAW_MAX : d->rsp_len;
+    memcpy(r->rsp, d->rsp, r->rsp_len);
+
+    r->mfg_company = d->mfg_company;
+    r->svc_uuid    = d->svc_uuid;
+    r->mfg_len     = d->mfg_len > sizeof(r->mfg) ? sizeof(r->mfg) : d->mfg_len;
+    memcpy(r->mfg, d->mfg, r->mfg_len);
+    r->mfg_src     = d->mfg_src;
+    snprintf(r->name, sizeof(r->name), "%s", d->name);
+
+    if (d->is_ibeacon) {
+        memcpy(r->uuid, d->uuid, 16);
+        r->major    = d->major;
+        r->minor    = d->minor;
+        r->ref_rssi = d->ref_rssi;
+    }
+
+    r->rssi_last = d->rssi_last;
+    r->rssi_max  = d->rssi_max;
+    r->rssi_avg  = d->rssi_avg;
+    r->itvl_ms   = d->itvl_ms;
+    uint32_t dwell = d->last_ms > d->first_ms ? d->last_ms - d->first_ms : 0;
+    r->dwell_ms  = dwell > 0xFFFF ? 0xFFFF : (uint16_t)dwell;
+    r->count     = d->count;
+}
+
+int storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq)
+{
+    if (!s_ready || !s_mtx || !d || n <= 0) return 0;
+
+    int written = 0;
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    esp_err_t ret = ESP_FAIL;
     FILE *f = open_ready();
     if (f) {
         cap_hdr_t h;
         if (hdr_load(f, &h) == ESP_OK) {
-            cap_rec_t r;
-            memset(&r, 0, sizeof(r));
-            r.magic      = REC_MAGIC;
-            r.uptime_s   = (uint32_t)(esp_timer_get_time() / 1000000);
-            r.boot_seq   = boot_seq;
-            r.is_ibeacon = d->is_ibeacon;
-            memcpy(r.addr, d->addr, 6);
-            r.addr_type  = d->addr_type;
-            r.adv_type   = d->adv_type;
-            r.raw_len    = d->raw_len > 31 ? 31 : d->raw_len;
-            memcpy(r.raw, d->raw, r.raw_len);
-            if (d->is_ibeacon) {
-                memcpy(r.uuid, d->uuid, 16);
-                r.major = d->major;
-                r.minor = d->minor;
-                r.ref_rssi = d->ref_rssi;
-            }
-            r.mfg_company = d->mfg_company;
-            r.mfg_len     = d->mfg_len > sizeof(r.mfg) ? sizeof(r.mfg) : d->mfg_len;
-            memcpy(r.mfg, d->mfg, r.mfg_len);
-            r.mfg_src     = d->mfg_src;
-            r.itvl_ms = d->itvl_ms;
-            r.rssi    = d->rssi_last;
-
-            if (fseek(f, (long)sizeof(cap_hdr_t) + (long)sizeof(cap_rec_t) * h.head, SEEK_SET) == 0 &&
-                fwrite(&r, sizeof(r), 1, f) == 1 && fflush(f) == 0) {
+            bool ok = true;
+            for (int i = 0; i < n && ok; i++) {
+                cap_rec_t r;
+                rec_from(&d[i], boot_seq, &r);
+                if (fseek(f, (long)sizeof(cap_hdr_t) + (long)sizeof(cap_rec_t) * h.head, SEEK_SET) != 0 ||
+                    fwrite(&r, sizeof(r), 1, f) != 1) {
+                    ok = false;
+                    break;
+                }
                 h.head = (h.head + 1) % CAP_SLOTS;
                 if (h.count < CAP_SLOTS) h.count++;
-                if (hdr_store(f, &h) == ESP_OK) ret = ESP_OK;
+                written++;
             }
+            /* one flush for the whole batch: a scan window is one write, not one per row */
+            if (written && (fflush(f) != 0 || hdr_store(f, &h) != ESP_OK)) written = 0;
         }
         fclose(f);
     }
     xSemaphoreGive(s_mtx);
 
-    if (ret != ESP_OK) ESP_LOGW(TAG, "archive write failed");
-    return ret;
+    if (!written) ESP_LOGW(TAG, "archive write failed (%d record(s))", n);
+    return written;
+}
+
+esp_err_t storage_capture_add(const detection_t *d, uint32_t boot_seq)
+{
+    return storage_capture_add_many(d, 1, boot_seq) == 1 ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
 int storage_capture_list(cap_rec_t *out, int max)

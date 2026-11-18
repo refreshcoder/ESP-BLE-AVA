@@ -225,20 +225,17 @@ static void tick_cb(void *arg)
      * from the site -- must not leave the radio scanning forever. The result is written once,
      * here, and never per packet (invariant: no flash write per advertisement), because the
      * whole point of the double-click gesture is that the records survive being unplugged.
-     * One write costs ~30-50 ms per record, i.e. a couple of seconds for a full table; the
-     * radio has just been stopped, so blocking the tick that long is harmless. */
+     * The batch is one open/write/flush pass (storage_capture_add_many), so a full 128-row
+     * table does not pay the FATFS open/close cost 128 times. */
     if (radio_mode() == RMODE_SNIFF && radio_sniff_timed_out()) {
         radio_stop();
         int saved = 0;
         detection_t *tab = calloc(SCAN_TAB_MAX, sizeof(detection_t));
-        if (tab) {
+        if (tab && storage_ready()) {
             int n = blescan_snapshot(tab, SCAN_TAB_MAX);
-            uint32_t boot = cfg_stat_get("boots");
-            for (int i = 0; i < n; i++) {
-                if (storage_capture_add(&tab[i], boot) == ESP_OK) saved++;
-            }
-            free(tab);
+            saved = storage_capture_add_many(tab, n, cfg_stat_get("boots"));
         }
+        free(tab);
         ESP_LOGI(TAG, "sniff window elapsed -> idle, %d record(s) archived", saved);
         applog_add(LOG_T_SCAN, 0, "sniff end: %d record(s) saved", saved);
     }

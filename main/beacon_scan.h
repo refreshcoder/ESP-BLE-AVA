@@ -4,7 +4,7 @@
 #include "esp_err.h"
 #include "app_cfg.h"
 
-#define SCAN_TAB_MAX  64
+#define SCAN_TAB_MAX  128
 #define SCAN_RAW_MAX  CFG_RAW_MAX
 
 typedef struct {

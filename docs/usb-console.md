@@ -31,7 +31,7 @@ status
 | `status` | one line: `mode`, `adv`, `scan`, `detected`, `heap`, `boots`, `brownouts`, `reset_reason`, `adv_starts`, `tx_dbm`, `scan_pkts`, `storage`, profile count/active |
 | `scan` | JSONL: the live capture table — `addr`, `name`, `rssi`, `itvl_ms`, `raw` / `rsp` / `mfg` **hex** |
 | `profiles` | JSONL: the stored profiles (`id`, `active`, `raw`, `rsp`, address mode, ...) |
-| `records` | JSONL: the persistent capture archive (`storage` partition) |
+| `records` | JSONL: the persistent capture archive — `addr`, `name`, `raw`/`rsp` hex, `mfg_company`/`mfg_vendor`, `svc`/`svc_name`, `rssi`/`rssi_max`/`rssi_avg`, `packets`, `itvl_ms`, `dwell_ms`, `boot_seq`, `uptime_s` |
 | `logs [since_seq]` | JSONL: ring log records |
 | `mode sniff\|clone\|idle` | switch the radio (arbitrated by `radio.c`, same as the UI) |
 | `use <id>` / `use -1` | activate profile `id` / broadcast nothing |
