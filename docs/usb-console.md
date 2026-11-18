@@ -38,6 +38,10 @@ status
 | `clone <addr>` | copy one row of the capture table into a profile and start advertising |
 | `clear` | empty the capture table |
 | `records clear` | empty the persistent archive |
+| `pins` | JSONL: favourites (`id` per row, oldest first) |
+| `pin <n>` | pin the n-th row of `records` (newest first — same order as the UI) |
+| `unpin <n>` | drop favourite `n` |
+| `pins clear` | drop all favourites |
 | `records format` | format the partition — only while the archive is **off** (a fresh board, or one whose FAT was damaged). It never formats on its own. |
 | `reboot` | restart |
 | `factory yes` | factory reset, then restart |
@@ -81,6 +85,7 @@ status            -> verify mode=clone, adv=true
   before the restart, so a `#END` followed by a boot banner is expected.
 * **Log and reply share the port.** Nothing is lost, but a host that parses JSON must skip
   lines that do not start with `{`.
-* `storage` archives on clone (one write) and at the end of a capture window (one batch for the
-  whole table), never per packet — that invariant did not change. A double click starts a blind
+* `storage` archives on clone (one write) and whenever the radio leaves SNIFF (one batch for the
+  whole table: window timeout, triple click, `mode idle`, web UI), never per packet. Favourites
+  live in `/data/pin.bin`, untouched by scans. A double click starts a blind
   scan precisely so the result can be read out here after unplugging.

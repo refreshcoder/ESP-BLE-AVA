@@ -16,6 +16,7 @@ static const char *TAG = "radio";
 static SemaphoreHandle_t s_mtx;
 static volatile rmode_t  s_mode = RMODE_IDLE;
 static int64_t           s_sniff_deadline;      /* 0 = not sniffing */
+static void            (*s_sniff_end_cb)(void); /* archive the table before leaving SNIFF */
 
 static void addr_reboot_cb(void *arg) { esp_restart(); }
 
@@ -44,6 +45,14 @@ const char *radio_mode_str(rmode_t m)
 
 rmode_t radio_mode(void) { return s_mode; }
 
+void radio_set_sniff_end_cb(void (*cb)(void)) { s_sniff_end_cb = cb; }
+
+/* Called without s_mtx held: the callback does flash I/O and must not block the arbiter. */
+static void notify_sniff_end(void)
+{
+    if (s_mode == RMODE_SNIFF && s_sniff_end_cb) s_sniff_end_cb();
+}
+
 /* Scanning is started by hand, so it must not keep running forever. */
 bool radio_sniff_timed_out(void)
 {
@@ -59,6 +68,7 @@ esp_err_t radio_init(void)
 esp_err_t radio_stop(void)
 {
     if (!s_mtx) return ESP_ERR_INVALID_STATE;
+    notify_sniff_end();                  /* archive the capture table before the RF goes down */
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     blescan_stop();
     beacon_adv_stop();
@@ -98,6 +108,7 @@ esp_err_t radio_clone(void)
 {
     if (!s_mtx) return ESP_ERR_INVALID_STATE;
 
+    notify_sniff_end();                  /* switching sniff -> clone also ends a capture window */
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     /* Exclusive: fully stop scanning first (also avoids capturing our own packets) */
     blescan_stop();

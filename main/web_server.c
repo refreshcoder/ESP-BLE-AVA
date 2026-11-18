@@ -549,6 +549,63 @@ static esp_err_t h_scan_delete(httpd_req_t *req)
 
 /* ------------------------- capture archive (persistent) ------------------------- */
 
+static cJSON *cap_rec_json(const cap_rec_t *r)
+{
+    cJSON *o = cJSON_CreateObject();
+    char h[CFG_RAW_MAX * 2 + 1], u[33];
+
+    cfg_hex_to_str(r->addr, 6, h);
+    cJSON_AddStringToObject(o, "addr", h);
+    cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
+    cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
+    cJSON_AddStringToObject(o, "name", r->name);
+    cJSON_AddNumberToObject(o, "src", r->src);
+
+    cfg_hex_to_str(r->raw, r->raw_len, h);
+    cJSON_AddStringToObject(o, "raw", h);
+    cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+    if (r->rsp_len) {
+        cfg_hex_to_str(r->rsp, r->rsp_len, h);
+        cJSON_AddStringToObject(o, "rsp", h);
+    }
+    cJSON_AddNumberToObject(o, "rsp_len", r->rsp_len);
+
+    if (r->mfg_len || r->mfg_company) {
+        char mh[sizeof(r->mfg) * 2 + 1];
+        cfg_hex_to_str(r->mfg, r->mfg_len, mh);
+        cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
+        cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
+        cJSON_AddStringToObject(o, "mfg", mh);
+        cJSON_AddNumberToObject(o, "mfg_len", r->mfg_len);
+        cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
+    }
+    if (r->svc_uuid) {
+        char sh[8];
+        snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
+        cJSON_AddStringToObject(o, "svc", sh);
+        cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
+    }
+
+    cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
+    if (r->is_ibeacon) {
+        cfg_uuid_to_str(r->uuid, u);
+        cJSON_AddStringToObject(o, "uuid", u);
+        cJSON_AddNumberToObject(o, "major", r->major);
+        cJSON_AddNumberToObject(o, "minor", r->minor);
+        cJSON_AddNumberToObject(o, "ref_rssi", r->ref_rssi);
+    }
+
+    cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
+    cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
+    cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
+    cJSON_AddNumberToObject(o, "packets", r->count);
+    cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
+    cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
+    cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
+    cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
+    return o;
+}
+
 static esp_err_t h_history_get(httpd_req_t *req)
 {
     if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
@@ -562,63 +619,87 @@ static esp_err_t h_history_get(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "available", storage_ready());
     cJSON_AddNumberToObject(root, "count", n);
     cJSON *arr = cJSON_AddArrayToObject(root, "items");
+    for (int i = 0; i < n; i++) cJSON_AddItemToArray(arr, cap_rec_json(&recs[i]));
+    free(recs);
+    return send_json(req, root);
+}
+
+/* ------------------------- favourites ------------------------- */
+
+static esp_err_t h_pins_get(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+
+    cap_rec_t *recs = calloc(PIN_SLOTS, sizeof(cap_rec_t));
+    if (!recs) return fail(req, "500 Internal Server Error", "oom");
+    int n = storage_pin_list(recs, PIN_SLOTS);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON_AddBoolToObject(root, "available", storage_ready());
+    cJSON_AddNumberToObject(root, "count", n);
+    cJSON_AddNumberToObject(root, "slots", PIN_SLOTS);
+    cJSON *arr = cJSON_AddArrayToObject(root, "items");
     for (int i = 0; i < n; i++) {
-        const cap_rec_t *r = &recs[i];
-        cJSON *o = cJSON_CreateObject();
-        char h[CFG_RAW_MAX * 2 + 1], u[33];
-
-        cfg_hex_to_str(r->addr, 6, h);
-        cJSON_AddStringToObject(o, "addr", h);
-        cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
-        cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
-        cJSON_AddStringToObject(o, "name", r->name);
-
-        cfg_hex_to_str(r->raw, r->raw_len, h);
-        cJSON_AddStringToObject(o, "raw", h);
-        cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
-        if (r->rsp_len) {
-            cfg_hex_to_str(r->rsp, r->rsp_len, h);
-            cJSON_AddStringToObject(o, "rsp", h);
-        }
-        cJSON_AddNumberToObject(o, "rsp_len", r->rsp_len);
-
-        if (r->mfg_len || r->mfg_company) {
-            char mh[sizeof(r->mfg) * 2 + 1];
-            cfg_hex_to_str(r->mfg, r->mfg_len, mh);
-            cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
-            cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
-            cJSON_AddStringToObject(o, "mfg", mh);
-            cJSON_AddNumberToObject(o, "mfg_len", r->mfg_len);
-            cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
-        }
-        if (r->svc_uuid) {
-            char sh[8];
-            snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
-            cJSON_AddStringToObject(o, "svc", sh);
-            cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
-        }
-
-        cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
-        if (r->is_ibeacon) {
-            cfg_uuid_to_str(r->uuid, u);
-            cJSON_AddStringToObject(o, "uuid", u);
-            cJSON_AddNumberToObject(o, "major", r->major);
-            cJSON_AddNumberToObject(o, "minor", r->minor);
-            cJSON_AddNumberToObject(o, "ref_rssi", r->ref_rssi);
-        }
-
-        cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
-        cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
-        cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
-        cJSON_AddNumberToObject(o, "packets", r->count);
-        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
-        cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
-        cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
-        cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
+        cJSON *o = cap_rec_json(&recs[i]);
+        cJSON_AddNumberToObject(o, "id", i);
         cJSON_AddItemToArray(arr, o);
     }
     free(recs);
     return send_json(req, root);
+}
+
+/* Pin the n-th newest archive row: the archive is read newest-first, which is what the UI
+ * shows, so the index the user clicked is the index used here. */
+static esp_err_t h_pins_post(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    char *body = read_body(req, NULL);
+    if (!body) return fail(req, "400 Bad Request", "body required");
+    cJSON *j = cJSON_Parse(body);
+    free(body);
+    if (!j) return fail(req, "400 Bad Request", "bad json");
+    const cJSON *ij = cJSON_GetObjectItemCaseSensitive(j, "index");
+    int idx = cJSON_IsNumber(ij) ? ij->valueint : -1;
+    cJSON_Delete(j);
+    if (idx < 0) return fail(req, "400 Bad Request", "index required");
+
+    cap_rec_t *recs = calloc(CAP_SLOTS, sizeof(cap_rec_t));
+    if (!recs) return fail(req, "500 Internal Server Error", "oom");
+    int n = storage_capture_list(recs, CAP_SLOTS);
+    if (idx >= n) {
+        free(recs);
+        return fail(req, "404 Not Found", "no such archive row (list changed?)");
+    }
+    esp_err_t e = storage_pin_add(&recs[idx]);
+    char addr[16];
+    cfg_hex_to_str(recs[idx].addr, 6, addr);
+    free(recs);
+    if (e == ESP_ERR_NO_MEM)  return fail(req, "409 Conflict", "favourites full");
+    if (e != ESP_OK)          return fail(req, "500 Internal Server Error", "pin failed");
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddStringToObject(o, "addr", addr);
+    applog_add(LOG_T_CFG, 0, "pin %s", addr);
+    return send_json(req, o);
+}
+
+static esp_err_t h_pins_delete(httpd_req_t *req)      /* DELETE /api/pins -> clear all */
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    esp_err_t e = storage_pin_clear();
+    if (e != ESP_OK) return fail(req, "500 Internal Server Error", "clear failed");
+    return ok_msg(req, "favourites cleared");
+}
+
+static esp_err_t h_pin_item_delete(httpd_req_t *req)  /* DELETE /api/pins/<n> */
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    esp_err_t e = storage_pin_remove(uri_last_id(req->uri));
+    if (e == ESP_ERR_INVALID_ARG) return fail(req, "404 Not Found", "no such favourite");
+    if (e != ESP_OK)              return fail(req, "500 Internal Server Error", "unpin failed");
+    return ok_msg(req, "unpinned");
 }
 
 static esp_err_t h_history_delete(httpd_req_t *req)
@@ -833,7 +914,7 @@ static esp_err_t h_factory(httpd_req_t *req)
 esp_err_t web_start(void)
 {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.max_uri_handlers = 28;
+    cfg.max_uri_handlers = 36;
     cfg.stack_size       = 7168;      /* cJSON serialisation needs the depth */
     cfg.lru_purge_enable = true;
     cfg.uri_match_fn     = httpd_uri_match_wildcard;
@@ -855,6 +936,10 @@ esp_err_t web_start(void)
     REG("/api/profiles/*",     HTTP_DELETE, h_profiles_delete);
     REG("/api/history",        HTTP_GET, h_history_get);
     REG("/api/history",        HTTP_DELETE, h_history_delete);
+    REG("/api/pins",           HTTP_GET, h_pins_get);
+    REG("/api/pins",           HTTP_POST, h_pins_post);
+    REG("/api/pins",           HTTP_DELETE, h_pins_delete);
+    REG("/api/pins/*",         HTTP_DELETE, h_pin_item_delete);
     REG("/api/clone",          HTTP_POST, h_clone);
     REG("/api/mode",           HTTP_POST, h_mode);
     REG("/api/active",         HTTP_POST, h_active);

@@ -21,6 +21,10 @@
 
 #define CAP_SLOTS 128
 
+/* Favourites: records copied out of the archive ring. Kept in their own file so a scan
+ * window (which can overwrite all 128 archive slots in one go) never touches them. */
+#define PIN_SLOTS 32
+
 typedef struct {
     uint32_t magic;           /* REC_MAGIC: tells a valid record from an empty slot */
     uint32_t boot_seq;        /* which boot this was */
@@ -53,8 +57,13 @@ typedef struct {
     uint16_t itvl_ms;         /* estimated advertising interval */
     uint16_t dwell_ms;        /* last_ms - first_ms, i.e. how long it stayed visible */
     uint8_t  is_ibeacon;      /* 1 = the payload matched iBeacon (uuid/major/minor valid) */
+    uint8_t  src;             /* REC_SRC_*: who wrote it (clone action or scan window) */
     uint32_t count;           /* advertising packets seen */
 } cap_rec_t;                  /* 168 B, ring of 128 in one 21.5 KB file */
+
+/* where a record came from: a manual clone, or a capture window's snapshot */
+#define REC_SRC_CLONE 0
+#define REC_SRC_SCAN  1
 
 esp_err_t   storage_init(void);
 bool        storage_ready(void);
@@ -68,13 +77,21 @@ int         storage_capture_list(cap_rec_t *out, int max);
 /* Append n captures in one open/write/close pass (a scan window archives up to
  * SCAN_TAB_MAX rows at once; per-record file opens would be needlessly slow).
  * Returns how many records were written. */
-int         storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq);
+int         storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq, uint8_t src);
 
 esp_err_t   storage_capture_clear(void);
 
 /* Format the partition. Only valid while the archive is NOT mounted (would delete records),
  * i.e. the deliberate escape hatch for a fresh or damaged partition. */
 esp_err_t   storage_format(void);
+
+/* --- favourites -------------------------------------------------------------
+ * storage_pin_add() copies a record (whole 168 B) into its own file, so it survives both
+ * the power switch and any number of later scan windows. */
+int         storage_pin_list(cap_rec_t *out, int max);   /* returns the count, oldest first */
+esp_err_t   storage_pin_add(const cap_rec_t *r);         /* ESP_ERR_NO_MEM when full */
+esp_err_t   storage_pin_remove(int idx);                 /* idx as returned by storage_pin_list */
+esp_err_t   storage_pin_clear(void);
 
 /* For /api/status, e.g. "12/32"; returns "off" when unavailable */
 const char *storage_stat_str(char *buf, size_t len);

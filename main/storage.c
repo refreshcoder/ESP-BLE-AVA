@@ -12,14 +12,23 @@ static const char *TAG = "store";
 #define MOUNT_POINT   "/data"
 #define PART_LABEL    "storage"
 #define CAP_FILE      MOUNT_POINT "/cap.bin"
-#define REC_MAGIC     0xCA9E0005u   /* bumped: record gained rsp/name/svc/count/dwell */
-#define HDR_MAGIC     0xCA9E0006u   /* bumped together with REC_MAGIC */
+#define PIN_FILE      MOUNT_POINT "/pin.bin"
+#define PIN_MAGIC     0xCA9E0009u
+#define REC_MAGIC     0xCA9E0007u   /* bumped: record gained a src tag */
+#define HDR_MAGIC     0xCA9E0008u   /* bumped together with REC_MAGIC */
 
 typedef struct {
     uint32_t magic;
     uint32_t count;      /* valid records, 0..CAP_SLOTS */
     uint32_t head;       /* next slot to write */
 } cap_hdr_t;
+
+/* Favourites file: header + PIN_SLOTS fixed rows, append until full, removed by index. */
+typedef struct {
+    uint32_t magic;
+    uint16_t count;
+    uint16_t reserved;
+} pin_hdr_t;
 
 static wl_handle_t       s_wl = WL_INVALID_HANDLE;
 static bool              s_ready;
@@ -127,7 +136,7 @@ esp_err_t storage_format(void)
 
 /* One row of the archive: everything a reader needs to understand the capture without
  * touching the raw bytes again, but the raw bytes are still the source of truth. */
-static void rec_from(const detection_t *d, uint32_t boot_seq, cap_rec_t *r)
+static void rec_from(const detection_t *d, uint32_t boot_seq, uint8_t src, cap_rec_t *r)
 {
     memset(r, 0, sizeof(*r));
     r->magic      = REC_MAGIC;
@@ -161,12 +170,13 @@ static void rec_from(const detection_t *d, uint32_t boot_seq, cap_rec_t *r)
     r->rssi_avg  = d->rssi_avg;
     r->itvl_ms   = d->itvl_ms;
     r->is_ibeacon = d->is_ibeacon ? 1 : 0;
+    r->src        = src;
     uint32_t dwell = d->last_ms > d->first_ms ? d->last_ms - d->first_ms : 0;
     r->dwell_ms  = dwell > 0xFFFF ? 0xFFFF : (uint16_t)dwell;
     r->count     = d->count;
 }
 
-int storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq)
+int storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq, uint8_t src)
 {
     if (!s_ready || !s_mtx || !d || n <= 0) return 0;
 
@@ -179,7 +189,7 @@ int storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq)
             bool ok = true;
             for (int i = 0; i < n && ok; i++) {
                 cap_rec_t r;
-                rec_from(&d[i], boot_seq, &r);
+                rec_from(&d[i], boot_seq, src, &r);
                 if (fseek(f, (long)sizeof(cap_hdr_t) + (long)sizeof(cap_rec_t) * h.head, SEEK_SET) != 0 ||
                     fwrite(&r, sizeof(r), 1, f) != 1) {
                     ok = false;
@@ -202,7 +212,8 @@ int storage_capture_add_many(const detection_t *d, int n, uint32_t boot_seq)
 
 esp_err_t storage_capture_add(const detection_t *d, uint32_t boot_seq)
 {
-    return storage_capture_add_many(d, 1, boot_seq) == 1 ? ESP_OK : ESP_ERR_INVALID_STATE;
+    return storage_capture_add_many(d, 1, boot_seq, REC_SRC_CLONE) == 1 ? ESP_OK
+                                                                        : ESP_ERR_INVALID_STATE;
 }
 
 int storage_capture_list(cap_rec_t *out, int max)
@@ -266,4 +277,161 @@ const char *storage_stat_str(char *buf, size_t len)
 
     snprintf(buf, len, "%u/%u", (unsigned)h.count, (unsigned)CAP_SLOTS);
     return buf;
+}
+
+/* ------------------------------- favourites ------------------------------- */
+
+static esp_err_t hdr_store_pin(FILE *f, const pin_hdr_t *h)
+{
+    if (fseek(f, 0, SEEK_SET) != 0) return ESP_FAIL;
+    if (fwrite(h, sizeof(*h), 1, f) != 1) return ESP_FAIL;
+    return fflush(f) == 0 ? ESP_OK : ESP_FAIL;
+}
+
+/* Opens pin.bin, creating/repairing the header when needed. Caller holds s_mtx. */
+static FILE *pin_open(bool create)
+{
+    FILE *f = fopen(PIN_FILE, "r+b");
+    if (f) {
+        pin_hdr_t h;
+        if (fread(&h, sizeof(h), 1, f) == 1 && h.magic == PIN_MAGIC && h.count <= PIN_SLOTS) {
+            return f;
+        }
+        fclose(f);
+        if (!create) return NULL;
+        ESP_LOGW(TAG, "pin header invalid, rebuilding");
+    } else if (!create) {
+        return NULL;
+    }
+
+    f = fopen(PIN_FILE, "w+b");
+    if (!f) return NULL;
+    /* size the file once so later writes never extend it */
+    if (fseek(f, (long)sizeof(pin_hdr_t) + (long)sizeof(cap_rec_t) * PIN_SLOTS - 1, SEEK_SET) != 0 ||
+        fputc(0, f) == EOF) {
+        fclose(f);
+        return NULL;
+    }
+    const pin_hdr_t h = { .magic = PIN_MAGIC, .count = 0, .reserved = 0 };
+    if (hdr_store_pin(f, &h) != ESP_OK) {
+        fclose(f);
+        return NULL;
+    }
+    return f;
+}
+
+int storage_pin_list(cap_rec_t *out, int max)
+{
+    if (!s_ready || !s_mtx || !out || max <= 0) return 0;
+    if (max > PIN_SLOTS) max = PIN_SLOTS;
+
+    int n = 0;
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    FILE *f = pin_open(true);
+    if (f) {
+        pin_hdr_t h;
+        if (fseek(f, 0, SEEK_SET) == 0 && fread(&h, sizeof(h), 1, f) == 1 &&
+            h.magic == PIN_MAGIC && h.count <= PIN_SLOTS) {
+            int want = h.count < max ? (int)h.count : max;
+            for (int i = 0; i < want; i++) {
+                cap_rec_t r;
+                if (fseek(f, (long)sizeof(pin_hdr_t) + (long)sizeof(cap_rec_t) * i, SEEK_SET) != 0) break;
+                if (fread(&r, sizeof(r), 1, f) != 1) break;
+                if (r.magic != REC_MAGIC) continue;
+                out[n++] = r;
+            }
+        }
+        fclose(f);
+    }
+    xSemaphoreGive(s_mtx);
+    return n;
+}
+
+/* Same device + same bytes = the same favourite; pinning twice is a no-op. */
+static bool pin_same(const cap_rec_t *a, const cap_rec_t *b)
+{
+    return a->raw_len == b->raw_len && a->rsp_len == b->rsp_len &&
+           memcmp(a->addr, b->addr, 6) == 0 &&
+           memcmp(a->raw, b->raw, a->raw_len) == 0 &&
+           memcmp(a->rsp, b->rsp, a->rsp_len) == 0;
+}
+
+esp_err_t storage_pin_add(const cap_rec_t *r)
+{
+    if (!s_ready || !s_mtx || !r) return ESP_ERR_INVALID_STATE;
+
+    esp_err_t ret = ESP_FAIL;
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    FILE *f = pin_open(true);
+    if (f) {
+        pin_hdr_t h;
+        if (fseek(f, 0, SEEK_SET) == 0 && fread(&h, sizeof(h), 1, f) == 1 && h.magic == PIN_MAGIC) {
+            bool dup = false;
+            for (int i = 0; i < (int)h.count && !dup; i++) {
+                cap_rec_t o;
+                if (fseek(f, (long)sizeof(pin_hdr_t) + (long)sizeof(cap_rec_t) * i, SEEK_SET) != 0) break;
+                if (fread(&o, sizeof(o), 1, f) == 1 && o.magic == REC_MAGIC) dup = pin_same(&o, r);
+            }
+            if (dup) {
+                ret = ESP_OK;                      /* already pinned */
+            } else if (h.count >= PIN_SLOTS) {
+                ret = ESP_ERR_NO_MEM;
+            } else if (fseek(f, (long)sizeof(pin_hdr_t) + (long)sizeof(cap_rec_t) * h.count, SEEK_SET) == 0 &&
+                       fwrite(r, sizeof(*r), 1, f) == 1) {
+                h.count++;
+                if (hdr_store_pin(f, &h) == ESP_OK) ret = ESP_OK;
+            }
+        }
+        fclose(f);
+    }
+    xSemaphoreGive(s_mtx);
+    if (ret != ESP_OK) ESP_LOGW(TAG, "pin add failed: %s", esp_err_to_name(ret));
+    return ret;
+}
+
+esp_err_t storage_pin_remove(int idx)
+{
+    if (!s_ready || !s_mtx) return ESP_ERR_INVALID_STATE;
+
+    esp_err_t ret = ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    FILE *f = pin_open(false);
+    if (f) {
+        pin_hdr_t h;
+        if (fseek(f, 0, SEEK_SET) == 0 && fread(&h, sizeof(h), 1, f) == 1 &&
+            h.magic == PIN_MAGIC && idx >= 0 && idx < (int)h.count) {
+            /* shift the tail down by one row */
+            ret = ESP_OK;
+            for (int i = idx; i < (int)h.count - 1; i++) {
+                cap_rec_t r;
+                if (fseek(f, (long)sizeof(pin_hdr_t) + (long)sizeof(cap_rec_t) * (i + 1), SEEK_SET) != 0 ||
+                    fread(&r, sizeof(r), 1, f) != 1) { ret = ESP_FAIL; break; }
+                if (fseek(f, (long)sizeof(pin_hdr_t) + (long)sizeof(cap_rec_t) * i, SEEK_SET) != 0 ||
+                    fwrite(&r, sizeof(r), 1, f) != 1) { ret = ESP_FAIL; break; }
+                ret = ESP_OK;
+            }
+            if (ret != ESP_FAIL) {
+                h.count--;
+                ret = hdr_store_pin(f, &h);
+            }
+        }
+        fclose(f);
+    }
+    xSemaphoreGive(s_mtx);
+    return ret;
+}
+
+esp_err_t storage_pin_clear(void)
+{
+    if (!s_ready || !s_mtx) return ESP_ERR_INVALID_STATE;
+    esp_err_t ret = ESP_FAIL;
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    FILE *f = pin_open(false);
+    if (f) {
+        pin_hdr_t h = { .magic = PIN_MAGIC, .count = 0, .reserved = 0 };
+        ret = hdr_store_pin(f, &h);
+        fclose(f);
+    }
+    xSemaphoreGive(s_mtx);
+    return ret;
 }

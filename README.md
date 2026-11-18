@@ -47,6 +47,7 @@ time-sharing contention on a single-radio SoC.
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
 | **Vendor lookup** | Manufacturer data is resolved against a ~55-entry SIG company table (Apple, Microsoft, Xiaomi, Alibaba/DingTalk, OPPO, vivo, Midea, Tile, Garmin, ...) plus the few 16-bit service UUIDs that show up on air (`0xFCB2` Location Enabled Adv, `0xFE2C` Fast Pair, `0xFD6F`, `0xFEAA`, `0xFE59`) and a name-based hint for devices that carry no company id at all — see [docs/attendance-vendors.md](docs/attendance-vendors.md) |
+| **Favourites** | Pin any archive row into its own 32-slot file: a scan window can overwrite all 128 archive rows, pinned ones stay. Every record is tagged `clone` or `scan` so a reader can tell them apart |
 | **USB console** | Same read/control surface over the cable when the SoftAP is out of reach: `status`, `scan` (raw hex), `mode`, `clone <addr>` — see [docs/usb-console.md](docs/usb-console.md) |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
 | **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click = clone on/off, double = blind scan (one window, archived), triple = radio off, two-stage hold = factory reset |

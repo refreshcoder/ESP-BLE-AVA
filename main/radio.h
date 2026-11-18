@@ -25,5 +25,11 @@ rmode_t     radio_mode(void);
 const char *radio_mode_str(rmode_t m);
 bool        radio_sniff_timed_out(void);   /* manual sniff window elapsed */
 
+/* Called once, right before the radio leaves SNIFF mode by any path (window timeout,
+ * button, web UI, console). main() uses it to archive the capture table, so a table is
+ * never lost just because the operator stopped the scan early. Must not call back into
+ * radio_*(). */
+void        radio_set_sniff_end_cb(void (*cb)(void));
+
 /* Called by main once the BLE host is synced: picks the initial mode */
 void        radio_on_ble_ready(void);

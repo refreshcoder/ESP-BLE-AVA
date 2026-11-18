@@ -158,6 +158,22 @@ void app_on_ble_sync(void)
     update_led();
 }
 
+/* Archive the capture table. Registered as the radio's "leaving SNIFF" hook, so the window
+ * timeout, the triple click, the web UI and the console all end up here -- an early stop
+ * must not throw the scan away. One open/write/flush pass, never per packet. */
+static void on_sniff_end(void)
+{
+    int saved = 0;
+    detection_t *tab = calloc(SCAN_TAB_MAX, sizeof(detection_t));
+    if (tab && storage_ready()) {
+        int n = blescan_snapshot(tab, SCAN_TAB_MAX);
+        saved = storage_capture_add_many(tab, n, cfg_stat_get("boots"), REC_SRC_SCAN);
+    }
+    free(tab);
+    ESP_LOGI(TAG, "sniff end: %d record(s) archived", saved);
+    applog_add(LOG_T_SCAN, 0, "sniff end: %d record(s) saved", saved);
+}
+
 /* 1 s tick: optional rotation, plus advertising self-heal */
 static uint32_t s_rot_tick;
 static uint8_t  s_adv_retry;
@@ -222,22 +238,12 @@ static void tick_cb(void *arg)
     }
 
     /* The scan window stops by itself: a forgotten browser tab -- or a blind scan taken away
-     * from the site -- must not leave the radio scanning forever. The result is written once,
-     * here, and never per packet (invariant: no flash write per advertisement), because the
-     * whole point of the double-click gesture is that the records survive being unplugged.
-     * The batch is one open/write/flush pass (storage_capture_add_many), so a full 128-row
-     * table does not pay the FATFS open/close cost 128 times. */
+     * from the site -- must not leave the radio scanning forever. radio_stop() runs the
+     * sniff-end hook, which archives the table. */
     if (radio_mode() == RMODE_SNIFF && radio_sniff_timed_out()) {
+        ESP_LOGI(TAG, "sniff window elapsed -> idle");
+        applog_add(LOG_T_SCAN, 0, "sniff timeout -> idle");
         radio_stop();
-        int saved = 0;
-        detection_t *tab = calloc(SCAN_TAB_MAX, sizeof(detection_t));
-        if (tab && storage_ready()) {
-            int n = blescan_snapshot(tab, SCAN_TAB_MAX);
-            saved = storage_capture_add_many(tab, n, cfg_stat_get("boots"));
-        }
-        free(tab);
-        ESP_LOGI(TAG, "sniff window elapsed -> idle, %d record(s) archived", saved);
-        applog_add(LOG_T_SCAN, 0, "sniff end: %d record(s) saved", saved);
     }
 
     update_led();
@@ -294,6 +300,7 @@ void app_main(void)
     ESP_ERROR_CHECK(blescan_init());
     ESP_ERROR_CHECK(radio_init());
     status_led_init();
+    radio_set_sniff_end_cb(on_sniff_end);
     btn_init(on_btn_short, on_btn_double, on_btn_triple, on_btn_hold);
     ESP_ERROR_CHECK(net_ap_start());       /* Wi-Fi first; coexistence params latch at BLE init */
     ESP_ERROR_CHECK(web_start());

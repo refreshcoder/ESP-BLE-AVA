@@ -102,7 +102,7 @@ tools\flash.bat COM7                                   # Windows cmd
 | `main/beacon_scan.c` | 被动+主动扫描、128 条 LRU 探测表、存 `raw[31]` 与 `rsp[31]`、间隔 EMA、AD 解析（名字 / iBeacon / **厂商数据 0xFF**） |
 | `main/beacon_adv.c` | NimBLE 广播：iBeacon 结构化 or **raw 逐字节重放**；`SCAN_RSP` 重放；地址（random / public boot override）；TX 功率映射 |
 | `main/app_cfg.c` | 3 套 profile 的 NVS 单 blob（原子写）、JSON 校验、NVS 计数器（boots/brownout）、LRU 淘汰 |
-| `main/storage.c` | `storage` 分区 FATFS+磨损均衡，`/data/cap.bin` = 12B 头 + 128 × 168B 定长记录环形覆盖（raw/rsp/name/mfg/svc/packets/dwell 都存）；点"克隆"写 1 条，扫描窗口结束用 `storage_capture_add_many()` 一趟写完。**挂载失败不再自动格式化**（数据只此一份），需要时用 USB 命令台 `records format` |
+| `main/storage.c` | `storage` 分区 FATFS+磨损均衡，`/data/cap.bin` = 12B 头 + 128 × 168B 定长记录环形覆盖（raw/rsp/name/mfg/svc/packets/dwell 都存）；点"克隆"写 1 条，扫描窗口结束用 `storage_capture_add_many()` 一趟写完。**挂载失败不再自动格式化**（数据只此一份），需要时用 USB 命令台 `records format`。另有 `/data/pin.bin`（32 槽收藏夹），与归档分离，扫描永不覆盖；每条记录带 `src`（0=克隆 / 1=扫描窗口）。离开 SNIFF 的任何路径（超时 / 三击 / 网页 / 命令台）都经过 `radio_set_sniff_end_cb()` 统一落盘 |
 | `main/web_server.c` | 21+ REST 端点、Bearer 鉴权、内嵌 gzip SPA |
 | `main/www/index.html` | 单页 UI（5 页签 + 本机记录 + 三种导出），i18n 表 + `data-i18n` |
 | `main/board.h` | 板级预设（LED/按键 GPIO），`BOARD_ID` 跟随 target |

@@ -219,6 +219,52 @@ static void cmd_profiles(void)
     end_ok();
 }
 
+/* One archive row as a JSON line: also used for favourites, they are the same struct. */
+static void emit_cap_rec(const cap_rec_t *r, int id)
+{
+    char h[CFG_RAW_MAX * 2 + 1];
+    cJSON *o = cJSON_CreateObject();
+    if (id >= 0) cJSON_AddNumberToObject(o, "id", id);
+    cfg_hex_to_str(r->addr, 6, h);
+    cJSON_AddStringToObject(o, "addr", h);
+    cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
+    cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
+    cJSON_AddStringToObject(o, "name", r->name);
+    cJSON_AddNumberToObject(o, "src", r->src);
+    cfg_hex_to_str(r->raw, r->raw_len, h);
+    cJSON_AddStringToObject(o, "raw", h);
+    cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+    cJSON_AddNumberToObject(o, "rsp_len", r->rsp_len);
+    if (r->rsp_len) {
+        cfg_hex_to_str(r->rsp, r->rsp_len, h);
+        cJSON_AddStringToObject(o, "rsp", h);
+    }
+    if (r->mfg_len || r->mfg_company) {
+        char mh[sizeof(r->mfg) * 2 + 1];
+        cfg_hex_to_str(r->mfg, r->mfg_len, mh);
+        cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
+        cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
+        cJSON_AddStringToObject(o, "mfg", mh);
+        cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
+    }
+    if (r->svc_uuid) {
+        char sh[8];
+        snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
+        cJSON_AddStringToObject(o, "svc", sh);
+        cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
+    }
+    cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
+    cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
+    cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
+    cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
+    cJSON_AddNumberToObject(o, "packets", r->count);
+    cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
+    cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
+    cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
+    cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
+    emit(o);
+}
+
 static void cmd_records(const char *arg)
 {
     if (arg && !strcmp(arg, "format")) {
@@ -238,49 +284,66 @@ static void cmd_records(const char *arg)
     cap_rec_t *recs = calloc(CAP_SLOTS, sizeof(cap_rec_t));
     if (!recs) { end_err("oom"); return; }
     int n = storage_capture_list(recs, CAP_SLOTS);
-    char h[CFG_RAW_MAX * 2 + 1];
-
-    for (int i = 0; i < n; i++) {
-        const cap_rec_t *r = &recs[i];
-        cJSON *o = cJSON_CreateObject();
-        cfg_hex_to_str(r->addr, 6, h);
-        cJSON_AddStringToObject(o, "addr", h);
-        cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
-        cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
-        cJSON_AddStringToObject(o, "name", r->name);
-        cfg_hex_to_str(r->raw, r->raw_len, h);
-        cJSON_AddStringToObject(o, "raw", h);
-        cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
-        if (r->rsp_len) {
-            cfg_hex_to_str(r->rsp, r->rsp_len, h);
-            cJSON_AddStringToObject(o, "rsp", h);
-        }
-        if (r->mfg_len || r->mfg_company) {
-            char mh[sizeof(r->mfg) * 2 + 1];
-            cfg_hex_to_str(r->mfg, r->mfg_len, mh);
-            cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
-            cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
-            cJSON_AddStringToObject(o, "mfg", mh);
-            cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
-        }
-        if (r->svc_uuid) {
-            char sh[8];
-            snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
-            cJSON_AddStringToObject(o, "svc", sh);
-            cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
-        }
-        cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
-        cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
-        cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
-        cJSON_AddNumberToObject(o, "packets", r->count);
-        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
-        cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
-        cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
-        cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
-        cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
-        emit(o);
-    }
+    for (int i = 0; i < n; i++) emit_cap_rec(&recs[i], -1);
     free(recs);
+    end_ok();
+}
+
+/* ------------------------------ favourites ------------------------------ */
+
+static void cmd_pins(const char *arg)
+{
+    if (!storage_ready()) { end_err("archive unavailable"); return; }
+    if (arg && !strcmp(arg, "clear")) {
+        esp_err_t e = storage_pin_clear();
+        if (e != ESP_OK) { end_err(esp_err_to_name(e)); return; }
+        end_ok();
+        return;
+    }
+    cap_rec_t *recs = calloc(PIN_SLOTS, sizeof(cap_rec_t));
+    if (!recs) { end_err("oom"); return; }
+    int n = storage_pin_list(recs, PIN_SLOTS);
+    for (int i = 0; i < n; i++) emit_cap_rec(&recs[i], i);
+    free(recs);
+    end_ok();
+}
+
+/* pin <n>: n is the index in `records` output (newest first), like the web UI's row order */
+static void cmd_pin(const char *arg)
+{
+    if (!arg) { end_err("pin <n>  (index from 'records')"); return; }
+    char *endp = NULL;
+    long idx = strtol(arg, &endp, 10);
+    if (endp == arg || idx < 0) { end_err("pin <n>"); return; }
+    if (!storage_ready()) { end_err("archive unavailable"); return; }
+
+    cap_rec_t *recs = calloc(CAP_SLOTS, sizeof(cap_rec_t));
+    if (!recs) { end_err("oom"); return; }
+    int n = storage_capture_list(recs, CAP_SLOTS);
+    if (idx >= n) { free(recs); end_err("no such archive row"); return; }
+    esp_err_t e = storage_pin_add(&recs[idx]);
+    char addr[16];
+    cfg_hex_to_str(recs[idx].addr, 6, addr);
+    free(recs);
+    if (e == ESP_ERR_NO_MEM) { end_err("favourites full"); return; }
+    if (e != ESP_OK) { end_err(esp_err_to_name(e)); return; }
+    applog_add(LOG_T_CFG, 0, "usb: pin %s", addr);
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddStringToObject(o, "addr", addr);
+    emit(o);
+    end_ok();
+}
+
+static void cmd_unpin(const char *arg)
+{
+    if (!arg) { end_err("unpin <n>  (index from 'pins')"); return; }
+    char *endp = NULL;
+    long idx = strtol(arg, &endp, 10);
+    if (endp == arg || idx < 0) { end_err("unpin <n>"); return; }
+    esp_err_t e = storage_pin_remove((int)idx);
+    if (e != ESP_OK) { end_err(esp_err_to_name(e)); return; }
     end_ok();
 }
 
@@ -401,6 +464,9 @@ static void handle_line(char *line)
     else if (!strcmp(cmd, "scan"))                      cmd_scan();
     else if (!strcmp(cmd, "profiles"))                  cmd_profiles();
     else if (!strcmp(cmd, "records"))                   cmd_records(a1);
+    else if (!strcmp(cmd, "pins"))                      cmd_pins(a1);
+    else if (!strcmp(cmd, "pin"))                       cmd_pin(a1);
+    else if (!strcmp(cmd, "unpin"))                     cmd_unpin(a1);
     else if (!strcmp(cmd, "logs"))                      cmd_logs(a1);
     else if (!strcmp(cmd, "mode"))                      { if (a1) cmd_mode(a1); else end_err("mode sniff|clone|idle"); }
     else if (!strcmp(cmd, "use"))                       cmd_use(a1);
