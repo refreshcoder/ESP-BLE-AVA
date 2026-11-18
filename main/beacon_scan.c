@@ -339,6 +339,14 @@ static void aggregate(const struct ble_gap_disc_desc *desc)
         }
     }
     if (!slot) {
+        /* A scan response can only complete a row: without the advertisement there is
+         * nothing to replay, and creating a slot here would leave a zero-filled record
+         * (exactly what happened once the noise filter started dropping the ADVs of
+         * phones while their scan responses still arrived). */
+        if (desc->event_type == ADV_RPT_SCAN_RSP) {
+            xSemaphoreGive(s_mtx);
+            return;
+        }
         if (s_used < SCAN_TAB_MAX) {
             slot = &s_tab[s_used++];
         } else {                       /* LRU: evict the one not seen for longest */
