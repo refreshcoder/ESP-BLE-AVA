@@ -532,7 +532,7 @@ static esp_err_t h_scan_post(httpd_req_t *req)
     cJSON_Delete(j);
 
     /* Scanning is manual-only, so saving the parameters just restarts an open sniff window
-     * with the new interval/window (and restarts its 30 s). */
+     * with the new interval/window (and restarts its 60 s). */
     if (radio_mode() == RMODE_SNIFF) {
         esp_err_t e = radio_sniff();
         if (e != ESP_OK) return fail(req, "500 Internal Server Error", "scan restart failed");

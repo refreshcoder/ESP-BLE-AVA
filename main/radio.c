@@ -11,7 +11,7 @@
 
 static const char *TAG = "radio";
 
-#define SNIFF_TIMEOUT_US (30 * 1000 * 1000)   /* manual sniff stops by itself */
+#define SNIFF_TIMEOUT_US (60 * 1000 * 1000)   /* manual sniff stops by itself */
 
 static SemaphoreHandle_t s_mtx;
 static volatile rmode_t  s_mode = RMODE_IDLE;

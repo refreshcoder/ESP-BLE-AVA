@@ -52,7 +52,7 @@ pip install pyserial
 
 python tools/usb_cli.py -p COM3 status
 python tools/usb_cli.py -p COM3 scan
-python tools/usb_cli.py -p COM3 mode sniff      # 30 s capture window
+python tools/usb_cli.py -p COM3 mode sniff      # 60 s capture window
 python tools/usb_cli.py -p COM3 clone a4c1382a5122
 ```
 
@@ -62,7 +62,7 @@ commands. Port names: `COM3` (Windows), `/dev/ttyACM0` (Linux), `/dev/cu.usbmode
 A typical capture-then-clone session over USB only:
 
 ```
-mode sniff        -> wait for the 30 s window, or just watch `scan`
+mode sniff        -> wait for the 60 s window, or just watch `scan`
 scan              -> pick the row you want (raw hex included)
 clone <addr>      -> becomes the active profile and starts advertising
 status            -> verify mode=clone, adv=true

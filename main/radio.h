@@ -17,7 +17,7 @@ typedef enum {
 
 esp_err_t   radio_init(void);
 
-esp_err_t   radio_sniff(void);   /* stop advertising -> start scanning (30 s, then idle) */
+esp_err_t   radio_sniff(void);   /* stop advertising -> start scanning (60 s, then idle) */
 esp_err_t   radio_clone(void);   /* stop scanning -> advertise the active profile */
 esp_err_t   radio_stop(void);    /* stop both */
 

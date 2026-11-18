@@ -87,7 +87,7 @@ matches on:
 ## How to actually identify one
 
 ```bash
-python tools/usb_cli.py -p COM7 mode sniff     # 30 s window
+python tools/usb_cli.py -p COM7 mode sniff     # 60 s window
 python tools/usb_cli.py -p COM7 scan           # or watch the UI's Signals tab
 ```
 
