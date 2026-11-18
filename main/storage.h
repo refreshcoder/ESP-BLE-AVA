@@ -19,7 +19,7 @@
  *     worst the newest record is lost on power failure
  */
 
-#define CAP_SLOTS 32
+#define CAP_SLOTS 128
 
 typedef struct {
     uint32_t magic;          /* 0xCA9E0001: tells a valid record from an empty/garbage slot */
@@ -52,6 +52,10 @@ esp_err_t   storage_capture_add(const detection_t *d, uint32_t boot_seq);
 int         storage_capture_list(cap_rec_t *out, int max);
 
 esp_err_t   storage_capture_clear(void);
+
+/* Format the partition. Only valid while the archive is NOT mounted (would delete records),
+ * i.e. the deliberate escape hatch for a fresh or damaged partition. */
+esp_err_t   storage_format(void);
 
 /* For /api/status, e.g. "12/32"; returns "off" when unavailable */
 const char *storage_stat_str(char *buf, size_t len);

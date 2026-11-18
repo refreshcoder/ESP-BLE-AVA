@@ -102,11 +102,11 @@ tools\flash.bat COM7                                   # Windows cmd
 | `main/beacon_scan.c` | 被动+主动扫描、16 条 LRU 探测表、存 `raw[31]` 与 `rsp[31]`、间隔 EMA、AD 解析（名字 / iBeacon / **厂商数据 0xFF**） |
 | `main/beacon_adv.c` | NimBLE 广播：iBeacon 结构化 or **raw 逐字节重放**；`SCAN_RSP` 重放；地址（random / public boot override）；TX 功率映射 |
 | `main/app_cfg.c` | 3 套 profile 的 NVS 单 blob（原子写）、JSON 校验、NVS 计数器（boots/brownout）、LRU 淘汰 |
-| `main/storage.c` | `storage` 分区 FATFS+磨损均衡，`/data/cap.bin` = 12B 头 + 32 × 定长记录环形覆盖（点"克隆"时写 1 条） |
+| `main/storage.c` | `storage` 分区 FATFS+磨损均衡，`/data/cap.bin` = 12B 头 + 128 × 定长记录环形覆盖；点"克隆"写 1 条，扫描窗口结束整表批量写。**挂载失败不再自动格式化**（数据只此一份），需要时用 USB 命令台 `records format` |
 | `main/web_server.c` | 21+ REST 端点、Bearer 鉴权、内嵌 gzip SPA |
 | `main/www/index.html` | 单页 UI（5 页签 + 本机记录 + 三种导出），i18n 表 + `data-i18n` |
 | `main/board.h` | 板级预设（LED/按键 GPIO），`BOARD_ID` 跟随 target |
-| `main/status_led.c` / `btn.c` | 单色灯 6 种闪法 / WS2812 加颜色；单击=切模式、双击=停射频、长按 5s=出厂 |
+| `main/status_led.c` / `btn.c` | 单色灯 6 种闪法 / WS2812 加颜色；单击=切模式、双击=盲扫（60s 窗口，结束整表落盘）、三击=停射频、长按 5s=出厂 |
 | `main/net_ap.c` | SoftAP（**只有 AP，没有 STA**）|
 | `tools/` | `flash.sh/.bat/.ps1`、`merge.sh`、`ble_watch.py`（Windows 侧判空口）、`check_i18n.js`、`test_mfg.js` |
 

@@ -11,6 +11,7 @@
 #include "usb_console.h"
 #include "board.h"
 #include <string.h>
+#include <stdlib.h>
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_system.h"
@@ -102,12 +103,23 @@ static void on_btn_short(void)
     applog_add(LOG_T_ACT, 0, "btn 1x: mode=%s", radio_mode_str(radio_mode()));
 }
 
-/* Double click: stop the radio, keep the web UI */
+/* Double click: blind scan. One capture window, archived to flash when it ends -- that is
+ * the whole point: walk away, then read the records over USB. */
 static void on_btn_double(void)
+{
+    esp_err_t e = radio_sniff();
+    if (e != ESP_OK) status_led_set(LED_ERROR);
+    update_led();
+    applog_add(LOG_T_ACT, 0, "btn 2x: blind scan %s", e == ESP_OK ? "started" : "failed");
+    log_stack_margin("btn 2x");
+}
+
+/* Triple click: stop the radio */
+static void on_btn_triple(void)
 {
     radio_stop();
     update_led();
-    applog_add(LOG_T_ACT, 0, "btn 2x: mode=idle");
+    applog_add(LOG_T_ACT, 0, "btn 3x: mode=idle");
 }
 
 static void reboot_cb(void *arg) { esp_restart(); }
@@ -209,12 +221,26 @@ static void tick_cb(void *arg)
         s_adv_retry = 0;
     }
 
-    /* Manual sniffing stops by itself: a forgotten browser tab must not leave the radio
-     * scanning forever. Tapping Sniff again simply restarts the 60 s window. */
+    /* The scan window stops by itself: a forgotten browser tab -- or a blind scan taken away
+     * from the site -- must not leave the radio scanning forever. The result is written once,
+     * here, and never per packet (invariant: no flash write per advertisement), because the
+     * whole point of the double-click gesture is that the records survive being unplugged.
+     * One write costs ~30-50 ms per record, i.e. a couple of seconds for a full table; the
+     * radio has just been stopped, so blocking the tick that long is harmless. */
     if (radio_mode() == RMODE_SNIFF && radio_sniff_timed_out()) {
-        ESP_LOGI(TAG, "sniff window elapsed -> idle");
-        applog_add(LOG_T_SCAN, 0, "sniff timeout -> idle");
         radio_stop();
+        int saved = 0;
+        detection_t *tab = calloc(SCAN_TAB_MAX, sizeof(detection_t));
+        if (tab) {
+            int n = blescan_snapshot(tab, SCAN_TAB_MAX);
+            uint32_t boot = cfg_stat_get("boots");
+            for (int i = 0; i < n; i++) {
+                if (storage_capture_add(&tab[i], boot) == ESP_OK) saved++;
+            }
+            free(tab);
+        }
+        ESP_LOGI(TAG, "sniff window elapsed -> idle, %d record(s) archived", saved);
+        applog_add(LOG_T_SCAN, 0, "sniff end: %d record(s) saved", saved);
     }
 
     update_led();
@@ -271,7 +297,7 @@ void app_main(void)
     ESP_ERROR_CHECK(blescan_init());
     ESP_ERROR_CHECK(radio_init());
     status_led_init();
-    btn_init(on_btn_short, on_btn_double, on_btn_hold);
+    btn_init(on_btn_short, on_btn_double, on_btn_triple, on_btn_hold);
     ESP_ERROR_CHECK(net_ap_start());       /* Wi-Fi first; coexistence params latch at BLE init */
     ESP_ERROR_CHECK(web_start());
     ESP_ERROR_CHECK(beacon_stack_init());  /* async: sync_cb -> app_on_ble_sync */

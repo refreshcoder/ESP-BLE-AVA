@@ -77,12 +77,13 @@ static void cmd_help(void)
            "# scan                          - JSONL: the live capture table (raw/rsp/mfg hex)\n"
            "# profiles                      - JSONL: the stored profiles\n"
            "# records                       - JSONL: the persistent capture archive\n"
+           "# records clear                 - empty the archive\n"
+           "# records format                - format it (only while the archive is off)\n"
            "# logs [since_seq]              - JSONL: ring log records\n"
            "# mode sniff|clone|idle         - switch the radio (arbitrated by radio.c)\n"
            "# use <id>|-1                   - activate a profile / broadcast nothing\n"
            "# clone <addr 12 hex>           - copy a row of the capture table into a profile\n"
            "# clear                         - empty the capture table\n"
-           "# records clear                 - empty the persistent archive\n"
            "# reboot                        - restart the board\n"
            "# factory yes                   - factory reset, then restart\n");
     end_ok();
@@ -218,9 +219,15 @@ static void cmd_profiles(void)
     end_ok();
 }
 
-static void cmd_records(int clear)
+static void cmd_records(const char *arg)
 {
-    if (clear) {
+    if (arg && !strcmp(arg, "format")) {
+        esp_err_t e = storage_format();
+        if (e != ESP_OK) { end_err(esp_err_to_name(e)); return; }
+        end_ok();
+        return;
+    }
+    if (arg && !strcmp(arg, "clear")) {
         esp_err_t e = storage_capture_clear();
         if (e != ESP_OK) { end_err("archive unavailable"); return; }
         end_ok();
@@ -375,7 +382,7 @@ static void handle_line(char *line)
     else if (!strcmp(cmd, "status"))                    cmd_status();
     else if (!strcmp(cmd, "scan"))                      cmd_scan();
     else if (!strcmp(cmd, "profiles"))                  cmd_profiles();
-    else if (!strcmp(cmd, "records"))                   cmd_records(a1 && !strcmp(a1, "clear"));
+    else if (!strcmp(cmd, "records"))                   cmd_records(a1);
     else if (!strcmp(cmd, "logs"))                      cmd_logs(a1);
     else if (!strcmp(cmd, "mode"))                      { if (a1) cmd_mode(a1); else end_err("mode sniff|clone|idle"); }
     else if (!strcmp(cmd, "use"))                       cmd_use(a1);

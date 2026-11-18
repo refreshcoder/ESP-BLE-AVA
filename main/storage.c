@@ -13,7 +13,7 @@ static const char *TAG = "store";
 #define PART_LABEL    "storage"
 #define CAP_FILE      MOUNT_POINT "/cap.bin"
 #define REC_MAGIC     0xCA9E0002u   /* bumped: cap_rec_t gained manufacturer data */
-#define HDR_MAGIC     0xCA9E0003u   /* bumped together with REC_MAGIC */
+#define HDR_MAGIC     0xCA9E0004u   /* bumped again: CAP_SLOTS 32 -> 128 */
 
 typedef struct {
     uint32_t magic;
@@ -76,18 +76,24 @@ static FILE *open_ready(void)
 
 esp_err_t storage_init(void)
 {
-    s_mtx = xSemaphoreCreateMutex();
-    if (!s_mtx) return ESP_ERR_NO_MEM;
+    if (!s_mtx) {
+        s_mtx = xSemaphoreCreateMutex();
+        if (!s_mtx) return ESP_ERR_NO_MEM;
+    }
 
+    /* Deliberately NOT format_if_mount_failed: a half-written FAT after a power cut would
+     * otherwise be silently wiped, and what is on flash is field data that only exists once.
+     * An unmountable partition therefore stays unmountable (the raw bytes are still readable
+     * with `esptool read-flash 0x320000 0xD0000`), and the UI reports storage: off. */
     const esp_vfs_fat_mount_config_t cfg = {
-        .format_if_mount_failed = true,
+        .format_if_mount_failed = false,
         .max_files              = 4,
         .allocation_unit_size   = 4096,
     };
     esp_err_t e = esp_vfs_fat_spiflash_mount_rw_wl(MOUNT_POINT, PART_LABEL, &cfg, &s_wl);
     if (e != ESP_OK) {
-        ESP_LOGE(TAG, "mount %s failed: %s (archive disabled, everything else still works)",
-                 PART_LABEL, esp_err_to_name(e));
+        ESP_LOGE(TAG, "mount %s failed: %s (archive disabled, data left untouched; "
+                 "everything else still works)", PART_LABEL, esp_err_to_name(e));
         return e;
     }
     s_ready = true;
@@ -104,6 +110,20 @@ esp_err_t storage_init(void)
 }
 
 bool storage_ready(void) { return s_ready; }
+
+/* The mount no longer formats on its own (see above), so a never-used or erased partition
+ * needs this one deliberate call. Only from the USB console, never automatically. */
+esp_err_t storage_format(void)
+{
+    if (s_ready) return ESP_ERR_INVALID_STATE;      /* would delete live records */
+    esp_err_t e = esp_vfs_fat_spiflash_format_rw_wl(PART_LABEL);
+    if (e != ESP_OK) {
+        ESP_LOGE(TAG, "format %s failed: %s", PART_LABEL, esp_err_to_name(e));
+        return e;
+    }
+    ESP_LOGW(TAG, "%s formatted on request", PART_LABEL);
+    return storage_init();
+}
 
 esp_err_t storage_capture_add(const detection_t *d, uint32_t boot_seq)
 {

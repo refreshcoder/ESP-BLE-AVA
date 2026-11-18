@@ -113,7 +113,8 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
         <table class="legend" style="margin-top:10px">
           <tr><th data-i18n="th_button">Button (BOOT)</th><th data-i18n="th_action">Action</th></tr>
           <tr><td data-i18n="btn1_click">Single click</td><td data-i18n="btn1_act">Sniff ⇄ Clone</td></tr>
-          <tr><td data-i18n="btn2_click">Double click</td><td data-i18n="btn2_act">Stop radio</td></tr>
+          <tr><td data-i18n="btn2_click">Double click</td><td data-i18n="btn2_act">Blind scan: one 60 s window, archived when it ends</td></tr>
+          <tr><td data-i18n="btn3_click">Triple click</td><td data-i18n="btn3_act">Stop radio</td></tr>
           <tr><td data-i18n="btn_long">Hold 5 s / 8 s</td><td data-i18n="btn_long_act">5 s warns (fast blinks) · 8 s factory reset; release in between to cancel</td></tr>
         </table>
       </details>
@@ -132,7 +133,7 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
       <table><thead><tr><th data-i18n="th_signal">Signal</th><th data-i18n="th_rssi">RSSI</th><th data-i18n="th_itvl">Interval</th><th></th></tr></thead>
       <tbody id="cap-body"></tbody></table>
       <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="sniff_tmo">Sniffing stops by itself after 60 s - tap Sniff again to extend.</div>
-      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n-html="cap_note">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
+      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n-html="cap_note">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> writes one record to the archive, and a finished capture window (double click / Sniff) writes the whole table.</div>
     </div>
 
     <div class="card">
@@ -295,9 +296,10 @@ const I18N = {
     led_six: "Six rapid blinks", led_six_m: "Radio error, or the button is being held towards a factory reset",
     th_button: "Button (BOOT)", th_action: "Action",
     btn1_click: "Single click", btn1_act: "Clone on / off",
-    btn2_click: "Double click", btn2_act: "Stop radio",
+    btn2_click: "Double click", btn2_act: "Blind scan: one 60 s window, archived when it ends",
+    btn3_click: "Triple click", btn3_act: "Stop radio",
     btn_long: "Hold 5 s / 8 s", btn_long_act: "5 s warns (fast blinks) · 8 s factory reset; release to cancel",
-    led_sniff: "double blink", led_clone: "1 Hz blink", led_clone_client: "triple fast", led_idle: "blink every 3 s",
+    led_sniff: "continuous fast blink", led_clone: "1 Hz blink", led_clone_client: "triple fast", led_idle: "blink every 3 s",
     st_board: "board", st_version: "version", st_ip: "IP", st_profile: "profile", st_none: "(none)",
     st_scan: "scan", st_packets: "packets", st_detected: "detected", st_devices: "devices",
     st_tx: "tx", st_adv_starts: "adv starts", st_archive: "archive",
@@ -307,7 +309,7 @@ const I18N = {
     cap_this_session: "This session",
     btn_refresh: "Refresh", btn_clear: "Clear", btn_clear_archive: "Clear archive",
     th_signal: "Signal", th_rssi: "RSSI", th_itvl: "Interval",
-    cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.",
+    cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> writes one record to the archive, and a finished capture window (double click / Sniff) writes the whole table.",
     sniff_tmo: "Sniffing stops by itself after 60 s - tap Sniff again to extend.",
     cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
     cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
@@ -391,9 +393,10 @@ const I18N = {
     led_six: "六连快闪", led_six_m: "射频错误，或正按住按钮即将恢复出厂",
     th_button: "按键（BOOT）", th_action: "动作",
     btn1_click: "单击", btn1_act: "广播 开 / 关",
-    btn2_click: "双击", btn2_act: "关闭射频",
+    btn2_click: "双击", btn2_act: "盲扫：开一个 60 秒窗口，结束后自动存盘",
+    btn3_click: "三击", btn3_act: "关闭射频",
     btn_long: "按住 5 秒 / 8 秒", btn_long_act: "5 秒警告（急闪）· 8 秒恢复出厂；中途松手取消",
-    led_sniff: "双闪", led_clone: "1 Hz 慢闪", led_clone_client: "三连快闪", led_idle: "每 3 秒闪一次",
+    led_sniff: "连续快闪", led_clone: "1 Hz 慢闪", led_clone_client: "三连快闪", led_idle: "每 3 秒闪一次",
     st_board: "开发板", st_version: "版本", st_ip: "IP", st_profile: "配置", st_none: "（无）",
     st_scan: "扫描", st_packets: "个包", st_detected: "已发现", st_devices: "个设备",
     st_tx: "发射", st_adv_starts: "广播启动", st_archive: "归档",
@@ -403,7 +406,7 @@ const I18N = {
     cap_this_session: "本次会话",
     btn_refresh: "刷新", btn_clear: "清空", btn_clear_archive: "清空归档",
     th_signal: "信号", th_rssi: "RSSI", th_itvl: "间隔",
-    cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会同时写入下方掉电保留的归档。",
+    cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会把其中一条写入下方归档；一次扫描窗口结束（双击 / 嗅探）会把整表写入。",
     sniff_tmo: "嗅探会在 60 秒后自动停止，再点一次「嗅探」可重新计时。",
     cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
     cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",

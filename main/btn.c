@@ -15,6 +15,7 @@ static const char *TAG = "btn";
 
 static btn_single_cb_t s_single;
 static btn_double_cb_t s_double;
+static btn_triple_cb_t s_triple;
 static btn_hold_cb_t   s_hold;
 
 static inline uint32_t now_ms(void)
@@ -86,9 +87,12 @@ static void btn_task(void *arg)
             if (clicks == 1) {
                 ESP_LOGI(TAG, "single click");
                 if (s_single) s_single();
-            } else {
-                ESP_LOGI(TAG, "double click (%u)", clicks);
+            } else if (clicks == 2) {
+                ESP_LOGI(TAG, "double click");
                 if (s_double) s_double();
+            } else {
+                ESP_LOGI(TAG, "triple click (%u)", clicks);
+                if (s_triple) s_triple();
             }
             clicks = 0;
             ESP_LOGI(TAG, "stack low-water %u B", (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
@@ -98,10 +102,12 @@ static void btn_task(void *arg)
     }
 }
 
-void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_hold_cb_t on_hold)
+void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_triple_cb_t on_triple,
+              btn_hold_cb_t on_hold)
 {
     s_single = on_single;
     s_double = on_double;
+    s_triple = on_triple;
     s_hold   = on_hold;
 
     gpio_config_t io = {
@@ -115,6 +121,6 @@ void btn_init(btn_single_cb_t on_single, btn_double_cb_t on_double, btn_hold_cb_
     gpio_config(&io);
 
     xTaskCreate(btn_task, "btn", BTN_TASK_STACK, NULL, 4, NULL);
-    ESP_LOGI(TAG, "button gpio%d: 1click=clone on/off, 2click=radio off, hold %dms=warn/%dms=factory reset",
+    ESP_LOGI(TAG, "button gpio%d: 1click=clone on/off, 2click=blind scan, 3click=radio off, hold %dms=warn/%dms=factory reset",
              BOARD_BTN_GPIO, BOARD_BTN_LONG_MS, BOARD_BTN_COMMIT_MS);
 }
