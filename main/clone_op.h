@@ -19,3 +19,15 @@
  */
 esp_err_t clone_op_from_addr(const uint8_t addr[6], int *out_id, uint16_t *out_itvl,
                              bool *out_replaced, char *msg, size_t msglen);
+
+/*
+ * The same thing without the capture table: build the profile from bytes the caller already
+ * has (a `raw` hex string typed on the USB console). Needed when the source is out of radio
+ * range -- the payload was captured earlier and only needs to be replayed.
+ *
+ * The profile is named `usb-raw` and reused on every call, so repeating the command updates
+ * one slot instead of filling the config up.
+ */
+esp_err_t clone_op_from_raw(const uint8_t *raw, uint8_t raw_len, const uint8_t *rsp, uint8_t rsp_len,
+                            int *out_id, uint16_t *out_itvl, bool *out_replaced,
+                            char *msg, size_t msglen);

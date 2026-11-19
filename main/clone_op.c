@@ -108,3 +108,71 @@ esp_err_t clone_op_from_addr(const uint8_t addr[6], int *out_id, uint16_t *out_i
     if (out_replaced) *out_replaced = replaced;
     return ESP_OK;
 }
+
+esp_err_t clone_op_from_raw(const uint8_t *raw, uint8_t raw_len, const uint8_t *rsp, uint8_t rsp_len,
+                            int *out_id, uint16_t *out_itvl, bool *out_replaced,
+                            char *msg, size_t msglen)
+{
+    if (!raw || raw_len < 2 || raw_len > CFG_RAW_MAX) {
+        snprintf(msg, msglen, "raw must be 2..%d bytes", CFG_RAW_MAX);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (rsp_len > CFG_RAW_MAX) {
+        snprintf(msg, msglen, "rsp must be 0..%d bytes", CFG_RAW_MAX);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const uint16_t itvl = 100;         /* the sources we have seen advertise at ~82..100 ms */
+    int id = -1;
+    bool replaced = false;
+
+    cfg_lock();
+    beacon_cfg_t *c = cfg_get();
+    int slot = -1;
+    for (int i = 0; i < c->count; i++) {
+        if (!strcmp(c->p[i].name, "usb-raw")) { slot = i; break; }
+    }
+    if (slot < 0) slot = cfg_pick_slot(c);
+    if (slot >= 0) {
+        replaced = (slot < c->count);
+        beacon_profile_t *p = &c->p[slot];
+        memset(p, 0, sizeof(*p));
+        snprintf(p->name, sizeof(p->name), "usb-raw");
+        p->kind        = PROFILE_KIND_RAW;
+        p->enabled     = true;
+        memcpy(p->raw, raw, raw_len);
+        p->raw_len     = raw_len;
+        if (rsp && rsp_len) {
+            memcpy(p->rsp, rsp, rsp_len);
+            p->rsp_len = rsp_len;
+        }
+        p->ref_rssi    = -59;
+        p->radio_dbm   = 9;
+        p->adv_itvl_ms = itvl;
+        p->scannable   = rsp_len > 0;  /* a scan response implies the source answered SCAN_REQ */
+
+        if (!replaced) c->count++;
+        c->active = slot;
+        cfg_touch(c, slot);
+        id = slot;
+        cfg_save();
+        applog_add(LOG_T_CFG, 0, "raw profile #%d: %u bytes", id, (unsigned)raw_len);
+    }
+    cfg_unlock();
+
+    if (id < 0) {
+        snprintf(msg, msglen, "config full and only the active profile is left; delete one first");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t e = radio_clone();
+    if (e != ESP_OK) {
+        snprintf(msg, msglen, "clone apply failed");
+        return e;
+    }
+
+    if (out_id)       *out_id = id;
+    if (out_itvl)     *out_itvl = itvl;
+    if (out_replaced) *out_replaced = replaced;
+    return ESP_OK;
+}

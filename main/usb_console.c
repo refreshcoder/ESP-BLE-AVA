@@ -83,6 +83,7 @@ static void cmd_help(void)
            "# mode sniff|clone|idle         - switch the radio (arbitrated by radio.c)\n"
            "# use <id>|-1                   - activate a profile / broadcast nothing\n"
            "# clone <addr 12 hex>           - copy a row of the capture table into a profile\n"
+           "# adv <hex 4..62>               - build/update the `usb-raw` profile from hex and broadcast\n"
            "# clear                         - empty the capture table\n"
            "# reboot                        - restart the board\n"
            "# factory yes                   - factory reset, then restart\n");
@@ -481,6 +482,34 @@ static void cmd_clone(const char *arg)
     end_ok();
 }
 
+/* adv <hex>: the payload does not have to be on the air right now -- the console is also
+ * how a profile gets restored on a board that is nowhere near the source. */
+static void cmd_adv(const char *arg)
+{
+    size_t n = arg ? strlen(arg) : 0;
+    if (n < 4 || n > (size_t)CFG_RAW_MAX * 2 || (n & 1)) { end_err("adv <hex 4..62 chars>"); return; }
+
+    uint8_t raw[CFG_RAW_MAX];
+    if (!cfg_hex_from_str(arg, raw, (int)(n / 2))) { end_err("adv <hex 4..62 chars>"); return; }
+
+    char msg[64] = {0};
+    int id = -1;
+    uint16_t itvl = 0;
+    bool replaced = false;
+    esp_err_t e = clone_op_from_raw(raw, (uint8_t)(n / 2), NULL, 0, &id, &itvl, &replaced, msg, sizeof(msg));
+    if (e != ESP_OK) { end_err(msg[0] ? msg : esp_err_to_name(e)); return; }
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddNumberToObject(o, "id", id);
+    cJSON_AddNumberToObject(o, "raw_len", (int)(n / 2));
+    cJSON_AddNumberToObject(o, "adv_itvl_ms", itvl);
+    cJSON_AddBoolToObject(o, "replaced", replaced);
+    cJSON_AddStringToObject(o, "mode", radio_mode_str(radio_mode()));
+    emit(o);
+    end_ok();
+}
+
 static void cmd_reboot(void)
 {
     printf("# rebooting\n#END\n");
@@ -526,6 +555,7 @@ static void handle_line(char *line)
     else if (!strcmp(cmd, "mode"))                      { if (a1) cmd_mode(a1); else end_err("mode sniff|clone|idle"); }
     else if (!strcmp(cmd, "use"))                       cmd_use(a1);
     else if (!strcmp(cmd, "clone"))                     cmd_clone(a1);
+    else if (!strcmp(cmd, "adv"))                       cmd_adv(a1);
     else if (!strcmp(cmd, "clear"))                     { blescan_clear(); applog_add(LOG_T_SCAN, 0, "usb: table cleared"); end_ok(); }
     else if (!strcmp(cmd, "reboot"))                    cmd_reboot();
     else if (!strcmp(cmd, "factory"))                   { if (a1 && !strcmp(a1, "yes")) cmd_factory(); else end_err("factory yes (erases the config)"); }

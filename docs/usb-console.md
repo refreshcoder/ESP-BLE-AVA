@@ -36,6 +36,7 @@ status
 | `mode sniff\|clone\|idle` | switch the radio (arbitrated by `radio.c`, same as the UI) |
 | `use <id>` / `use -1` | activate profile `id` / broadcast nothing |
 | `clone <addr>` | copy one row of the capture table into a profile and start advertising |
+| `adv <hex>` | Build/update the `usb-raw` profile from a hex payload and start broadcasting — no capture table entry needed, so a payload captured earlier can be restored anywhere |
 | `clear` | empty the capture table |
 | `records clear` | empty the persistent archive |
 | `pins` | JSONL: favourites (`id` per row, oldest first) |
