@@ -52,7 +52,9 @@ the company id matters more than the name:
   `0x0100`, not the device name. This is why community guides say "the signal marked
   TomTom is the DingTalk machine".
 * the payload after the company id changes per site / per device
-* `0xFE3C` is not in the assigned-numbers list distributed with this firmware
+* `0xFE3C` is not in the published assigned-numbers list, but the firmware names it
+  `DingTalk` (verified against a real terminal: company `0x0100`, payload `b5 00 02 …`,
+  flags `02 01 16`, this service UUID, advertised every ~82 ms)
 
 Sources: the `HIT-bangbang/Dingding-Assistant` README (ESP32 spoofing project, name +
 raw dump instructions) and a blog post showing a real `nRF Connect` raw string.

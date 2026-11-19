@@ -151,6 +151,8 @@ static const id_name_t k_service[] = {
     { 0xFD6F, "Exposure Notification" },   /* Apple/Google */
     { 0xFEAA, "Eddystone" },               /* Google */
     { 0xFE59, "Nordic DFU" },
+    { 0xFE3C, "DingTalk" },               /* DingTalk BLE check-in point (verified on air:
+                                          * company 0x0100 + `b5 00 02` payload + this UUID) */
 };
 
 const char *blescan_service_name(uint16_t uuid)
