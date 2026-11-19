@@ -346,6 +346,7 @@ docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
 docs/hardware.md       pinout, power options, antenna and console notes
 docs/usb-console.md    USB console: commands, protocol, host tool
 docs/attendance-vendors.md  how 考勤机 / 门禁 terminals identify themselves over BLE
+docs/blind-scan.md      field guide: 盲扫定位（参数、判读规则、坑清单）
 tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
