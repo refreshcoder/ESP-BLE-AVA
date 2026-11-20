@@ -332,7 +332,29 @@ curl -sI http://192.168.4.1/ | grep -i "etag\|cache-control\|content-encoding"
 
 ---
 
+> **As implemented in `4f5dfe2`:** the read session is opened *before* the ETag is chosen, not after. `storage_ui_stat()` and `storage_ui_read_begin()` each take the mutex with a 500 ms timeout and `stat` releases it in between, so the snippet order below can serve the embedded body under the uploaded file's ETag when a commit lands in that gap. Opening first also means the 304 path must release the session explicitly (`if (from_successful_begin) read_end();`).
+
 ### Task 3: 上传/删除/查询端点
+
+**Carried from the Task 2 review (fix these as part of this task):**
+
+- **P1 (brief bug, ruled):** the embedded path sets `Cache-Control: public, max-age=86400`, which
+  forbids revalidation — a device that loaded the firmware UI keeps it for a day and never sees an
+  upload. Replace the ternary with one unconditional
+  `httpd_resp_set_hdr(req, "Cache-Control", "no-cache");` and delete the comment that claims a
+  flash invalidates the cache.
+- **P2-2:** delete the dead store `len = flen;` in the fs branch (the chunked path never reads it).
+- **P2-1 (contract, not code):** `storage_ui_read_begin()` holds the mutex for the whole socket
+  transfer, and `storage_ui_upload_begin()` takes it with a zero timeout — so an upload attempted
+  while another client is streaming `/` on a slow link returns `ESP_ERR_INVALID_STATE`. It is not
+  "invalid payload": answer `409 Conflict` and let the client retry.
+- **P2-4 (why Task 1's deferred `storage_ui_remove()` locking matters here):** an unlink can land
+  while `s_ui_rd` is open; if FatFs permits unlink-while-open the loop reaches EOF without an error
+  and the response ends as a cleanly-terminated **corrupt** page. So `DELETE /api/ui` must take
+  `s_ui_mtx` (non-blocking; `409` if a stream is in flight) rather than calling
+  `storage_ui_remove()` unlocked. Add the lock inside `storage_ui_remove()` itself.
+- **P2-a (mutex contract):** only call `storage_ui_read_end()` / `storage_ui_upload_abort()` after a
+  *successful* `*_begin()`; the guard keys on global session state, not on the caller's identity.
 
 **Files:**
 - Modify: `main/web_server.c`（`h_profiles_get` 之前插入三个 handler；`REG` 表尾追加三行）
