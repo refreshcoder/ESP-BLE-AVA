@@ -51,6 +51,10 @@ status
 over USB is byte-identical to one made from the browser: profile creation, address handling
 (random pinned as static / public applied at boot), one archive write, radio switch.
 
+The web page itself is the one thing the console cannot change: it is replaced over the SoftAP --
+`python tools/ui_push.py --pass <AP password> main/www/index.html`, see
+[Uploading a new UI](#uploading-a-new-ui).
+
 ## Host side
 
 ```bash

@@ -42,7 +42,7 @@ time-sharing contention on a single-radio SoC.
 | **Exclusive modes** | `sniff` / `clone` / `idle` arbitrated by one module (`radio.c`) with a mutex — no self-capture, no radio contention |
 | **3 profile slots** | Stored atomically in NVS; when full the least-recently-used non-active slot is overwritten |
 | **Persistent capture archive** | Last 128 captures in a FATFS+wear-levelling ring file (168 B per record: raw + scan response + local name + company id + service UUID + packet count/dwell), survives power loss; one write per clone, one batch write when a capture window ends (the button scan is meant to be read out later over USB) |
-| **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) — no internet, no CDN, no app install |
+| **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) as the **fallback**; a copy uploaded to `/data/www` over the SoftAP overrides it — no internet, no CDN, no app install |
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
@@ -221,7 +221,8 @@ RGB boards (DevKitC-1) additionally use colour: cyan = sniff, blue = clone, gree
 | Current capture table (16) | **RAM** | ❌ | every packet |
 | Event log (128) | RAM ring | ❌ | per event |
 | Capture archive (32) | **FATFS + wear levelling**, 70 B ring records | ✅ | one write per clone |
-| Web SPA | app rodata, gzipped at build time (10 KB) | firmware | — |
+| Web SPA (fallback) | app rodata, gzipped at build time (15 KB) | firmware | — |
+| Web SPA (uploaded) | `/data/www/index.html.gz`, raw gzip, never inflated on the device | ✅ | on upload |
 
 NVS wear: a ~700 B blob is ~22 entries; 24 KB = 6 pages × 126 entries with page-level
 wear levelling → ~3.3 M effective writes ≈ 45 years at 200 activations/day.
@@ -253,6 +254,9 @@ All endpoints except `POST /api/session` require `Authorization: Bearer <token>`
 | POST | `/api/active` | `{"id":0}` activate, `{"id":-1}` stop |
 | POST | `/api/rotation` | `{"enabled":bool,"seconds":n}` |
 | GET/DELETE | `/api/log` | incremental event log (`since`, `limit`) |
+| GET | `/api/ui` | which copy is being served (`embedded`\|`fs`) + its size and `etag` |
+| POST | `/api/ui` | upload a gzipped `index.html` (1..64 KB, raw body, `Content-Type: application/gzip`) |
+| DELETE | `/api/ui` | drop the uploaded copy, back to the one inside the firmware |
 | GET/POST | `/api/export` `/api/import` | whole config JSON |
 | POST | `/api/ap` | change SSID/password |
 | POST | `/api/reboot` `/api/factory` | reboot / factory reset |
@@ -337,10 +341,10 @@ main/
 ├── status_led.[ch]    LED pattern engine (mono + WS2812)
 ├── btn.[ch]           single / double / triple click + two-stage hold
 ├── net_ap.[ch]        SoftAP + station accounting
-├── web_server.[ch]    REST API + embedded SPA + bearer auth
+├── web_server.[ch]    REST API + SPA (embedded fallback or `/data/www`) + bearer auth
 ├── clone_op.[ch]      one-tap clone, shared by the REST API and the USB console
 ├── usb_console.[ch]   line/JSON console on the USB-Serial/JTAG port
-└── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time)
+└── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time, embedded fallback)
 
 docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
 docs/hardware.md       pinout, power options, antenna and console notes
@@ -348,7 +352,8 @@ docs/usb-console.md    USB console: commands, protocol, host tool
 docs/attendance-vendors.md  how 考勤机 / 门禁 terminals identify themselves over BLE
 docs/blind-scan.md      field guide: 盲扫定位（参数、判读规则、坑清单）
 docs/provision-dingtalk.md  runbook: 在全新电脑上把打卡点 profile 写进板子
-docs/superpowers/specs/2026-11-20-ui-decoupling-design.md  spec: UI 与固件解耦（待实现）
+docs/superpowers/specs/2026-11-20-ui-decoupling-design.md  spec: UI 与固件解耦
+docs/superpowers/plans/2026-11-20-ui-decoupling.md  plan: UI 与固件解耦（任务拆解）
 tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
