@@ -24,15 +24,21 @@ wear levelling）。新增：
 /data/www/index.html.gz     ← 唯一的上传产物，原样 gzip，不在设备上解压
 ```
 
-存储层新增三个函数（`storage.h`）：
+存储层新增（`storage.h`）—— **流式会话式**，因为 64 KB 的请求体不该一次性进 RAM：
 
 ```c
-/* 读整个 UI 文件到调用方缓冲区；返回长度，0 表示没有/-1 表示错误 */
-int  storage_ui_read(uint8_t *buf, size_t max);
-/* 覆盖写入（先写 /data/www/.tmp，成功后 rename）；返回 ESP_OK/错误码 */
-esp_err_t storage_ui_write(const void *buf, size_t len);
-/* 删除上传的文件，回到内置版本 */
+void      storage_ui_prepare(void);                                  /* mkdir /data/www */
+esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len);       /* ESP_OK = 可用 gzip */
 esp_err_t storage_ui_remove(void);
+
+esp_err_t storage_ui_read_begin(void);                               /* 发送用，独占 */
+int       storage_ui_read_chunk(uint8_t *buf, size_t cap);
+void      storage_ui_read_end(void);
+
+esp_err_t storage_ui_upload_begin(void);                             /* 上传用，独占 */
+esp_err_t storage_ui_upload_chunk(const void *buf, size_t len);
+esp_err_t storage_ui_upload_commit(void);                            /* fclose + rename */
+void      storage_ui_upload_abort(void);                             /* fclose + unlink .tmp */
 ```
 
 约束：
@@ -96,7 +102,7 @@ Windows 没有 gzip CLI，所以用 Python 的 `gzip` 模块，不依赖外部�
 
 ## 6. 失败与安全
 
-- 上传中途断电：只有 `.tmp` 被截断，旧的 `index.html.gz` 仍完整 → 页面照常；
+- 上传中途断电：只有 `.tmp` 被截断，旧的 `index.html.gz` 仍完整 → 页面照常；替换路径在 remove+rename 之间有毫秒级窗口，期间断电只会回落到内置版；
 - 上传前客户端先量一次 gz 体积，超限直接给笑脸错误，不浪费一次 AP 往返；
 - 上传了坏 gzip：设备不解压，浏览器收到坏内容，**下一次 `DELETE /api/ui` 或 `records format`
   即可恢复**（内置兜底永远在固件里）；

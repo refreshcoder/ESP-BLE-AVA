@@ -85,6 +85,26 @@ esp_err_t   storage_capture_clear(void);
  * i.e. the deliberate escape hatch for a fresh or damaged partition. */
 esp_err_t   storage_format(void);
 
+/* ---------------- uploaded SPA (index.html.gz) ----------------
+ * The firmware embeds a copy; this is an optional override that lives in the FATFS partition
+ * so the UI can be replaced without reflashing. Everything here is best-effort: on any error
+ * the caller falls back to the embedded blob. */
+#define UI_MIN_BYTES  1024
+#define UI_MAX_BYTES  (64 * 1024)
+
+void      storage_ui_prepare(void);
+esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len);
+esp_err_t storage_ui_remove(void);
+
+esp_err_t storage_ui_read_begin(void);
+int       storage_ui_read_chunk(uint8_t *buf, size_t cap);
+void      storage_ui_read_end(void);
+
+esp_err_t storage_ui_upload_begin(void);
+esp_err_t storage_ui_upload_chunk(const void *buf, size_t len);
+esp_err_t storage_ui_upload_commit(void);
+void      storage_ui_upload_abort(void);
+
 /* --- favourites -------------------------------------------------------------
  * storage_pin_add() copies a record (whole 168 B) into its own file, so it survives both
  * the power switch and any number of later scan windows. */

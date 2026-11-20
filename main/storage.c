@@ -1,8 +1,11 @@
 #include "storage.h"
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "esp_rom_crc.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -106,6 +109,7 @@ esp_err_t storage_init(void)
         return e;
     }
     s_ready = true;
+    storage_ui_prepare();       /* /data/www: the optional uploaded SPA */
 
     /* Probe once, creating the file if needed */
     xSemaphoreTake(s_mtx, portMAX_DELAY);
@@ -434,4 +438,130 @@ esp_err_t storage_pin_clear(void)
     }
     xSemaphoreGive(s_mtx);
     return ret;
+}
+
+/* ------------------------------ uploaded SPA ------------------------------ */
+
+#define UI_DIR   MOUNT_POINT "/www"
+#define UI_FILE  UI_DIR "/index.html.gz"
+#define UI_TMP   UI_DIR "/.ui.tmp"
+
+static SemaphoreHandle_t s_ui_mtx;    /* one upload and one reader at a time */
+static FILE *s_ui_up;
+static FILE *s_ui_rd;
+
+void storage_ui_prepare(void)
+{
+    if (!s_ready) return;
+    if (!s_ui_mtx) s_ui_mtx = xSemaphoreCreateMutex();
+    if (mkdir(UI_DIR, 0775) != 0 && errno != EEXIST) {
+        ESP_LOGW(TAG, "mkdir %s failed (errno %d) -- the UI stays embedded", UI_DIR, errno);
+    }
+}
+
+/* gzip magic: the device never inflates, so this is the only sanity check it can do */
+static bool ui_is_gzip(const uint8_t *b, size_t n)
+{
+    return n >= 2 && b[0] == 0x1f && b[1] == 0x8b;
+}
+
+esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len)
+{
+    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    if (xSemaphoreTake(s_ui_mtx, pdMS_TO_TICKS(500)) != pdTRUE) return ESP_ERR_TIMEOUT;
+
+    esp_err_t ret = ESP_ERR_NOT_FOUND;
+    FILE *f = fopen(UI_FILE, "rb");
+    if (f) {
+        uint8_t tmp[64];
+        uint32_t crc = 0;
+        size_t total = 0, n;
+        bool gz = false;
+        while ((n = fread(tmp, 1, sizeof(tmp), f)) > 0) {
+            if (total == 0) gz = ui_is_gzip(tmp, n);
+            crc = esp_rom_crc32_le(crc, tmp, (uint32_t)n);
+            total += n;
+        }
+        fclose(f);
+        if (gz && total >= UI_MIN_BYTES && total <= UI_MAX_BYTES) {
+            if (out_crc) *out_crc = crc;
+            if (out_len) *out_len = total;
+            ret = ESP_OK;
+        }
+        /* a truncated or foreign file is treated as absent: the caller serves the embedded copy */
+    }
+    xSemaphoreGive(s_ui_mtx);
+    return ret;
+}
+
+esp_err_t storage_ui_remove(void)
+{
+    if (!s_ready) return ESP_ERR_INVALID_STATE;
+    return remove(UI_FILE) == 0 ? ESP_OK : ESP_ERR_NOT_FOUND;
+}
+
+esp_err_t storage_ui_read_begin(void)
+{
+    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    if (xSemaphoreTake(s_ui_mtx, pdMS_TO_TICKS(500)) != pdTRUE) return ESP_ERR_TIMEOUT;
+    s_ui_rd = fopen(UI_FILE, "rb");
+    if (!s_ui_rd) { xSemaphoreGive(s_ui_mtx); return ESP_ERR_NOT_FOUND; }
+    return ESP_OK;
+}
+
+int storage_ui_read_chunk(uint8_t *buf, size_t cap)
+{
+    if (!s_ui_rd || !buf || cap == 0) return -1;
+    size_t n = fread(buf, 1, cap, s_ui_rd);
+    if (n == 0 && ferror(s_ui_rd)) return -1;
+    return (int)n;
+}
+
+void storage_ui_read_end(void)
+{
+    if (s_ui_rd) { fclose(s_ui_rd); s_ui_rd = NULL; }
+    if (s_ui_mtx) xSemaphoreGive(s_ui_mtx);
+}
+
+esp_err_t storage_ui_upload_begin(void)
+{
+    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    /* non-blocking: a second concurrent upload is a client bug, not something to queue */
+    if (xSemaphoreTake(s_ui_mtx, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;
+    s_ui_up = fopen(UI_TMP, "wb");
+    if (!s_ui_up) { xSemaphoreGive(s_ui_mtx); return ESP_ERR_NO_MEM; }
+    return ESP_OK;
+}
+
+esp_err_t storage_ui_upload_chunk(const void *buf, size_t len)
+{
+    if (!s_ui_up || !buf || len == 0) return ESP_ERR_INVALID_ARG;
+    if (fwrite(buf, 1, len, s_ui_up) != len) return ESP_ERR_NO_MEM;
+    return ESP_OK;
+}
+
+esp_err_t storage_ui_upload_commit(void)
+{
+    if (!s_ui_up) return ESP_ERR_INVALID_STATE;
+    /* both calls must run (short-circuiting on fflush would leak the handle and its fd slot) */
+    int rc = fflush(s_ui_up);
+    if (fclose(s_ui_up) != 0) rc = -1;
+    s_ui_up = NULL;
+    if (rc != 0) { remove(UI_TMP); xSemaphoreGive(s_ui_mtx); return ESP_FAIL; }
+    esp_err_t ret = ESP_OK;
+    if (rename(UI_TMP, UI_FILE) != 0) {
+        /* FatFs rename refuses an existing destination: drop the old file and retry */
+        remove(UI_FILE);
+        ret = rename(UI_TMP, UI_FILE) == 0 ? ESP_OK : ESP_FAIL;
+    }
+    if (ret != ESP_OK) remove(UI_TMP);
+    xSemaphoreGive(s_ui_mtx);
+    return ret;
+}
+
+void storage_ui_upload_abort(void)
+{
+    if (s_ui_up) { fclose(s_ui_up); s_ui_up = NULL; }
+    remove(UI_TMP);
+    if (s_ui_mtx) xSemaphoreGive(s_ui_mtx);
 }
