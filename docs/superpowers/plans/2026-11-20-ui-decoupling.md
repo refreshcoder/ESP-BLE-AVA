@@ -520,6 +520,11 @@ curl -s -H "Authorization: Bearer $TK" http://192.168.4.1/api/ui
 - Consumes: `POST /api/session`、`POST /api/ui`、`DELETE /api/ui`、`GET /api/ui`（Task 3）
 - Produces: `python tools/ui_push.py --host H --pass P FILE` / `--revert` / `--status`
 
+> **As merged in `09f436b`:** the snippet below is the sketch, not the tool. The shipped version
+> also handles `URLError` (clean message, exit 1, no traceback), exits non-zero on `ok:false`,
+> prints the source before and after an upload, and refuses a file whose gzip falls outside
+> 1..64 KB before touching the network. Read `tools/ui_push.py` as the source of truth.
+
 - [ ] **Step 1: 写 `tools/ui_push.py`**
 
 ```python
