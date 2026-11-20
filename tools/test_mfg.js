@@ -4,8 +4,13 @@
 const fs = require("fs");
 
 const html = fs.readFileSync("main/www/index.html", "utf8");
+/* adMfg and companyName must stay top-level functions/consts so they can be lifted out and
+ * evaluated on their own: no closure over the SPA state. */
 const start = html.indexOf("function adMfg");
-const end = html.indexOf("/* manufacturer data line");
+let end = -1;
+const cIdx = html.indexOf("const companyName", start);
+if (start >= 0 && cIdx > start) end = html.indexOf("\n", cIdx);
+if (end < 0) end = html.indexOf("/* manufacturer data line", start);   /* older layout */
 if (start < 0 || end < 0 || end <= start) {
   console.log("FAIL cannot locate adMfg/companyName in main/www/index.html");
   process.exit(1);
