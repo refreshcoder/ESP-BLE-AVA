@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Checks for tools/ui_push.py -- the two pieces worth guarding, no board and no network.
+"""Checks for tools/ui_push.py -- the pieces worth guarding, no board and no network.
 
-    python tools/test_ui_push.py
+    python tools/test_ui_push.py      (also under -O: bare asserts would vanish there)
+
 """
 
 import contextlib
 import io
+import sys
 
 import ui_push
 
@@ -14,7 +16,8 @@ checks = 0
 
 def check(cond, what):
     global checks
-    assert cond, what
+    if not cond:                                   # not `assert`: -O must not turn this green
+        raise SystemExit("FAIL: " + what)
     checks += 1
 
 
@@ -40,5 +43,22 @@ check(ui_push.as_json("", 200) == {}, "empty body is an empty object")
 junk = ui_push.as_json("<html>500 Internal Server Error</html>", 500)
 check(junk["ok"] is False and junk["err"].startswith("HTTP 500: "), "non-JSON error body")
 check(len(junk["err"]) < 100, "non-JSON error body is truncated")
+check(ui_push.as_json('["not","an","object"]', 200)["ok"] is False, "non-object JSON refused")
+
+# The argument guard answers before any socket is opened -- provable offline.
+argv = sys.argv
+for bad in (["--pass", "x", "--status", "x.html"],
+            ["--pass", "x", "--revert", "x.html"],
+            ["--pass", "x", "--status", "--revert"]):
+    sys.argv = ["ui_push.py"] + bad
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            ui_push.main()
+        code = None
+    except SystemExit as e:
+        code = e.code
+    check(code == 2 and "error:" in err.getvalue(), "%s must exit 2" % " ".join(bad))
+sys.argv = argv
 
 print("ok  ui_push: %d checks passed" % checks)

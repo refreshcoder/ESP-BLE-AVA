@@ -28,9 +28,13 @@ def size_ok(n):
 
 def as_json(raw, http):
     try:
-        return json.loads(raw or "{}")
+        obj = json.loads(raw or "{}")
     except ValueError:
         return {"ok": False, "err": "HTTP %s: %r" % (http, raw[:80])}
+    # a captive portal (or anything that is not this board) may answer a bare list or string
+    if not isinstance(obj, dict):
+        return {"ok": False, "err": "HTTP %s: not a JSON object: %r" % (http, raw[:80])}
+    return obj
 
 
 def call(base, path, method="GET", body=None, token=None, ctype="application/json"):
@@ -43,7 +47,12 @@ def call(base, path, method="GET", body=None, token=None, ctype="application/jso
         with urllib.request.urlopen(req, timeout=45) as r:
             return as_json(r.read().decode("utf-8", "replace"), r.status)
     except urllib.error.HTTPError as e:            # a refusal still carries the JSON reason
-        return as_json(e.read().decode("utf-8", "replace"), e.code)
+        try:
+            raw = e.read().decode("utf-8", "replace")
+        except (http.client.HTTPException, OSError) as err:
+            # the refusal itself died mid-body: same one-line treatment as any other read
+            sys.exit("cannot reach %s: %s" % (base, getattr(err, "reason", err)))
+        return as_json(raw, e.code)
     except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
         # nothing listening, bad host, timeout -- or a body cut short mid-response
         sys.exit("cannot reach %s: %s" % (base, getattr(e, "reason", e)))
@@ -74,7 +83,7 @@ def main():
     how.add_argument("--status", action="store_true", help="report which copy is being served")
     args = ap.parse_args()
     if args.file and (args.revert or args.status):
-        ap.error("--status and --revert take no file: drop it, or drop the flag")
+        ap.error("%s takes no file: drop the file, or drop the flag" % ("--revert" if args.revert else "--status"))
 
     base = "http://" + args.host
     sess = call(base, "/api/session", "POST", json.dumps({"password": args.password}).encode())
