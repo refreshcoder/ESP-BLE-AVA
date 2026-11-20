@@ -115,12 +115,9 @@ static char *read_body(httpd_req_t *req, size_t *out_len)
         int r = httpd_req_recv(req, buf + off, (size_t)(total - off));
         if (r == HTTPD_SOCK_ERR_TIMEOUT) {
             /* the peer is silent: waiting it out here would stall every other URI, so give up
-             * after the budget and drop what it still owes before the 400 goes out */
-            if (++timeouts >= BODY_RECV_TIMEOUTS) {
-                free(buf);
-                body_drain(req, (size_t)(total - off));
-                return NULL;
-            }
+             * after the budget. The rest is not drained -- a second budget would double the hold
+             * for a body that is not coming, and only this one socket can desync as a result. */
+            if (++timeouts >= BODY_RECV_TIMEOUTS) { free(buf); return NULL; }
             continue;
         }
         if (r <= 0) { free(buf); return NULL; }
@@ -380,7 +377,11 @@ static esp_err_t h_ui_get(httpd_req_t *req)
 /* POST /api/ui -- replace the uploaded SPA with a gzipped index.html */
 static esp_err_t h_ui_post(httpd_req_t *req)
 {
-    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    if (!auth_ok(req)) {
+        /* nothing is read before auth, so a body would leave this connection desynced: close it */
+        if (req->content_len) httpd_resp_set_hdr(req, "Connection", "close");
+        return fail(req, "401 Unauthorized", "token required");
+    }
 
     /* refusals happen before any of the body is written, so the live file stays intact */
     size_t total = req->content_len;
@@ -458,9 +459,12 @@ static esp_err_t h_ui_post(httpd_req_t *req)
 /* DELETE /api/ui -- drop the override, back to the embedded page */
 static esp_err_t h_ui_delete(httpd_req_t *req)
 {
-    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
-    /* a body on DELETE is unexpected, but it still has to go before the response does -- and
-     * only after auth, so an unauthenticated client cannot make us wait on a body it never sends */
+    if (!auth_ok(req)) {
+        /* nothing is read before auth, so a body would leave this connection desynced: close it */
+        if (req->content_len) httpd_resp_set_hdr(req, "Connection", "close");
+        return fail(req, "401 Unauthorized", "token required");
+    }
+    /* a body on DELETE is unexpected, but it still has to go before the response does */
     if (!body_drain(req, req->content_len)) httpd_resp_set_hdr(req, "Connection", "close");
 
     esp_err_t e = storage_ui_remove();
