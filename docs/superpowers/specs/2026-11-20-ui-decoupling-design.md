@@ -86,7 +86,8 @@ void      storage_ui_upload_abort(void);                             /* fclose +
 | >64 KB | `413 body larger than 64 KB` |
 | 写盘失败 | `500 write failed` / `500 commit failed` |
 | 分区没挂载 | `503 archive unavailable` |
-| 建不出 `ui.tmp`（分区满 / 只读），或 UI 互斥量在启动时没建起来 | `507 cannot create ui.tmp` |
+| 上传侧：建不出 `ui.tmp`（分区满 / 只读），或 UI 互斥量在启动时没建起来 | `507 cannot create ui.tmp` |
+| 删除侧：互斥量在启动时没建起来 | `503 UI storage unavailable` |
 
 恢复内置版走 `DELETE /api/ui`（`storage_ui_stat()` 随即 `NOT_FOUND` → 回落）。`records format`
 格式化整个 FATFS 也能删掉 UI 文件，但它只在该分区**本来就挂载失败**时可用：归档已挂载时
