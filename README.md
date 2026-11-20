@@ -8,7 +8,8 @@ Scan nearby BLE advertisements, then **replicate them byte-for-byte**.
 > Picking this up on another machine? Start with [HANDOFF.md](HANDOFF.md).
 > Documentation: [docs/flashing.md](docs/flashing.md) (how to get firmware onto the board,
 > no toolchain needed) · [docs/hardware.md](docs/hardware.md) (pins, power, antenna,
-> console) · [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
+> console) · [docs/usb-console.md](docs/usb-console.md) (read/control over the USB cable,
+> no Wi-Fi at all) · [DESIGN.md](DESIGN.md) (platform limits, coexistence analysis, storage
 > decisions).
 
 Built for a single **ESP32-C6** (or **ESP32-C3**) running ESP-IDF. Capturing and broadcasting are
@@ -40,13 +41,18 @@ time-sharing contention on a single-radio SoC.
 | **Metadata replication** | Re-estimates the advertising interval (EMA over inter-arrival gaps), preserves scannability, optionally clones a static-random address |
 | **Exclusive modes** | `sniff` / `clone` / `idle` arbitrated by one module (`radio.c`) with a mutex — no self-capture, no radio contention |
 | **3 profile slots** | Stored atomically in NVS; when full the least-recently-used non-active slot is overwritten |
-| **Persistent capture archive** | Last 32 captures in a FATFS+wear-levelling ring file, survives power loss, written once per clone |
-| **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) — no internet, no CDN, no app install |
+| **Persistent capture archive** | Last 128 captures in a FATFS+wear-levelling ring file (168 B per record: raw + scan response + local name + company id + service UUID + packet count/dwell), survives power loss; one write per clone, one batch write when a capture window ends (the button scan is meant to be read out later over USB) |
+| **Phone-only operation** | Single-page app is gzipped and embedded in the firmware (15 KB) as the **fallback**; a copy uploaded to `/data/www` over the SoftAP overrides it — no internet, no CDN, no app install |
 | **Bilingual UI** | English + 简体中文: picked from the browser language, switchable in the header, remembered in `localStorage` (`bgw_lang`) |
 | **Data export** | JSON (re-importable), CSV (spreadsheet, with BOM), and a raw on-air hex dump — all from the browser, no tooling |
 | **Serial-free diagnostics** | `/api/status` exposes `reset_reason`, brownout counter, TX power, scan packet count, heap |
+| **Vendor lookup** | Manufacturer data is resolved against a ~55-entry SIG company table (Apple, Microsoft, Xiaomi, Alibaba/DingTalk, OPPO, vivo, Midea, Tile, Garmin, ...) plus the few 16-bit service UUIDs that show up on air (`0xFCB2` Location Enabled Adv, `0xFE2C` Fast Pair, `0xFD6F`, `0xFEAA`, `0xFE59`) and a name-based hint for devices that carry no company id at all — see [docs/attendance-vendors.md](docs/attendance-vendors.md) |
+| **Favourites** | Pin any archive row into its own 32-slot file: a scan window can overwrite all 128 archive rows, pinned ones stay. Every record is tagged `clone` or `scan` so a reader can tell them apart |
+| **Scan timing** | Capture window is configurable (10–900 s, default 120), and with no Wi-Fi client attached the scan listens **100% of the time** instead of the 20% default — a walk-past capture then works on a 1 s beacon with ~certainty instead of ~40%. Each window starts from an empty table so `packets` is a true per-window count |
+| **Noise filter** | On by default: phones, watches, earbuds and Windows PCs are dropped *before* they take a slot in the capture table (Apple Continuity except iBeacon, Microsoft CDP, earbud/wearable names, phone vendors with no service UUID). `/api/status` reports `scan_filtered`; `filter on\|off` on the USB console, checkbox in the UI |
+| **USB console** | Same read/control surface over the cable when the SoftAP is out of reach: `status`, `scan` (raw hex), `mode`, `clone <addr>` — see [docs/usb-console.md](docs/usb-console.md) |
 | **Board presets** | Seeed XIAO ESP32-C6 (default), Espressif DevKitC-1, Waveshare C6-Zero — build-time switch |
-| **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click / double click / two-stage hold |
+| **LED + one button** | Six LED states distinguishable on a *single-colour* LED; click = clone on/off, double = blind scan (one window, archived), triple = radio off, two-stage hold = factory reset |
 
 **Not implemented:** OTA update (`/api/ota`), extended advertising (>31 bytes), active scanning
 (scan response), RPA addresses. See [Limitations](#limitations).
@@ -215,7 +221,8 @@ RGB boards (DevKitC-1) additionally use colour: cyan = sniff, blue = clone, gree
 | Current capture table (16) | **RAM** | ❌ | every packet |
 | Event log (128) | RAM ring | ❌ | per event |
 | Capture archive (32) | **FATFS + wear levelling**, 70 B ring records | ✅ | one write per clone |
-| Web SPA | app rodata, gzipped at build time (10 KB) | firmware | — |
+| Web SPA (fallback) | app rodata, gzipped at build time (15 KB) | firmware | — |
+| Web SPA (uploaded) | `/data/www/index.html.gz`, raw gzip, never inflated on the device | ✅ | on upload |
 
 NVS wear: a ~700 B blob is ~22 entries; 24 KB = 6 pages × 126 entries with page-level
 wear levelling → ~3.3 M effective writes ≈ 45 years at 200 activations/day.
@@ -247,6 +254,9 @@ All endpoints except `POST /api/session` require `Authorization: Bearer <token>`
 | POST | `/api/active` | `{"id":0}` activate, `{"id":-1}` stop |
 | POST | `/api/rotation` | `{"enabled":bool,"seconds":n}` |
 | GET/DELETE | `/api/log` | incremental event log (`since`, `limit`) |
+| GET | `/api/ui` | which copy is being served (`embedded`\|`fs`), plus `size` and `etag` when it is `fs` (`etag` is unquoted here, the `ETag:` header is quoted) |
+| POST | `/api/ui` | upload a gzipped `index.html` (1..64 KB, raw body, `Content-Type: application/gzip`) |
+| DELETE | `/api/ui` | drop the uploaded copy, back to the one inside the firmware |
 | GET/POST | `/api/export` `/api/import` | whole config JSON |
 | POST | `/api/ap` | change SSID/password |
 | POST | `/api/reboot` `/api/factory` | reboot / factory reset |
@@ -329,16 +339,26 @@ main/
 ├── storage.[ch]       FATFS+WL capture archive (ring of 70 B records)
 ├── app_log.[ch]       RAM ring event log with sequence numbers
 ├── status_led.[ch]    LED pattern engine (mono + WS2812)
-├── btn.[ch]           single click / double click / two-stage hold
+├── btn.[ch]           single / double / triple click + two-stage hold
 ├── net_ap.[ch]        SoftAP + station accounting
-├── web_server.[ch]    REST API + embedded SPA + bearer auth
-└── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time)
+├── web_server.[ch]    REST API + SPA (embedded fallback or `/data/www`) + bearer auth
+├── clone_op.[ch]      one-tap clone, shared by the REST API and the USB console
+├── usb_console.[ch]   line/JSON console on the USB-Serial/JTAG port
+└── www/index.html     single-page UI, EN + 简体中文 (gzipped at build time, embedded fallback)
 
 docs/flashing.md       flashing from a PC (no toolchain) or an Android phone
 docs/hardware.md       pinout, power options, antenna and console notes
+docs/usb-console.md    USB console: commands, protocol, host tool
+docs/attendance-vendors.md  how 考勤机 / 门禁 terminals identify themselves over BLE
+docs/blind-scan.md      field guide: 盲扫定位（参数、判读规则、坑清单）
+docs/provision-dingtalk.md  runbook: 在全新电脑上把打卡点 profile 写进板子
+docs/superpowers/specs/2026-11-20-ui-decoupling-design.md  spec: UI 与固件解耦
+docs/superpowers/plans/2026-11-20-ui-decoupling.md  plan: UI 与固件解耦（任务拆解）
 tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
+                       usb_cli.py    - drive the USB console from the host (pyserial)
+                       ui_push.py    - upload a new SPA over the AP, gzipped (no reflash)
 .github/workflows      CI: builds both board presets on ESP-IDF v5.5
 ```
 

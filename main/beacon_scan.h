@@ -4,7 +4,7 @@
 #include "esp_err.h"
 #include "app_cfg.h"
 
-#define SCAN_TAB_MAX  16
+#define SCAN_TAB_MAX  128
 #define SCAN_RAW_MAX  CFG_RAW_MAX
 
 typedef struct {
@@ -23,6 +23,8 @@ typedef struct {
     uint8_t  mfg_len;          /* payload length after the 2-byte company id */
     uint8_t  mfg[27];
     uint8_t  mfg_src;          /* 0 = advertisement, 1 = scan response */
+    uint16_t svc_uuid;         /* first 16-bit service UUID seen (0 = none): tells the
+                                * ecosystem for vendors that put everything in service data */
 
     /* iBeacon fields, when the payload matches */
     bool     is_ibeacon;
@@ -44,6 +46,11 @@ esp_err_t blescan_start(const scan_cfg_t *sc);
 void      blescan_stop(void);
 bool      blescan_running(void);
 
+/* Personal-device noise (Apple Continuity, Microsoft CDP, earbud/wearable names, phone
+ * vendors without a service UUID). Exposed so the table's own filter can be tested. */
+bool      blescan_is_noise(const uint8_t *d, uint8_t len);
+uint32_t  blescan_filtered(void);     /* packets dropped by the filter in this scan */
+
 /* stats: packets received in this scan + elapsed ms */
 void      blescan_stats(uint32_t *pkts, uint32_t *running_ms);
 int       blescan_count(void);
@@ -53,3 +60,10 @@ void      blescan_clear(void);
 
 /* "Apple" for 0x004C, "0x027D" when unknown; never NULL */
 const char *blescan_company_name(uint16_t id);
+
+/* "Fast Pair" for 0xFE2C, "0xFCB2" when unknown; never NULL */
+const char *blescan_service_name(uint16_t uuid);
+
+/* Vendor guessed from the advertised local name, for devices that carry no company id
+ * (most attendance/access-control terminals). NULL when nothing matches. */
+const char *blescan_name_vendor(const char *name);

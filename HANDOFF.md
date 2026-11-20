@@ -96,15 +96,17 @@ tools\flash.bat COM7                                   # Windows cmd
 
 | 文件 | 职责 |
 |---|---|
+| `main/usb_console.c` | **USB 命令台**（USB-Serial/JTAG，无需网络）：`status/scan/profiles/records/logs/mode/use/clone/reboot` |
+| `main/clone_op.c` | 一键克隆的唯一实现，HTTP 与 USB 共用（别在两处各写一份） |
 | `main/radio.c` | **RF 模式仲裁（唯一入口）**：`radio_sniff / radio_clone / radio_stop`，内部互斥锁保证"先停旧的再启新的" |
-| `main/beacon_scan.c` | 被动+主动扫描、16 条 LRU 探测表、存 `raw[31]` 与 `rsp[31]`、间隔 EMA、AD 解析（名字 / iBeacon / **厂商数据 0xFF**） |
+| `main/beacon_scan.c` | 被动+主动扫描、128 条 LRU 探测表、**个人设备噪声过滤**（`scan.filter_noise` 默认开）、**无 AP 客户端时 100% 占空比**（`scan.full_duty`）、**每窗清表**（`scan.clear_each_round`，让 `packets` 成为单窗真值）、窗口时长可配（`scan.duration_s` 默认 120 秒）、存 `raw[31]` 与 `rsp[31]`、间隔 EMA、AD 解析（名字 / iBeacon / **厂商数据 0xFF**） |
 | `main/beacon_adv.c` | NimBLE 广播：iBeacon 结构化 or **raw 逐字节重放**；`SCAN_RSP` 重放；地址（random / public boot override）；TX 功率映射 |
 | `main/app_cfg.c` | 3 套 profile 的 NVS 单 blob（原子写）、JSON 校验、NVS 计数器（boots/brownout）、LRU 淘汰 |
-| `main/storage.c` | `storage` 分区 FATFS+磨损均衡，`/data/cap.bin` = 12B 头 + 32 × 定长记录环形覆盖（点"克隆"时写 1 条） |
+| `main/storage.c` | `storage` 分区 FATFS+磨损均衡，`/data/cap.bin` = 12B 头 + 128 × 168B 定长记录环形覆盖（raw/rsp/name/mfg/svc/packets/dwell 都存）；点"克隆"写 1 条，扫描窗口结束用 `storage_capture_add_many()` 一趟写完。**挂载失败不再自动格式化**（数据只此一份），需要时用 USB 命令台 `records format`。另有 `/data/pin.bin`（32 槽收藏夹），与归档分离，扫描永不覆盖；每条记录带 `src`（0=克隆 / 1=扫描窗口）。离开 SNIFF 的任何路径（超时 / 三击 / 网页 / 命令台）都经过 `radio_set_sniff_end_cb()` 统一落盘 |
 | `main/web_server.c` | 21+ REST 端点、Bearer 鉴权、内嵌 gzip SPA |
 | `main/www/index.html` | 单页 UI（5 页签 + 本机记录 + 三种导出），i18n 表 + `data-i18n` |
 | `main/board.h` | 板级预设（LED/按键 GPIO），`BOARD_ID` 跟随 target |
-| `main/status_led.c` / `btn.c` | 单色灯 6 种闪法 / WS2812 加颜色；单击=切模式、双击=停射频、长按 5s=出厂 |
+| `main/status_led.c` / `btn.c` | 单色灯 6 种闪法 / WS2812 加颜色；单击=切模式、双击=盲扫（60s 窗口，结束整表落盘）、三击=停射频、长按 5s=出厂 |
 | `main/net_ap.c` | SoftAP（**只有 AP，没有 STA**）|
 | `tools/` | `flash.sh/.bat/.ps1`、`merge.sh`、`ble_watch.py`（Windows 侧判空口）、`check_i18n.js`、`test_mfg.js` |
 
@@ -135,6 +137,7 @@ tools\flash.bat COM7                                   # Windows cmd
 | D5 | 克隆的地址反了 | NimBLE 地址是小端，工程其余部分是大端 |
 | D6 | 灯全反（看起来像死机） | **XIAO C6 的灯是低电平点亮** |
 | D7 | 单击按键 panic | `btn` 任务栈只有 2560 B → 栈溢出 |
+| D8 | 捕获归档永远为空（`storage` 分区 832 KB 全 `0xFF`）、`/api/records` 恒 `available:false` | **`storage_init()` 全工程没有调用点**：`s_ready` 恒 false → `storage_capture_add()` 直接返回 `ESP_ERR_INVALID_STATE`。已在 `app_main()` 补上 |
 
 **编译期才暴露的三个坑**（同样勿回退）：
 
@@ -175,7 +178,8 @@ OTA 的技术底座已就绪：分区表 `ota_0/ota_1` 各 1536 KB + `otadata` 8
 
 | 场景 | 坑 | 处理 |
 |---|---|---|
-| 远端 Windows + 单 Wi-Fi 网卡 | 连板子 SoftAP 会**掐断自己的 RDP** | 用串口 + `netsh wlan show networks` 确认；或让宿主走网线 |
+| 远端 Windows + 单 Wi-Fi 网卡 | 连板子 SoftAP 会**掐断自己的 RDP** | 用 `tools/usb_cli.py` 走 USB 命令台，完全不碰网络 |
+| 远端 Windows + 无 Python | `py`/`python` 只是 Store 的 stub，跑起来什么都不输出 | `winget install Python.Python.3.12 --scope user`（user scope，不需要管理员），再 `python -m pip install esptool`；esptool v5 子命令是 `read-flash` 不是 `read_flash` |
 | 远端刷机 | RDP **注销**会杀掉刷写进程（断开没事） | 只断开；或 `schtasks` 起任务 |
 | Linux 刷机 | **ModemManager 抢串口**导致刷一半失败 | `sudo systemctl stop ModemManager` |
 | 刷完看日志 | **硬 kill 串口进程会复位板子**（D3） | `Ctrl+]` 正常退出 |
@@ -200,6 +204,12 @@ idf.py size                                          # 体积/RAM
 ./tools/flash.sh /dev/ttyACM0                        # 刷 build/
 node tools/check_i18n.js                             # UI 文案键完整性
 node tools/test_mfg.js                               # 前端 AD 解析单测（15 例）
+
+# USB 命令台（无需网络；需要 pip install pyserial）
+python tools/usb_cli.py -p COM7 status
+python tools/usb_cli.py -p COM7 scan
+python tools/usb_cli.py -p COM7 mode sniff
+python tools/usb_cli.py -p COM7 clone a4c1382a5122
 
 # 空口判定（Windows，需要 pip install bleak）
 python tools/ble_watch.py -s 20 --expect <固件 raw hex>

@@ -27,7 +27,7 @@ idf.py -DAPP_BOARD=2 build      # switch at build time, no source edit needed
 | Function | Pin | Notes |
 |---|---|---|
 | Status LED | `BOARD_LED_GPIO` (`8` or `15`) | WS2812 is driven over RMT; a mono LED is driven as a plain GPIO |
-| Button | **GPIO9** | BOOT pin, active low. On the XIAO the other button is RESET and cannot be read by firmware |
+| Button | **GPIO9** | BOOT pin, active low. On the XIAO the other button is RESET and cannot be read by firmware. Click = clone on/off, double = blind scan, triple = radio off, hold 5 s/8 s = factory reset |
 | Native USB | **C6: GPIO12 (D-), GPIO13 (D+)**<br>**C3: GPIO18 (D-), GPIO19 (D+)** | The most common cross-wiring mistake between the two chips |
 | UART0 (fallback console) | GPIO21 (TX), GPIO20 (RX) | usually not brought out; only needed if USB-JTAG misbehaves |
 

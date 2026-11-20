@@ -105,8 +105,9 @@ static pattern_t pattern_of(led_state_t st)
     case LED_ADV:        return (pattern_t){ 0, 0, B, 1, 500, 0, 1000 };
     /* triple fast blink: cloning with a client on the UI -- green */
     case LED_ADV_CLIENT: return (pattern_t){ 0, B, 0, 3, 100, 100, 2000 };
-    /* double blink: sniffing -- cyan */
-    case LED_SNIFF:      return (pattern_t){ 0, B, B / 2, 2, 100, 120, 1600 };
+    /* continuous 5 Hz blink while a capture window runs -- cyan. A distinct rhythm matters:
+     * on a blind scan the operator has to see "still scanning" vs "done, you can unplug". */
+    case LED_SNIFF:      return (pattern_t){ 0, B, B / 2, 1, 100, 100, 200 };
     /* six rapid blinks: error */
     case LED_ERROR:      return (pattern_t){ B, 0, 0, 6, 60, 60, 1200 };
     default:             return (pattern_t){ B, 0, 0, 0, 0, 0, 1000 };

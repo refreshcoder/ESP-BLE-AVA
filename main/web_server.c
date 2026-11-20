@@ -6,6 +6,7 @@
 #include "beacon_scan.h"
 #include "status_led.h"
 #include "storage.h"
+#include "clone_op.h"
 #include "board.h"
 #include "net_ap.h"
 #include <string.h>
@@ -75,6 +76,33 @@ static bool auth_ok(httpd_req_t *req)
     return false;
 }
 
+/* recv_wait_timeout is 10 s, so two timeouts in a row mean the peer is gone rather than slow.
+ * The budget matters: esp_http_server serves every URI from one task, so a read loop that
+ * re-arms forever does not just leak a session, it stops the whole server. */
+#define BODY_RECV_TIMEOUTS 2
+
+/* An error response leaves the request body unread; on a keep-alive socket that would desync
+ * the next request, so swallow it in 512 B steps. False = some of it stayed behind, and the
+ * response that follows must close the connection. */
+static bool body_drain(httpd_req_t *req, size_t want)
+{
+    uint8_t junk[512];
+    int timeouts = 0;
+    while (want > 0) {
+        int r = httpd_req_recv(req, (char *)junk, want > sizeof(junk) ? sizeof(junk) : want);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= BODY_RECV_TIMEOUTS) return false;
+            continue;
+        }
+        if (r <= 0) return false;
+        timeouts = 0;
+        want -= (size_t)r;
+    }
+    return true;
+}
+
+/* Body of a JSON request: NULL on anything unexpected (too large, allocation failure, or a peer
+ * that stopped sending), which every caller answers with a 400. */
 static char *read_body(httpd_req_t *req, size_t *out_len)
 {
     int total = req->content_len;
@@ -82,10 +110,18 @@ static char *read_body(httpd_req_t *req, size_t *out_len)
     char *buf = malloc((size_t)total + 1);
     if (!buf) return NULL;
     int off = 0;
+    int timeouts = 0;
     while (off < total) {
         int r = httpd_req_recv(req, buf + off, (size_t)(total - off));
-        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            /* the peer is silent: waiting it out here would stall every other URI, so give up
+             * after the budget. The rest is not drained -- a second budget would double the hold
+             * for a body that is not coming, and only this one socket can desync as a result. */
+            if (++timeouts >= BODY_RECV_TIMEOUTS) { free(buf); return NULL; }
+            continue;
+        }
         if (r <= 0) { free(buf); return NULL; }
+        timeouts = 0;
         off += r;
     }
     buf[total] = '\0';
@@ -139,31 +175,65 @@ static const char *led_state_name(rmode_t m, uint8_t sta)
 
 /* ------------------------- static page ------------------------- */
 
-/* ETag from the build (main/CMakeLists.txt): the SPA changes only with the firmware, so the
- * browser cache survives across page loads and is invalidated by a flash instead of by an
- * arbitrary max-age. */
+/* ETag from the build (main/CMakeLists.txt): stable for a given firmware, so a revalidating
+ * browser answers 304 instead of downloading the page again. */
 #ifndef APP_UI_ETAG
 #define APP_UI_ETAG "dev"
 #endif
 
+/* Two sources, fixed order: the uploaded file when it is usable, otherwise the blob that
+ * lives in the firmware. The embedded copy is never removed, so a truncated upload, a failed
+ * mount or `records format` can only cost the override -- never the ability to open the page. */
 static esp_err_t h_index(httpd_req_t *req)
 {
-    static const char etag[] = "\"" APP_UI_ETAG "\"";
+    static const char build_etag[] = "\"" APP_UI_ETAG "\"";
+    char etag[24];
     char inm[48];
-    bool fresh = httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof(inm)) == ESP_OK &&
-                 strcmp(inm, etag) == 0;
+    const uint8_t *blob = index_html_gz_start;
+    size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
+    uint32_t crc = 0;
+    /* The read session opens before the ETag is chosen: stat() answering OK does not mean the
+     * file is still readable (an upload may replace it between the two calls), and the page
+     * must be labelled with the source that actually sends the body -- else a later 304 would
+     * revalidate the embedded copy as if it were the uploaded one. */
+    bool from_fs = storage_ui_stat(&crc, NULL) == ESP_OK && storage_ui_read_begin() == ESP_OK;
+
+    if (from_fs) {
+        snprintf(etag, sizeof(etag), "\"ui-%08x\"", (unsigned)crc);
+    } else {
+        snprintf(etag, sizeof(etag), "%s", build_etag);
+    }
 
     httpd_resp_set_hdr(req, "ETag", etag);
-    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+    /* Always revalidate: a browser that cached the embedded page for a day would never see an
+     * upload without a manual cache flush. */
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+    bool fresh = httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof(inm)) == ESP_OK &&
+                 strcmp(inm, etag) == 0;
     if (fresh) {
+        if (from_fs) storage_ui_read_end();   /* begin() is exclusive: only the holder releases */
         httpd_resp_set_status(req, "304 Not Modified");
         return httpd_resp_send(req, NULL, 0);
     }
 
-    size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-    return httpd_resp_send(req, (const char *)index_html_gz_start, (ssize_t)len);
+
+    if (!from_fs) return httpd_resp_send(req, (const char *)blob, (ssize_t)len);
+
+    /* stream the file in 4 KB chunks: no whole-page allocation while the AP is serving.
+     * The buffer is static because storage_ui_read_begin() is exclusive, so only one request
+     * at a time reaches this loop (4 KB on the 7 KB httpd stack would be the alternative). */
+    static uint8_t buf[4096];
+    int n;
+    esp_err_t err = ESP_OK;
+    while ((n = storage_ui_read_chunk(buf, sizeof(buf))) > 0) {
+        if (httpd_resp_send_chunk(req, (const char *)buf, n) != ESP_OK) { err = ESP_FAIL; break; }
+    }
+    if (n < 0) err = ESP_FAIL;
+    storage_ui_read_end();
+    if (err != ESP_OK) return err;
+    return httpd_resp_send_chunk(req, NULL, 0);   /* terminate the chunked body */
 }
 
 /* ------------------------- session ------------------------- */
@@ -209,6 +279,10 @@ static esp_err_t h_status(httpd_req_t *req)
     cJSON_AddNumberToObject(o, "rotation_s", c->rotation_s);
     cJSON_AddNumberToObject(o, "scan_itvl_ms", c->scan.itvl_ms);
     cJSON_AddNumberToObject(o, "scan_win_ms", c->scan.win_ms);
+    cJSON_AddBoolToObject(o, "scan_filter", c->scan.filter_noise);
+    cJSON_AddBoolToObject(o, "scan_full_duty", c->scan.full_duty);
+    cJSON_AddBoolToObject(o, "scan_clear_rounds", c->scan.clear_each_round);
+    cJSON_AddNumberToObject(o, "scan_duration_s", c->scan.duration_s);
     cfg_unlock();
 
     /* ---- serial-free diagnostics: enough to triage from a phone browser ---- */
@@ -227,6 +301,7 @@ static esp_err_t h_status(httpd_req_t *req)
         blescan_stats(&pkts, &rms);
         cJSON_AddNumberToObject(o, "scan_pkts", pkts);
         cJSON_AddNumberToObject(o, "scan_running_ms", rms);
+        cJSON_AddNumberToObject(o, "scan_filtered", blescan_filtered());
     }
     cJSON_AddStringToObject(o, "led", led_state_name(radio_mode(), net_ap_sta_count()));
     cJSON_AddStringToObject(o, "board", BOARD_NAME);
@@ -253,6 +328,153 @@ static esp_err_t h_status(httpd_req_t *req)
     }
     cJSON_AddStringToObject(o, "ip", ip);
     return send_json(req, o);
+}
+
+/* ------------------------- uploaded SPA ------------------------- */
+
+/* Refuse after swallowing what is left of the body; close when it could not be swallowed. */
+static esp_err_t ui_refuse(httpd_req_t *req, size_t want, const char *status, const char *msg)
+{
+    if (!body_drain(req, want)) httpd_resp_set_hdr(req, "Connection", "close");
+    return fail(req, status, msg);
+}
+
+/* The peer stopped sending mid-upload: give the session back instead of waiting for a reboot. */
+static esp_err_t ui_stall(httpd_req_t *req)
+{
+    storage_ui_upload_abort();
+    httpd_resp_set_hdr(req, "Connection", "close");
+    return fail(req, "408 Request Timeout", "upload stalled");
+}
+
+/* The upload is dead either way (the caller aborts it): drop what is left of the body, then
+ * say why -- a size verdict is the client's fault, anything else is the device's. */
+static esp_err_t ui_chunk_fail(httpd_req_t *req, esp_err_t e, size_t left)
+{
+    if (e == ESP_ERR_INVALID_SIZE) return ui_refuse(req, left, "413 Payload Too Large", "body larger than 64 KB");
+    return ui_refuse(req, left, "500 Internal Server Error", "write failed");
+}
+
+/* GET /api/ui -- which copy would / serve, and under which ETag */
+static esp_err_t h_ui_get(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    uint32_t crc = 0;
+    size_t len = 0;
+    bool fs = storage_ui_stat(&crc, &len) == ESP_OK;
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddStringToObject(o, "source", fs ? "fs" : "embedded");
+    if (fs) {
+        cJSON_AddNumberToObject(o, "size", (double)len);
+        char e[24];
+        snprintf(e, sizeof(e), "ui-%08x", (unsigned)crc);
+        cJSON_AddStringToObject(o, "etag", e);
+    }
+    return send_json(req, o);
+}
+
+/* POST /api/ui -- replace the uploaded SPA with a gzipped index.html */
+static esp_err_t h_ui_post(httpd_req_t *req)
+{
+    if (!auth_ok(req)) {
+        /* nothing is read before auth, so a body would leave this connection desynced: close it */
+        if (req->content_len) httpd_resp_set_hdr(req, "Connection", "close");
+        return fail(req, "401 Unauthorized", "token required");
+    }
+
+    /* refusals happen before any of the body is written, so the live file stays intact */
+    size_t total = req->content_len;
+    if (total < UI_MIN_BYTES) return ui_refuse(req, total, "400 Bad Request", "body smaller than 1 KB");
+    if (total > UI_MAX_BYTES) return ui_refuse(req, total, "413 Payload Too Large", "body larger than 64 KB");
+    if (!storage_ready()) return ui_refuse(req, total, "503 Service Unavailable", "archive unavailable");
+
+    esp_err_t e = storage_ui_upload_begin();
+    if (e != ESP_OK) {
+        /* begin() never waits for the mutex, so the failure is about the device, never the body:
+         * storage down, no room/read-only /data for ui.tmp, or a peer holding the UI */
+        if (!storage_ready()) return ui_refuse(req, total, "503 Service Unavailable", "archive unavailable");
+        if (e == ESP_ERR_NO_MEM) return ui_refuse(req, total, "507 Insufficient Storage", "cannot create ui.tmp");
+        return ui_refuse(req, total, "409 Conflict", "upload or stream in progress, retry");
+    }
+
+    /* static for the same reason as h_index: upload_begin() is exclusive, so exactly one request
+     * at a time reaches this loop -- and 4 KB has no business on the 7 KB httpd stack */
+    static uint8_t buf[4096];
+    size_t got = 0;
+    int timeouts = 0;
+    /* gzip magic is the only check the device can do; read both bytes first so a short first
+     * recv is not mistaken for a foreign body */
+    while (got < 2) {
+        int r = httpd_req_recv(req, (char *)buf + got, 2 - got);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= BODY_RECV_TIMEOUTS) return ui_stall(req);
+            continue;
+        }
+        timeouts = 0;
+        if (r <= 0) { storage_ui_upload_abort(); return fail(req, "400 Bad Request", "short body"); }
+        got += (size_t)r;
+    }
+    if (buf[0] != 0x1f || buf[1] != 0x8b) {
+        storage_ui_upload_abort();
+        return ui_refuse(req, total - got, "400 Bad Request", "not gzip");
+    }
+    esp_err_t ce = storage_ui_upload_chunk(buf, got);
+    if (ce != ESP_OK) { storage_ui_upload_abort(); return ui_chunk_fail(req, ce, total - got); }
+
+    while (got < total) {
+        size_t want = total - got;
+        if (want > sizeof(buf)) want = sizeof(buf);
+        int r = httpd_req_recv(req, (char *)buf, want);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= BODY_RECV_TIMEOUTS) return ui_stall(req);
+            continue;
+        }
+        timeouts = 0;
+        if (r <= 0) { storage_ui_upload_abort(); return fail(req, "400 Bad Request", "short body"); }
+        ce = storage_ui_upload_chunk(buf, (size_t)r);
+        if (ce != ESP_OK) { storage_ui_upload_abort(); return ui_chunk_fail(req, ce, total - got - (size_t)r); }
+        got += (size_t)r;
+    }
+
+    /* the whole body is in by now, so a commit failure leaves nothing to drain */
+    if (storage_ui_upload_commit() != ESP_OK) return fail(req, "500 Internal Server Error", "commit failed");
+
+    /* name the committed file only if it can still be read back, as h_ui_get does: a stat that
+     * fails must not turn into "size 0, etag ui-00000000" for a good upload */
+    uint32_t crc = 0;
+    size_t len = 0;
+    bool have = storage_ui_stat(&crc, &len) == ESP_OK;
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    if (have) {
+        cJSON_AddNumberToObject(o, "size", (double)len);
+        char et[24];
+        snprintf(et, sizeof(et), "ui-%08x", (unsigned)crc);
+        cJSON_AddStringToObject(o, "etag", et);
+    }
+    return send_json(req, o);
+}
+
+/* DELETE /api/ui -- drop the override, back to the embedded page */
+static esp_err_t h_ui_delete(httpd_req_t *req)
+{
+    if (!auth_ok(req)) {
+        /* nothing is read before auth, so a body would leave this connection desynced: close it */
+        if (req->content_len) httpd_resp_set_hdr(req, "Connection", "close");
+        return fail(req, "401 Unauthorized", "token required");
+    }
+    /* a body on DELETE is unexpected, but it still has to go before the response does */
+    if (!body_drain(req, req->content_len)) httpd_resp_set_hdr(req, "Connection", "close");
+
+    esp_err_t e = storage_ui_remove();
+    /* nothing uploaded is the same end state as a successful revert */
+    if (e == ESP_OK || e == ESP_ERR_NOT_FOUND) return ok_msg(req, "reverted to the embedded UI");
+    if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
+    if (e == ESP_ERR_NO_MEM) return fail(req, "503 Service Unavailable", "UI storage unavailable");
+    /* the remaining INVALID_STATE means a peer holds the UI: remove() never waits, because an
+     * unlink under an open stream would truncate the page in flight */
+    return fail(req, "409 Conflict", "a request is streaming /, retry");
 }
 
 /* ------------------------- profiles CRUD ------------------------- */
@@ -489,6 +711,16 @@ static esp_err_t h_scan_get(httpd_req_t *req)
             cJSON_AddNumberToObject(o, "mfg_len", d->mfg_len);
             cJSON_AddNumberToObject(o, "mfg_src", d->mfg_src);
         }
+        if (d->svc_uuid) {
+            char sh[8];
+            snprintf(sh, sizeof(sh), "0x%04X", d->svc_uuid);
+            cJSON_AddStringToObject(o, "svc", sh);
+            cJSON_AddStringToObject(o, "svc_name", blescan_service_name(d->svc_uuid));
+        }
+        {
+            const char *nv = blescan_name_vendor(d->name);
+            if (nv) cJSON_AddStringToObject(o, "name_vendor", nv);
+        }
         cJSON_AddNumberToObject(o, "rsp_len", d->rsp_len);
         if (d->rsp_len) {
             char sh[SCAN_RAW_MAX * 2 + 1];
@@ -514,14 +746,23 @@ static esp_err_t h_scan_post(httpd_req_t *req)
     beacon_cfg_t *c = cfg_get();
     const cJSON *iv = cJSON_GetObjectItemCaseSensitive(j, "itvl_ms");
     const cJSON *wv = cJSON_GetObjectItemCaseSensitive(j, "win_ms");
+    const cJSON *fv = cJSON_GetObjectItemCaseSensitive(j, "filter_noise");
+    const cJSON *fdv = cJSON_GetObjectItemCaseSensitive(j, "full_duty");
+    const cJSON *fcv = cJSON_GetObjectItemCaseSensitive(j, "clear_each_round");
+    const cJSON *dv  = cJSON_GetObjectItemCaseSensitive(j, "duration_s");
     if (cJSON_IsNumber(iv))c->scan.itvl_ms = (uint16_t)(iv->valueint < 20 ? 20 : iv->valueint > 10240 ? 10240 : iv->valueint);
     if (cJSON_IsNumber(wv))c->scan.win_ms  = (uint16_t)(wv->valueint < 2 ? 2 : wv->valueint > 10240 ? 10240 : wv->valueint);
+    if (cJSON_IsBool(fv))  c->scan.filter_noise = cJSON_IsTrue(fv);
+    if (cJSON_IsBool(fdv)) c->scan.full_duty = cJSON_IsTrue(fdv);
+    if (cJSON_IsBool(fcv)) c->scan.clear_each_round = cJSON_IsTrue(fcv);
+    if (cJSON_IsNumber(dv))
+        c->scan.duration_s = (uint16_t)(dv->valueint < 10 ? 10 : dv->valueint > 900 ? 900 : dv->valueint);
     cfg_save();
     cfg_unlock();
     cJSON_Delete(j);
 
     /* Scanning is manual-only, so saving the parameters just restarts an open sniff window
-     * with the new interval/window (and restarts its 30 s). */
+     * with the new interval/window (and restarts its 60 s). */
     if (radio_mode() == RMODE_SNIFF) {
         esp_err_t e = radio_sniff();
         if (e != ESP_OK) return fail(req, "500 Internal Server Error", "scan restart failed");
@@ -538,6 +779,63 @@ static esp_err_t h_scan_delete(httpd_req_t *req)
 
 /* ------------------------- capture archive (persistent) ------------------------- */
 
+static cJSON *cap_rec_json(const cap_rec_t *r)
+{
+    cJSON *o = cJSON_CreateObject();
+    char h[CFG_RAW_MAX * 2 + 1], u[33];
+
+    cfg_hex_to_str(r->addr, 6, h);
+    cJSON_AddStringToObject(o, "addr", h);
+    cJSON_AddNumberToObject(o, "addr_type", r->addr_type);
+    cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
+    cJSON_AddStringToObject(o, "name", r->name);
+    cJSON_AddNumberToObject(o, "src", r->src);
+
+    cfg_hex_to_str(r->raw, r->raw_len, h);
+    cJSON_AddStringToObject(o, "raw", h);
+    cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
+    if (r->rsp_len) {
+        cfg_hex_to_str(r->rsp, r->rsp_len, h);
+        cJSON_AddStringToObject(o, "rsp", h);
+    }
+    cJSON_AddNumberToObject(o, "rsp_len", r->rsp_len);
+
+    if (r->mfg_len || r->mfg_company) {
+        char mh[sizeof(r->mfg) * 2 + 1];
+        cfg_hex_to_str(r->mfg, r->mfg_len, mh);
+        cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
+        cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
+        cJSON_AddStringToObject(o, "mfg", mh);
+        cJSON_AddNumberToObject(o, "mfg_len", r->mfg_len);
+        cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
+    }
+    if (r->svc_uuid) {
+        char sh[8];
+        snprintf(sh, sizeof(sh), "0x%04X", r->svc_uuid);
+        cJSON_AddStringToObject(o, "svc", sh);
+        cJSON_AddStringToObject(o, "svc_name", blescan_service_name(r->svc_uuid));
+    }
+
+    cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
+    if (r->is_ibeacon) {
+        cfg_uuid_to_str(r->uuid, u);
+        cJSON_AddStringToObject(o, "uuid", u);
+        cJSON_AddNumberToObject(o, "major", r->major);
+        cJSON_AddNumberToObject(o, "minor", r->minor);
+        cJSON_AddNumberToObject(o, "ref_rssi", r->ref_rssi);
+    }
+
+    cJSON_AddNumberToObject(o, "rssi", r->rssi_last);
+    cJSON_AddNumberToObject(o, "rssi_max", r->rssi_max);
+    cJSON_AddNumberToObject(o, "rssi_avg", r->rssi_avg);
+    cJSON_AddNumberToObject(o, "packets", r->count);
+    cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
+    cJSON_AddNumberToObject(o, "dwell_ms", r->dwell_ms);
+    cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
+    cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
+    return o;
+}
+
 static esp_err_t h_history_get(httpd_req_t *req)
 {
     if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
@@ -551,40 +849,87 @@ static esp_err_t h_history_get(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "available", storage_ready());
     cJSON_AddNumberToObject(root, "count", n);
     cJSON *arr = cJSON_AddArrayToObject(root, "items");
+    for (int i = 0; i < n; i++) cJSON_AddItemToArray(arr, cap_rec_json(&recs[i]));
+    free(recs);
+    return send_json(req, root);
+}
+
+/* ------------------------- favourites ------------------------- */
+
+static esp_err_t h_pins_get(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+
+    cap_rec_t *recs = calloc(PIN_SLOTS, sizeof(cap_rec_t));
+    if (!recs) return fail(req, "500 Internal Server Error", "oom");
+    int n = storage_pin_list(recs, PIN_SLOTS);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON_AddBoolToObject(root, "available", storage_ready());
+    cJSON_AddNumberToObject(root, "count", n);
+    cJSON_AddNumberToObject(root, "slots", PIN_SLOTS);
+    cJSON *arr = cJSON_AddArrayToObject(root, "items");
     for (int i = 0; i < n; i++) {
-        const cap_rec_t *r = &recs[i];
-        cJSON *o = cJSON_CreateObject();
-        char h[70], u[33];
-        cfg_hex_to_str(r->addr, 6, h);
-        cJSON_AddStringToObject(o, "addr", h);
-        cfg_hex_to_str(r->raw, r->raw_len, h);
-        cJSON_AddStringToObject(o, "raw", h);
-        cJSON_AddBoolToObject(o, "ibeacon", r->is_ibeacon);
-        if (r->is_ibeacon) {
-            cfg_uuid_to_str(r->uuid, u);
-            cJSON_AddStringToObject(o, "uuid", u);
-            cJSON_AddNumberToObject(o, "major", r->major);
-            cJSON_AddNumberToObject(o, "minor", r->minor);
-        }
-        cJSON_AddNumberToObject(o, "rssi", r->rssi);
-        cJSON_AddNumberToObject(o, "itvl_ms", r->itvl_ms);
-        cJSON_AddNumberToObject(o, "adv_type", r->adv_type);
-        cJSON_AddNumberToObject(o, "raw_len", r->raw_len);
-        if (r->mfg_len || r->mfg_company) {
-            char mh[sizeof(r->mfg) * 2 + 1];
-            cfg_hex_to_str(r->mfg, r->mfg_len, mh);
-            cJSON_AddNumberToObject(o, "mfg_company", r->mfg_company);
-            cJSON_AddStringToObject(o, "mfg_vendor", blescan_company_name(r->mfg_company));
-            cJSON_AddStringToObject(o, "mfg", mh);
-            cJSON_AddNumberToObject(o, "mfg_len", r->mfg_len);
-            cJSON_AddNumberToObject(o, "mfg_src", r->mfg_src);
-        }
-        cJSON_AddNumberToObject(o, "boot_seq", r->boot_seq);
-        cJSON_AddNumberToObject(o, "uptime_s", r->uptime_s);
+        cJSON *o = cap_rec_json(&recs[i]);
+        cJSON_AddNumberToObject(o, "id", i);
         cJSON_AddItemToArray(arr, o);
     }
     free(recs);
     return send_json(req, root);
+}
+
+/* Pin the n-th newest archive row: the archive is read newest-first, which is what the UI
+ * shows, so the index the user clicked is the index used here. */
+static esp_err_t h_pins_post(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    char *body = read_body(req, NULL);
+    if (!body) return fail(req, "400 Bad Request", "body required");
+    cJSON *j = cJSON_Parse(body);
+    free(body);
+    if (!j) return fail(req, "400 Bad Request", "bad json");
+    const cJSON *ij = cJSON_GetObjectItemCaseSensitive(j, "index");
+    int idx = cJSON_IsNumber(ij) ? ij->valueint : -1;
+    cJSON_Delete(j);
+    if (idx < 0) return fail(req, "400 Bad Request", "index required");
+
+    cap_rec_t *recs = calloc(CAP_SLOTS, sizeof(cap_rec_t));
+    if (!recs) return fail(req, "500 Internal Server Error", "oom");
+    int n = storage_capture_list(recs, CAP_SLOTS);
+    if (idx >= n) {
+        free(recs);
+        return fail(req, "404 Not Found", "no such archive row (list changed?)");
+    }
+    esp_err_t e = storage_pin_add(&recs[idx]);
+    char addr[16];
+    cfg_hex_to_str(recs[idx].addr, 6, addr);
+    free(recs);
+    if (e == ESP_ERR_NO_MEM)  return fail(req, "409 Conflict", "favourites full");
+    if (e != ESP_OK)          return fail(req, "500 Internal Server Error", "pin failed");
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddStringToObject(o, "addr", addr);
+    applog_add(LOG_T_CFG, 0, "pin %s", addr);
+    return send_json(req, o);
+}
+
+static esp_err_t h_pins_delete(httpd_req_t *req)      /* DELETE /api/pins -> clear all */
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    esp_err_t e = storage_pin_clear();
+    if (e != ESP_OK) return fail(req, "500 Internal Server Error", "clear failed");
+    return ok_msg(req, "favourites cleared");
+}
+
+static esp_err_t h_pin_item_delete(httpd_req_t *req)  /* DELETE /api/pins/<n> */
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    esp_err_t e = storage_pin_remove(uri_last_id(req->uri));
+    if (e == ESP_ERR_INVALID_ARG) return fail(req, "404 Not Found", "no such favourite");
+    if (e != ESP_OK)              return fail(req, "500 Internal Server Error", "unpin failed");
+    return ok_msg(req, "unpinned");
 }
 
 static esp_err_t h_history_delete(httpd_req_t *req)
@@ -596,8 +941,6 @@ static esp_err_t h_history_delete(httpd_req_t *req)
 }
 
 /* ------------------------- one-tap clone ------------------------- */
-
-#define ADDR_TYPE_RANDOM 1   /* BLE_ADDR_RANDOM; keeps nimble headers out of the HTTP layer */
 
 static esp_err_t h_clone(httpd_req_t *req)
 {
@@ -614,88 +957,15 @@ static esp_err_t h_clone(httpd_req_t *req)
     cJSON_Delete(j);
     if (!ok_addr) return fail(req, "400 Bad Request", "addr must be 12 hex chars");
 
-    detection_t d;
-    if (!blescan_find(addr, &d))
-        return fail(req, "404 Not Found", "not in capture table, run a scan first");
-    if (d.raw_len < 2)
-        return fail(req, "409 Conflict", "no payload captured (try active scan)");
-
+    /* The clone itself lives in clone_op.c: the USB console does the same thing */
+    char msg[64] = {0};
     int id = -1;
+    uint16_t itvl = 0;
     bool replaced = false;
-    uint16_t itvl = d.itvl_ms;
-    if (itvl < 20)    itvl = 100;      /* only one packet seen: conservative default */
-    if (itvl > 10240) itvl = 10240;
-
-    cfg_lock();
-    beacon_cfg_t *c = cfg_get();
-    int slot = cfg_pick_slot(c);       /* free slot first, else evict the LRU idle profile */
-    if (slot >= 0) {
-        replaced = (slot < c->count);
-        beacon_profile_t *p = &c->p[slot];
-        memset(p, 0, sizeof(*p));
-        if (d.is_ibeacon)
-            snprintf(p->name, sizeof(p->name), "copy-%u/%u", d.major, d.minor);
-        else if (d.name[0])
-            snprintf(p->name, sizeof(p->name), "copy-%.11s", d.name);
-        else
-            snprintf(p->name, sizeof(p->name), "copy-%02X%02X%02X", addr[3], addr[4], addr[5]);
-
-        p->kind     = PROFILE_KIND_RAW;     /* verbatim: replicating anything */
-        p->enabled  = true;
-        memcpy(p->raw, d.raw, d.raw_len);
-        p->raw_len  = d.raw_len;
-        memcpy(p->rsp, d.rsp, d.rsp_len);
-        p->rsp_len  = d.rsp_len;            /* 0 when no SCAN_RSP was captured */
-        memcpy(p->src_addr, addr, 6);
-        p->src_adv_type = d.adv_type;
-        if (d.is_ibeacon) {
-            memcpy(p->uuid, d.uuid, 16);
-            p->major    = d.major;
-            p->minor    = d.minor;
-            p->ref_rssi = d.ref_rssi;
-        } else {
-            p->ref_rssi = -59;
-        }
-        p->radio_dbm   = 9;
-        p->adv_itvl_ms = itvl;
-        /* Keep scannability when the source was ADV_IND/ADV_SCAN_IND, otherwise
-         * advertise non-connectable and non-scannable. A captured scan response implies
-         * the source answered SCAN_REQ, so it was scannable. */
-        p->scannable   = (d.adv_type == 0x00 || d.adv_type == 0x02) || d.rsp_len > 0;
-        /* Address: a random address clones exactly (same bytes, top two bits forced to 11).
-         * A public address cannot be chosen per advertising instance, but it can be set for
-         * the whole boot with esp_iface_mac_addr_set(ESP_MAC_BT) -- app_main does that for the
-         * active profile, and radio_clone() reboots when a switch needs another one. */
-        if (d.addr_type == ADDR_TYPE_RANDOM) {
-            memcpy(p->rand_addr, addr, 6);
-            p->rand_addr[0] |= 0xC0;          /* display order: top two bits of the first octet */
-            p->use_rand_addr = true;
-        } else {
-            p->use_rand_addr = false;
-            p->clone_public_addr = true;      /* takes effect after the reboot below */
-        }
-
-        if (!replaced) c->count++;
-        c->active = slot;
-        cfg_touch(c, slot);
-        id = slot;
-        cfg_save();
-        applog_add(LOG_T_CFG, d.rssi_last, "clone %02x%02x%02x%02x%02x%02x (%s) -> #%d raw%d itvl%ums",
-                   addr[0], addr[1], addr[2], addr[3], addr[4], addr[5],
-                   d.addr_type == ADDR_TYPE_RANDOM ? "random, pinned as static" : "public, applied at boot",
-                   id, d.raw_len, (unsigned)itvl);
-    }
-    cfg_unlock();
-
-    if (id < 0)
-        return fail(req, "409 Conflict",
-                    "config full and only the active profile is left; delete one first");
-
-    /* Persistent archive: exactly one write here, so the rate is negligible */
-    storage_capture_add(&d, cfg_stat_get("boots"));
-
-    esp_err_t e = radio_clone();
-    if (e != ESP_OK) return fail(req, "500 Internal Server Error", "clone apply failed");
+    esp_err_t e = clone_op_from_addr(addr, &id, &itvl, &replaced, msg, sizeof(msg));
+    if (e == ESP_ERR_NOT_FOUND)     return fail(req, "404 Not Found", msg);
+    if (e == ESP_ERR_INVALID_STATE) return fail(req, "409 Conflict", msg);
+    if (e != ESP_OK)                return fail(req, "500 Internal Server Error", "clone apply failed");
 
     cJSON *o = cJSON_CreateObject();
     cJSON_AddBoolToObject(o, "ok", true);
@@ -874,7 +1144,7 @@ static esp_err_t h_factory(httpd_req_t *req)
 esp_err_t web_start(void)
 {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.max_uri_handlers = 28;
+    cfg.max_uri_handlers = 36;
     cfg.stack_size       = 7168;      /* cJSON serialisation needs the depth */
     cfg.lru_purge_enable = true;
     cfg.uri_match_fn     = httpd_uri_match_wildcard;
@@ -896,6 +1166,10 @@ esp_err_t web_start(void)
     REG("/api/profiles/*",     HTTP_DELETE, h_profiles_delete);
     REG("/api/history",        HTTP_GET, h_history_get);
     REG("/api/history",        HTTP_DELETE, h_history_delete);
+    REG("/api/pins",           HTTP_GET, h_pins_get);
+    REG("/api/pins",           HTTP_POST, h_pins_post);
+    REG("/api/pins",           HTTP_DELETE, h_pins_delete);
+    REG("/api/pins/*",         HTTP_DELETE, h_pin_item_delete);
     REG("/api/clone",          HTTP_POST, h_clone);
     REG("/api/mode",           HTTP_POST, h_mode);
     REG("/api/active",         HTTP_POST, h_active);
@@ -910,6 +1184,9 @@ esp_err_t web_start(void)
     REG("/api/ap",             HTTP_POST, h_ap);
     REG("/api/reboot",         HTTP_POST, h_reboot);
     REG("/api/factory",        HTTP_POST, h_factory);
+    REG("/api/ui",             HTTP_GET,    h_ui_get);
+    REG("/api/ui",             HTTP_POST,   h_ui_post);
+    REG("/api/ui",             HTTP_DELETE, h_ui_delete);
 
     ESP_LOGI(TAG, "http server on :80");
     return ESP_OK;

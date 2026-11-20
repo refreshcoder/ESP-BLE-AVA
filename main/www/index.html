@@ -6,499 +6,384 @@
 <meta name="theme-color" content="#0f1115">
 <title>BLE Beacon Cloner</title>
 <style>
-:root{--bg:#0f1115;--card:#181b22;--line:#262b36;--fg:#e8ebf1;--dim:#9aa3b6;--acc:#4c8dff;--ok:#37c98b;--warn:#f0b429;--err:#f2555a}
+:root{
+  --bg:#0f1115;--card:#181b22;--card2:#1b2029;--line:#262b36;--fg:#e8ebf1;--dim:#9aa3b6;
+  --acc:#4c8dff;--ok:#37c98b;--warn:#f0b429;--err:#f2555a;
+  --r:12px;--pad:14px
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);padding-bottom:76px}
-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:8;flex-wrap:wrap}
-h1{font-size:15px;margin:0;font-weight:600}
+html,body{margin:0}
+body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);padding-bottom:24px}
+header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9;flex-wrap:wrap}
+h1{font-size:15px;margin:0;font-weight:600;margin-right:auto}
 .pill{padding:3px 9px;border-radius:99px;font-size:11px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
 .pill.on{color:var(--ok);border-color:#1e5a44;background:#0f2a22}
-.pill.off{color:var(--err);border-color:#5a1e22;background:#2a0f11}
-nav{display:flex;gap:6px;padding:10px 10px 4px;overflow-x:auto;position:sticky;top:52px;background:var(--bg);z-index:7}
-nav button{flex:0 0 auto;background:#151a22;border:1px solid var(--line);color:var(--dim);padding:9px 15px;border-radius:10px;font-size:14px;cursor:pointer}
+.pill.off{color:var(--dim)}
+.pill.err{color:var(--err);border-color:#5a1e22;background:#2a0f11}
+select,input,button{font:inherit;color:var(--fg)}
+select,input[type=text],input[type=password],input[type=number]{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-height:38px;width:100%}
+input:focus,select:focus{outline:1px solid var(--acc);border-color:var(--acc)}
+header select{width:auto;min-height:0;padding:4px 8px;border-radius:99px;font-size:12px;background:#151a22}
+
+/* tabs */
+nav{display:flex;gap:6px;padding:10px 12px 0;max-width:900px;margin:0 auto}
+nav button{flex:1;background:#151a22;border:1px solid var(--line);color:var(--dim);padding:10px 8px;border-radius:10px;font-size:14px;cursor:pointer}
 nav button.active{color:#fff;background:#233044;border-color:#31425c;font-weight:600}
-main{padding:10px 12px;max-width:860px;margin:0 auto}
-section{display:none}section.active{display:block}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
-.card h2{font-size:12px;margin:0 0 10px;color:var(--dim);font-weight:600;letter-spacing:.8px;text-transform:uppercase}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.big{display:flex;flex-direction:column;gap:10px}
-.modebtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:58px;border-radius:14px;border:1px solid var(--line);background:#1b2029;color:var(--fg);font-size:16px;font-weight:600;cursor:pointer}
-.modebtn.on{background:#12301f;border-color:#1e5a44;color:#7ce8b3}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--dim);font-weight:500;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
-tbody tr:last-child td{border-bottom:none}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all}
-.dim{color:var(--dim)}
-button.btn{background:#222a36;border:1px solid var(--line);color:var(--fg);min-height:40px;padding:8px 14px;border-radius:10px;cursor:pointer;font-size:14px}
-button.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
-button.btn.dan{background:#3a1a1c;border-color:#5a2327;color:#ffb3b6}
-button.btn.sm{min-height:34px;padding:6px 11px;font-size:13px}
-label{display:block;font-size:12px;color:var(--dim);margin:10px 0 5px}
-input,select{width:100%;background:#0d1016;border:1px solid var(--line);color:var(--fg);min-height:44px;padding:10px 11px;border-radius:10px;font-size:15px;font-family:inherit}
-input[type=checkbox]{width:auto;min-height:0}
-#lang{width:auto;min-height:0;padding:3px 6px;border-radius:99px;font-size:11px;background:#151a22;color:var(--dim)}
+main{padding:12px;max-width:900px;margin:0 auto}
+section{display:none}
+section.active{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:var(--pad);margin-bottom:12px}
+.card>h2{font-size:11px;margin:0 0 10px;color:var(--dim);font-weight:600;letter-spacing:.8px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.card>h2 .sp{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
+
+/* segmented control (mode switch, sub tabs) */
+.seg{display:flex;gap:6px;background:#12161d;border:1px solid var(--line);border-radius:12px;padding:5px}
+.seg button{flex:1;border:0;background:transparent;color:var(--dim);padding:11px 6px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;transition:background .12s,color .12s}
+.seg button.on{background:#233044;color:#fff}
+.seg button.on.sniff{background:#173044;color:#8ec5ff}
+.seg button.on.clone{background:#12301f;color:#7ce8b3}
+.seg button:disabled{opacity:.5;cursor:default}
+
+/* progress */
+.bar{height:6px;border-radius:99px;background:#12161d;overflow:hidden;margin:10px 0 4px}
+.bar>i{display:block;height:100%;background:var(--acc);width:0;transition:width .4s linear}
+.bar.clone>i{background:var(--ok)}
+
+/* key/value rows */
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.kv dt{color:var(--dim)}
+.kv dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:8px;margin-top:10px}
+.stat{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center}
+.stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.stat span{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.hint{font-size:12px;color:var(--dim);margin-top:8px}
+
+/* buttons */
+.btn{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 13px;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#31425c}
+.btn.pri{background:#233044;border-color:#31425c;color:#fff;font-weight:600}
+.btn.ok{color:var(--ok);border-color:#1e5a44}
+.btn.bad{color:var(--err);border-color:#5a1e22}
+.btn.sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:default}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.tag{font-size:11px;padding:2px 7px;border-radius:6px;background:#1f2632;color:var(--dim)}
-.tag.raw{background:#2b1f3f;color:#c7a6ff}
-.tag.ibe{background:#132b3f;color:#6ab7ff}
-.tag.on{background:#12301f;color:#7ce8b3}
-#toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#222a36;border:1px solid var(--line);padding:11px 18px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:90vw}
-#toast.show{opacity:1}
-#toast.err{border-color:#5a2327;color:#ffb3b6}
-#login{position:fixed;inset:0;background:rgba(8,10,14,.96);display:flex;align-items:center;justify-content:center;z-index:40;padding:18px}
-#login .box{width:100%;max-width:380px}
-.log{max-height:56vh;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px}
-.log div{padding:4px 0;border-bottom:1px solid #1d222b;word-break:break-all}
-.t-err{color:var(--err)}.t-act{color:var(--ok)}.t-detect{color:#8fc2ff}.t-cfg{color:var(--warn)}
-.warnbox{border-color:#5a4a1e;background:#2a220f;color:var(--warn)}
-details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:4px 0}
-.hexbox{background:#0d1016;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:11px;color:#9fb3cc;word-break:break-all;margin-top:6px}
-.legend td{font-size:12px}
+
+/* toolbar: chips + search + sort */
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.chip{background:#151a22;border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 12px;font-size:12px;cursor:pointer}
+.chip.on{color:#fff;background:#233044;border-color:#31425c;font-weight:600}
+.tools input[type=text]{flex:1;min-width:130px}
+.tools select{width:auto;min-width:120px}
+
+/* record cards */
+.rec{background:var(--card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;overflow:hidden}
+.rec>.h{display:flex;gap:9px;align-items:center;padding:9px 11px;cursor:pointer}
+.rec>.h:active{background:var(--card2)}
+.rssi{flex:0 0 auto;min-width:42px;text-align:center;border-radius:7px;padding:3px 5px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;background:#12161d;border:1px solid var(--line);color:var(--dim)}
+.rssi.good{color:#7ce8b3;border-color:#1e5a44;background:#0f2a22}
+.rssi.mid{color:var(--warn);border-color:#4a3a12;background:#241d0c}
+.rec .t{flex:1;min-width:0}
+.rec .n{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec .s{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim);background:#12161d;vertical-align:middle;white-space:nowrap}
+.tag.hi{color:#8ec5ff;border-color:#1d3350}
+.tag.ding{color:#7ce8b3;border-color:#1e5a44;background:#0f2a22}
+.tag.pub{color:var(--acc);border-color:#243a5c}
+.rec .x{margin-left:auto;font-size:11px;color:var(--dim);text-align:right;white-space:nowrap}
+.rec>.b{display:none;border-top:1px solid var(--line);padding:11px;background:#151a22}
+.rec.open>.b{display:block}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.6;color:#cdd5e4;word-break:break-all;background:#12161d;border:1px solid var(--line);border-radius:8px;padding:8px;margin:4px 0}
+.copy{font-size:11px;color:var(--acc);background:none;border:0;padding:0 0 0 8px;cursor:pointer}
+
+/* dialog */
+#dlg{position:fixed;inset:0;background:rgba(6,8,11,.72);display:none;align-items:flex-start;justify-content:center;z-index:30;overflow:auto;padding:16px}
+#dlg.show{display:flex}
+#dlg .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;width:100%;max-width:520px;margin:auto}
+#dlg h3{margin:0 0 12px;font-size:15px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.field .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;margin:8px 0}
+.chk input{width:auto;min-height:0}
+
+/* log */
+#log-list{max-height:320px;overflow:auto;font-size:12px}
+.logrow{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #1e232c}
+.logrow:last-child{border-bottom:0}
+.logrow .tm{color:var(--dim);flex:0 0 auto;font-variant-numeric:tabular-nums}
+.logrow .ty{flex:0 0 auto;color:var(--acc)}
+.logrow .tx{flex:1;word-break:break-word}
+
+/* login / toast */
+#login{position:fixed;inset:0;background:rgba(6,8,11,.9);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
+#login .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px}
+#login h3{margin:0;font-size:15px}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#233044;border:1px solid #31425c;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:50;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:#3a1418;border-color:#5a1e22}
+.dim{color:var(--dim)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.empty{color:var(--dim);font-size:13px;padding:18px 4px;text-align:center}
+@media (min-width:700px){.stats{grid-template-columns:repeat(4,1fr)}}
 </style>
 </head>
 <body>
 
 <header>
   <h1>BLE Beacon Cloner</h1>
-  <span class="pill" id="p-mode">—</span>
-  <span class="pill" id="p-adv">ADV —</span>
-  <span class="pill" id="p-sta">AP —</span>
-  <span class="spacer"></span>
+  <span id="p-mode" class="pill off">—</span>
+  <span id="p-adv" class="pill off">—</span>
+  <span id="p-sta" class="pill">—</span>
   <select id="lang" title="Language"><option value="en">EN</option><option value="zh">中文</option></select>
-  <button class="btn sm" id="btn-lock" data-i18n="btn_lock">Lock</button>
+  <button class="btn sm" id="btn-lock" title="Lock">🔒</button>
 </header>
 
 <nav>
-  <button data-tab="home" class="active" data-i18n="nav_status">Status</button>
-  <button data-tab="capture" data-i18n="nav_capture">Capture</button>
-  <button data-tab="profiles" data-i18n="nav_profiles">Profiles</button>
-  <button data-tab="log" data-i18n="nav_log">Log</button>
+  <button data-tab="status" class="active" data-i18n="nav_status">Status</button>
+  <button data-tab="data" data-i18n="nav_data">Data</button>
   <button data-tab="settings" data-i18n="nav_settings">Settings</button>
 </nav>
 
 <main>
-  <!-- ========== status ========== -->
-  <section id="tab-home" class="active">
-    <div class="card warnbox" id="pow-card" style="display:none"><div id="pow-warn" class="mono"></div></div>
+<!-- ================= STATUS ================= -->
+<section id="tab-status" class="active">
+  <div class="card">
+    <h2 data-i18n="mode_title">Mode</h2>
+    <div class="seg" id="mode-seg">
+      <button data-mode="idle" data-i18n="mode_idle">Idle</button>
+      <button data-mode="sniff" data-i18n="mode_sniff">Sniff</button>
+      <button data-mode="clone" data-i18n="mode_clone">Broadcast</button>
+    </div>
+    <div id="mode-panel"></div>
+  </div>
 
-    <div class="card">
-      <h2 data-i18n="home_mode">Current mode</h2>
-      <div class="big">
-        <div class="row" style="justify-content:space-between">
-          <div style="font-size:22px;font-weight:700" id="mode-title">—</div>
-          <span class="dim mono" id="led-hint">LED —</span>
-        </div>
-        <button class="modebtn" id="m-sniff" onclick="setMode('sniff')" data-i18n="btn_sniff">Sniff (capture)</button>
-        <button class="modebtn" id="m-clone" onclick="setMode('clone')" data-i18n="btn_clone">Clone (advertise)</button>
-        <button class="modebtn" id="m-idle" onclick="setMode('idle')" data-i18n="btn_stop_radio">Stop radio</button>
-      </div>
-      <div class="dim" style="margin-top:10px;font-size:12px" data-i18n="mode_hint">Capture and advertising are mutually exclusive: entering one stops the other.</div>
-    </div>
+  <div class="card">
+    <h2 data-i18n="st_runtime">Runtime</h2>
+    <dl class="kv" id="runtime"></dl>
+  </div>
 
-    <div class="card"><h2 data-i18n="card_runtime">Runtime</h2><div id="status-body" class="mono dim" style="white-space:pre-wrap" data-i18n="loading">loading…</div></div>
+  <div class="card" id="pow-card" style="display:none;border-color:#5a1e22">
+    <h2 style="color:var(--err)" data-i18n="st_power">Power</h2>
+    <div id="pow-warn" class="dim"></div>
+  </div>
 
-    <div class="card">
-      <details><summary data-i18n="details_legend">LED patterns / button gestures</summary>
-        <table class="legend" style="margin-top:8px">
-          <tr><th data-i18n="th_led">LED</th><th data-i18n="th_meaning">Meaning</th></tr>
-          <tr><td data-i18n="led_double">Double blink</td><td data-i18n="led_double_m">Sniffing</td></tr>
-          <tr><td data-i18n="led_1hz">1 Hz slow blink</td><td data-i18n="led_1hz_m">Cloning / advertising</td></tr>
-          <tr><td data-i18n="led_triple">Triple fast blink</td><td data-i18n="led_triple_m">Cloning and a client is on this UI</td></tr>
-          <tr><td data-i18n="led_3s">One blink every 3 s</td><td data-i18n="led_3s_m">Idle (profiles exist, radio off)</td></tr>
-          <tr><td data-i18n="led_solid">Solid</td><td data-i18n="led_solid_m">No profile at all</td></tr>
-          <tr><td data-i18n="led_six">Six rapid blinks</td><td data-i18n="led_six_m">Radio error, or the button is being held towards a factory reset</td></tr>
-        </table>
-        <table class="legend" style="margin-top:10px">
-          <tr><th data-i18n="th_button">Button (BOOT)</th><th data-i18n="th_action">Action</th></tr>
-          <tr><td data-i18n="btn1_click">Single click</td><td data-i18n="btn1_act">Sniff ⇄ Clone</td></tr>
-          <tr><td data-i18n="btn2_click">Double click</td><td data-i18n="btn2_act">Stop radio</td></tr>
-          <tr><td data-i18n="btn_long">Hold 5 s / 8 s</td><td data-i18n="btn_long_act">5 s warns (fast blinks) · 8 s factory reset; release in between to cancel</td></tr>
-        </table>
-      </details>
-    </div>
-  </section>
+  <div class="card">
+    <h2><span data-i18n="st_events">Recent events</span>
+      <span class="sp row">
+        <button class="btn sm" id="log-toggle" data-i18n="show">Show</button>
+        <button class="btn sm" id="log-refresh" data-i18n="refresh">Refresh</button>
+        <button class="btn sm bad" id="log-clear" data-i18n="clear">Clear</button>
+      </span>
+    </h2>
+    <div id="log-list" style="display:none"></div>
+  </div>
+</section>
 
-  <!-- ========== capture ========== -->
-  <section id="tab-capture">
-    <div class="card">
-      <h2><span data-i18n="cap_this_session">This session</span> <span class="dim" id="cap-stat"></span></h2>
-      <div class="row" style="margin-bottom:8px">
-        <button class="btn sm pri" onclick="setMode('sniff')" data-i18n="btn_sniff">Sniff (capture)</button>
-        <button class="btn sm" onclick="loadCaptures()" data-i18n="btn_refresh">Refresh</button>
-        <button class="btn sm dan" onclick="clearCapture()" data-i18n="btn_clear">Clear</button>
-      </div>
-      <table><thead><tr><th data-i18n="th_signal">Signal</th><th data-i18n="th_rssi">RSSI</th><th data-i18n="th_itvl">Interval</th><th></th></tr></thead>
-      <tbody id="cap-body"></tbody></table>
-      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="sniff_tmo">Sniffing stops by itself after 30 s - tap Sniff again to extend.</div>
-      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n-html="cap_note">This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.</div>
-    </div>
+<!-- ================= DATA ================= -->
+<section id="tab-data">
+  <div class="seg" id="sub-seg" style="margin-bottom:12px">
+    <button data-sub="archive" class="on" data-i18n="sub_archive">Archive</button>
+    <button data-sub="pins" data-i18n="sub_pins">Favourites</button>
+    <button data-sub="profiles" data-i18n="sub_profiles">Profiles</button>
+  </div>
 
-    <div class="card">
-      <h2><span data-i18n="rec_title">Recorded in this browser</span><span class="dim" id="rec-stat"></span></h2>
-      <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="exportRecs()" data-i18n="btn_export_recs">Export JSON</button>
-        <button class="btn sm" onclick="exportCsv()" data-i18n="btn_export_csv">Export CSV</button>
-        <button class="btn sm" onclick="exportRaw()" data-i18n="btn_export_raw">Export raw</button>
-        <label class="btn sm" style="margin:0;display:inline-flex;align-items:center"><span data-i18n="btn_import">Import</span>
-          <input type="file" accept="application/json" style="display:none" onchange="importRecs(this)">
-        </label>
-        <button class="btn sm dan" onclick="clearRecs()" data-i18n="btn_clear_recs">Clear records</button>
-      </div>
-      <div id="rec-body" class="dim">—</div>
-      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="rec_hint">Every poll is merged into this browser's local storage, so records survive a board reboot, a page reload and the board's 16-entry table. Cloning from an old row still needs the device to be in the board's live table.</div>
-    </div>
+  <div class="tools" id="tools">
+    <button class="chip" data-filter="ding" data-i18n="f_ding">DingTalk</button>
+    <button class="chip" data-filter="pub" data-i18n="f_pub">Public addr</button>
+    <button class="chip" data-filter="full" data-i18n="f_full">Full window</button>
+    <input type="text" id="kw" placeholder="search name / addr / vendor">
+    <select id="sort">
+      <option value="time" data-i18n="sort_time">Newest</option>
+      <option value="rssi" data-i18n="sort_rssi">RSSI</option>
+      <option value="pkt" data-i18n="sort_pkt">Packets</option>
+      <option value="name" data-i18n="sort_name">Name</option>
+    </select>
+    <button class="btn sm" id="btn-refresh" data-i18n="refresh">Refresh</button>
+    <button class="btn sm pri" id="btn-new" style="display:none" data-i18n="new">New</button>
+  </div>
 
-    <div class="card">
-      <h2><span data-i18n="hist_title">Capture archive (survives reboot)</span><span class="dim" id="hist-stat"></span></h2>
-      <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="loadHistory()" data-i18n="btn_refresh">Refresh</button>
-        <button class="btn sm dan" onclick="clearHistory()" data-i18n="btn_clear_archive">Clear archive</button>
-      </div>
-      <div id="hist-body" class="dim">—</div>
-    </div>
-  </section>
+  <div id="list"></div>
+</section>
 
-  <!-- ========== profiles ========== -->
-  <section id="tab-profiles">
-    <div class="card">
-      <h2 data-i18n="prof_title">Profiles (max 3)</h2>
-      <div id="prof-body" class="dim" data-i18n="loading">loading…</div>
-      <div class="dim" style="margin-top:10px;font-size:12px" data-i18n="prof_note">When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.</div>
-      <div class="dim" style="margin-top:6px;font-size:12px" data-i18n="prof_note_addr">A profile cloned from a public address sets the BLE address for the whole boot: switching to or from one makes the device reboot once.</div>
-    </div>
-    <div class="card" id="form-card" style="display:none">
-      <h2 id="form-title" data-i18n="form_edit">Edit</h2>
-      <div class="grid2">
-        <div><label data-i18n="lb_name">Name</label><input id="f-name" maxlength="23"></div>
-        <div><label data-i18n="lb_itvl">Advertising interval (ms)</label><input id="f-itvl" type="number" min="20" max="10240"></div>
-        <div><label data-i18n="lb_tx">TX power (dBm)</label><input id="f-tx" type="number" min="-15" max="20"></div>
-        <div><label data-i18n="lb_scan">Scannable</label><input id="f-scan" type="checkbox"></div>
-      </div>
-      <div id="form-ibe">
-        <label data-i18n="lb_uuid">UUID</label><input id="f-uuid" class="mono" placeholder="32 hex chars, dashes optional" data-i18n-ph="ph_uuid">
-        <div class="grid2">
-          <div><label data-i18n="lb_major">Major</label><input id="f-major" type="number" min="0" max="65535"></div>
-          <div><label data-i18n="lb_minor">Minor</label><input id="f-minor" type="number" min="0" max="65535"></div>
-        </div>
-      </div>
-      <div id="form-raw" class="dim mono" style="display:none"></div>
-      <div id="form-addr" style="display:none">
-        <label data-i18n="lb_adv_addr">Advertised address</label>
-        <input id="f-addr" class="mono" maxlength="17" placeholder="02:11:22:33:44:55" data-i18n-ph="ph_adv_addr">
-        <div class="dim" style="margin-top:4px;font-size:12px" data-i18n="adv_addr_hint">Empty = the device's own address. Twelve hex chars force this BLE public address on air; it applies from the next boot, so saving while the profile is active reboots the device.</div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn pri" onclick="saveForm()" data-i18n="btn_save">Save</button>
-        <button class="btn" onclick="closeForm()" data-i18n="btn_cancel">Cancel</button>
-        <span class="dim" id="form-msg"></span>
-      </div>
-    </div>
-  </section>
+<!-- ================= SETTINGS ================= -->
+<section id="tab-settings">
+  <div class="card">
+    <h2 data-i18n="set_scan">Scan parameters</h2>
+    <div class="field"><label data-i18n="set_itvl">Interval (ms)</label><input type="number" id="s-itvl" min="20" max="10240"></div>
+    <div class="field"><label data-i18n="set_win">Window (ms)</label><input type="number" id="s-win" min="2" max="10240"></div>
+    <div class="field"><label data-i18n="set_dur">Capture window (s)</label><input type="number" id="s-dur" min="10" max="900"></div>
+    <label class="chk"><input type="checkbox" id="s-duty"> <span data-i18n="set_duty">Full duty when no client is connected</span></label>
+    <label class="chk"><input type="checkbox" id="s-filter"> <span data-i18n="set_filter">Drop phones, watches, earbuds, Windows PCs</span></label>
+    <label class="chk"><input type="checkbox" id="s-clear"> <span data-i18n="set_clear">Clear the table each window</span></label>
+    <div class="row" style="margin-top:10px"><button class="btn pri" id="save-scan" data-i18n="save">Save</button></div>
+  </div>
 
-  <!-- ========== log ========== -->
-  <section id="tab-log">
-    <div class="card">
-      <h2 data-i18n="card_log">Event log</h2>
-      <div class="row" style="margin-bottom:8px">
-        <button class="btn sm" onclick="loadLog(true)" data-i18n="btn_refresh">Refresh</button>
-        <button class="btn sm dan" onclick="clearLog()" data-i18n="btn_clear">Clear</button>
-        <span class="dim mono" id="log-hint"></span>
-      </div>
-      <div class="log" id="log-body"></div>
-    </div>
-  </section>
+  <div class="card">
+    <h2 data-i18n="set_ap">SoftAP</h2>
+    <div class="field"><label data-i18n="set_ssid">SSID</label><input type="text" id="s-ssid" maxlength="31"></div>
+    <div class="field"><label data-i18n="set_pass">Password (8+)</label><input type="text" id="s-pass" maxlength="63"></div>
+    <div class="row"><button class="btn pri" id="save-ap" data-i18n="save">Save</button><span class="dim" style="font-size:12px" data-i18n="set_ap_hint">Takes effect after a reboot</span></div>
+  </div>
 
-  <!-- ========== settings ========== -->
-  <section id="tab-settings">
-    <div class="card"><h2 data-i18n="card_scan">Scan parameters</h2>
-      <div class="grid2">
-        <div><label data-i18n="lb_scan_itvl">Interval (ms)</label><input id="s-itvl" type="number" min="20" max="10240"></div>
-        <div><label data-i18n="lb_scan_win">Window (ms)</label><input id="s-win" type="number" min="2" max="10240"></div>
-      </div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveScan()" data-i18n="btn_save">Save</button></div>
-      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="scan_note">A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.</div>
+  <div class="card">
+    <h2 data-i18n="set_rot">Rotation</h2>
+    <label class="chk"><input type="checkbox" id="s-rot-on"> <span data-i18n="set_rot_on">Rotate through the enabled profiles</span></label>
+    <div class="field"><label data-i18n="set_rot_s">Seconds per profile</label><input type="number" id="s-rot-s" min="5" max="3600"></div>
+    <div class="row"><button class="btn pri" id="save-rot" data-i18n="save">Save</button></div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="set_io">Import / export</h2>
+    <div class="row">
+      <button class="btn" id="btn-export" data-i18n="set_export">Export config</button>
+      <button class="btn" id="btn-import" data-i18n="set_import">Import config</button>
+      <input type="file" id="file-import" accept=".json,application/json" style="display:none">
     </div>
-    <div class="card"><h2 data-i18n="card_softap">SoftAP</h2>
-      <div><label data-i18n="lb_ssid">SSID</label><input id="s-ssid" maxlength="32"></div>
-      <div><label data-i18n="lb_pass">Password (≥8 chars)</label><input id="s-pass" maxlength="63"></div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveAp()" data-i18n="btn_save">Save</button></div>
+    <div class="hint" data-i18n="set_io_hint">The export contains profiles, scan settings and the AP credentials.</div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="set_maint">Maintenance</h2>
+    <dl class="kv" id="maint-kv"></dl>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="btn-reboot" data-i18n="set_reboot">Reboot</button>
+      <button class="btn bad" id="btn-factory" data-i18n="set_factory">Factory reset</button>
     </div>
-    <div class="card"><h2 data-i18n="card_rotation">Rotation (optional)</h2>
-      <div class="grid2">
-        <div><label data-i18n="lb_enabled">Enabled</label><input id="s-rot" type="checkbox"></div>
-        <div><label data-i18n="lb_period">Period (s)</label><input id="s-rot-s" type="number" min="5" max="3600"></div>
-      </div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveRotation()" data-i18n="btn_save">Save</button></div>
-    </div>
-    <div class="card"><h2 data-i18n="card_io">Import / export</h2>
-      <div class="row">
-        <button class="btn" onclick="doExport()" data-i18n="btn_export">Export JSON</button>
-        <label class="btn" style="margin:0;display:inline-flex;align-items:center"><span data-i18n="btn_import">Import</span>
-          <input type="file" accept="application/json" style="display:none" onchange="doImport(this)">
-        </label>
-      </div>
-    </div>
-    <div class="card"><h2 data-i18n="card_danger">Danger zone</h2>
-      <div class="row">
-        <button class="btn dan" onclick="factoryReset()" data-i18n="btn_factory">Factory reset</button>
-        <button class="btn dan" onclick="rebootNow()" data-i18n="btn_reboot">Reboot</button>
-      </div>
-      <div class="dim" style="margin-top:8px;font-size:12px" data-i18n="ota_note">OTA is not implemented; update over USB-C.</div>
-    </div>
-  </section>
+  </div>
+</section>
 </main>
 
-<div id="login">
-  <div class="box card">
-    <h2 data-i18n="login_title">Sign in</h2>
-    <label data-i18n="lb_ap_pass">SoftAP password</label>
-    <input id="l-pass" type="password" placeholder="beaconXXXX by default (see silkscreen or serial log)" data-i18n-ph="ph_ap_pass">
-    <div class="row" style="margin-top:12px"><button class="btn pri" id="l-btn" data-i18n="btn_signin">Sign in</button><span class="dim" id="l-msg"></span></div>
+<div id="dlg">
+  <div class="box">
+    <h3 id="dlg-title">Profile</h3>
+    <div class="field"><label data-i18n="d_name">Name</label><input type="text" id="d-name" maxlength="23"></div>
+    <div class="field"><label data-i18n="d_kind">Kind</label>
+      <div class="seg" id="d-kind">
+        <button data-kind="1" class="on" data-i18n="d_raw">Raw bytes</button>
+        <button data-kind="0" data-i18n="d_ibeacon">iBeacon</button>
+      </div>
+    </div>
+    <div id="d-rawbox">
+      <div class="field"><label data-i18n="d_raw">Raw bytes</label><input type="text" id="d-raw" class="mono" placeholder="0201…"></div>
+      <div class="field"><label data-i18n="d_rsp">Scan response (optional)</label><input type="text" id="d-rsp" class="mono"></div>
+    </div>
+    <div id="d-ibox" style="display:none">
+      <div class="field"><label data-i18n="d_uuid">UUID</label><input type="text" id="d-uuid" class="mono" placeholder="32 hex chars"></div>
+      <div class="field two">
+        <div><label data-i18n="d_major">Major</label><input type="number" id="d-major" min="0" max="65535"></div>
+        <div><label data-i18n="d_minor">Minor</label><input type="number" id="d-minor" min="0" max="65535"></div>
+      </div>
+      <div class="field"><label data-i18n="d_ref">Reference RSSI</label><input type="number" id="d-ref" min="-100" max="0"></div>
+    </div>
+    <div class="field two">
+      <div><label data-i18n="d_itvl">Interval (ms)</label><input type="number" id="d-itvl" min="20" max="10240"></div>
+      <div><label data-i18n="d_tx">TX (dBm)</label><input type="number" id="d-tx" min="-12" max="21"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="d-scannable"> <span data-i18n="d_scannable">Answer scan requests</span></label>
+    <label class="chk"><input type="checkbox" id="d-enabled"> <span data-i18n="d_enabled">Enabled</span></label>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn" id="d-cancel" data-i18n="cancel">Cancel</button>
+      <button class="btn pri" id="d-save" data-i18n="save">Save</button>
+    </div>
   </div>
 </div>
+
+<div id="login">
+  <div class="box">
+    <h3>BLE Beacon Cloner</h3>
+    <input type="password" id="l-pass" placeholder="AP password or token" autocomplete="current-password">
+    <button class="btn pri" id="l-btn" data-i18n="unlock">Unlock</button>
+    <div id="l-msg" class="dim" style="font-size:12px;color:var(--err)"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
-"use strict";
-let token = localStorage.getItem("bgw_token") || "";
-let S = {};                 /* latest /api/status */
-let caps = [];              /* this session's captures */
-let profiles = [];
-let editId = -1;
-let logSeq = 0;
-let timer = null;
-
+/* ------------------------------------------------------------------ i18n */
+const T = {
+  nav_status:["Status","状态"], nav_data:["Data","数据"], nav_settings:["Settings","设置"],
+  mode_title:["Mode","工作模式"], mode_idle:["Idle","闲置"], mode_sniff:["Sniff","盲扫"], mode_clone:["Broadcast","广播"],
+  st_runtime:["Runtime","运行状态"], st_power:["Power","电源"], st_events:["Recent events","最近事件"],
+  show:["Show","展开"], hide:["Hide","收起"], refresh:["Refresh","刷新"], clear:["Clear","清空"],
+  sub_archive:["Archive","归档"], sub_pins:["Favourites","收藏"], sub_profiles:["Profiles","配置"],
+  f_ding:["DingTalk","只看钉钉"], f_pub:["Public addr","只看公网"], f_full:["Full window","只看整窗在线"],
+  sort_time:["Newest","最新"], sort_rssi:["RSSI","信号"], sort_pkt:["Packets","包数"], sort_name:["Name","名称"],
+  new:["New","新建"], save:["Save","保存"], cancel:["Cancel","取消"], unlock:["Unlock","解锁"],
+  search_ph:["search name / addr / vendor","搜索 名称/地址/厂商"],
+  idle_hint:["Double-click BOOT to scan, single click to broadcast.","双击 BOOT 盲扫，单击开始广播。"],
+  sniff_hint:["One window, archived to flash when it ends. The LED blinks fast.","单次窗口，结束后自动落盘。LED 快闪。"],
+  clone_hint:["Broadcasting the active profile. The LED blinks at 1 Hz.","正在广播活动配置。LED 1 Hz 慢闪。"],
+  k_packets:["packets","收包"], k_filtered:["filtered","过滤"], k_devices:["devices","设备"],
+  k_left:["left","剩余"], k_progress:["progress","进度"],
+  k_profile:["Profile","配置"], k_len:["Length","长度"], k_itvl:["Interval","间隔"], k_tx:["TX","发射"],
+  k_starts:["Starts","启动次数"], k_rotation:["Rotation","轮播"],
+  r_board:["Board","板子"], r_ver:["Firmware","固件"], r_uptime:["Uptime","运行"], r_ip:["IP","IP"],
+  r_mac:["MAC","MAC"], r_heap:["Free heap","可用堆"], r_minheap:["Min heap","历史最低"],
+  r_boots:["Boots","启动次数"], r_reset:["Reset","复位原因"], r_archive:["Archive","归档"],
+  r_clients:["Clients","客户端"], r_led:["LED","LED"], r_mode:["Mode","模式"],
+  led_sniff:["scanning","扫描中"], led_clone:["broadcasting","广播中"], led_idle:["idle","空闲"],
+  led_clone_client:["broadcast + client","广播且客户端在线"],
+  pow_warn:["brownout resets recorded — check the power supply","检测到掉压复位，检查供电"],
+  act_pin:["Favourite","收藏"], act_unpin:["Remove","取消收藏"], act_activate:["Activate","激活"],
+  act_edit:["Edit","编辑"], act_delete:["Delete","删除"], copy:["copy","复制"], copied:["Copied","已复制"],
+  unnamed:["(no name)","(未命名)"], pkt:["pkt","包"], active:["active","使用中"], off:["off","已停用"],
+  kind_raw:["RAW","原始字节"], kind_ib:["iBeacon","iBeacon"],
+  empty_archive:["Archive is empty. Start a scan, or check that the archive is mounted.","归档为空。先扫一轮，或检查归档分区是否挂载。"],
+  empty_pins:["No favourites yet. Expand an archive row and tap Favourite.","还没有收藏。展开归档条目点“收藏”。"],
+  empty_profiles:["No profiles. Tap New to build one.","没有配置。点“新建”。"],
+  confirm_del:["Delete this profile?","确定删除这条配置？"],
+  confirm_factory:["Erase all profiles, favourites and the archive?","清空所有配置、收藏和归档？"],
+  dlg_new:["New profile","新建配置"], dlg_edit:["Edit profile","编辑配置"],
+  d_name:["Name","名称"], d_kind:["Kind","类型"], d_raw:["Raw bytes","原始字节"], d_ibeacon:["iBeacon","iBeacon"],
+  d_rsp:["Scan response (optional)","扫描响应（可选）"], d_uuid:["UUID","UUID"],
+  d_major:["Major","Major"], d_minor:["Minor","Minor"], d_ref:["Reference RSSI","参考 RSSI"],
+  d_itvl:["Interval (ms)","广播间隔(ms)"], d_tx:["TX (dBm)","发射功率(dBm)"],
+  d_scannable:["Answer scan requests","响应扫描请求"], d_enabled:["Enabled","启用"],
+  set_scan:["Scan parameters","扫描参数"], set_itvl:["Interval (ms)","扫描间隔(ms)"], set_win:["Window (ms)","扫描窗口(ms)"],
+  set_dur:["Capture window (s)","采集窗口(秒)"], set_duty:["Full duty when no client is connected","无客户端时 100% 占空比"],
+  set_filter:["Drop phones, watches, earbuds, Windows PCs","过滤手机/手表/耳机/Windows 电脑"],
+  set_clear:["Clear the table each window","每窗口清空表"],
+  set_ap:["SoftAP","热点"], set_ssid:["SSID","热点名"], set_pass:["Password (8+)","密码(8位以上)"],
+  set_ap_hint:["Takes effect after a reboot","重启后生效"],
+  set_rot:["Rotation","轮播"], set_rot_on:["Rotate through the enabled profiles","在启用的配置间轮播"], set_rot_s:["Seconds per profile","每套秒数"],
+  set_io:["Import / export","导入/导出"], set_export:["Export config","导出配置"], set_import:["Import config","导入配置"],
+  set_io_hint:["The export contains profiles, scan settings and the AP credentials.","导出内容包含配置、扫描参数和热点凭据。"],
+  set_maint:["Maintenance","维护"], set_reboot:["Reboot","重启"], set_factory:["Factory reset","恢复出厂"],
+  locked:["Unauthorized","未授权"], err_net:["Network error: ","网络错误："], err_failed:["Failed","操作失败"],
+  err_wrong_pass:["Wrong password","密码错误"], saved:["Saved","已保存"], deleted:["Deleted","已删除"],
+  mode_set:["Mode: ","模式："], bad_hex:["hex must be an even number of characters (2..31 bytes)","hex 必须是偶数个字符（2..31 字节）"],
+  bad_uuid:["UUID must be 32 hex characters","UUID 必须 32 个十六进制字符"], bad_range:["Value out of range","数值超出范围"],
+  exported:["Config downloaded","配置已下载"], imported:["Config imported","配置已导入"]
+};
+let lang = localStorage.getItem("bgw_lang") || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en");
+const t = k => { const p = T[k]; return p ? p[lang === "zh" ? 1 : 0] : k; };
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
-/* ---------- i18n ---------- */
-const I18N = {
-  en: {
-    app_title: "BLE Beacon Cloner",
-    btn_lock: "Lock", btn_signin: "Sign in",
-    nav_status: "Status", nav_capture: "Capture", nav_profiles: "Profiles", nav_log: "Log", nav_settings: "Settings",
-    adv_on: "ADV on", adv_off: "ADV off", clients: "clients",
-    home_mode: "Current mode",
-    mode_sniff: "Sniffing", mode_clone: "Cloning", mode_idle: "Idle (radio off)",
-    btn_sniff: "Sniff (capture)", btn_clone: "Clone (advertise)", btn_stop_radio: "Stop radio",
-    mode_hint: "Capture and advertising are mutually exclusive: entering one stops the other.",
-    card_runtime: "Runtime", loading: "loading…",
-    details_legend: "LED patterns / button gestures",
-    th_led: "LED", th_meaning: "Meaning",
-    led_double: "Double blink", led_double_m: "Sniffing",
-    led_1hz: "1 Hz slow blink", led_1hz_m: "Cloning / advertising",
-    led_triple: "Triple fast blink", led_triple_m: "Cloning and a client is on this UI",
-    led_3s: "One blink every 3 s", led_3s_m: "Idle (profiles exist, radio off)",
-    led_solid: "Solid", led_solid_m: "No profile at all",
-    led_six: "Six rapid blinks", led_six_m: "Radio error, or the button is being held towards a factory reset",
-    th_button: "Button (BOOT)", th_action: "Action",
-    btn1_click: "Single click", btn1_act: "Clone on / off",
-    btn2_click: "Double click", btn2_act: "Stop radio",
-    btn_long: "Hold 5 s / 8 s", btn_long_act: "5 s warns (fast blinks) · 8 s factory reset; release to cancel",
-    led_sniff: "double blink", led_clone: "1 Hz blink", led_clone_client: "triple fast", led_idle: "blink every 3 s",
-    st_board: "board", st_version: "version", st_ip: "IP", st_profile: "profile", st_none: "(none)",
-    st_scan: "scan", st_packets: "packets", st_detected: "detected", st_devices: "devices",
-    st_tx: "tx", st_adv_starts: "adv starts", st_archive: "archive",
-    st_records: "records (persistent)", st_reset: "reset", st_boots: "boots",
-    st_memory: "memory", st_min: "min", st_uptime: "uptime",
-    pow_warn: "brownout reset(s) recorded. That is a weak supply, not a firmware bug: shorter/thicker USB cable, better PSU, or 220 µF across 3V3.",
-    cap_this_session: "This session",
-    btn_refresh: "Refresh", btn_clear: "Clear", btn_clear_archive: "Clear archive",
-    th_signal: "Signal", th_rssi: "RSSI", th_itvl: "Interval",
-    cap_note: "This table lives in RAM and is lost on reboot. Tapping <b>Clone</b> also writes one record to the persistent archive below.",
-    sniff_tmo: "Sniffing stops by itself after 30 s - tap Sniff again to extend.",
-    cap_nothing: "Nothing yet.", cap_wait: "Listening, please wait…",
-    cap_idle: "Not sniffing: switch to Sniff on the Status tab.",
-    cap_avg: "avg", cap_ago: "s ago", cap_raw: "raw bytes, ",
-    cap_rsp: "scan response, ", form_rsp: "Scan response (replayed verbatim, cannot be edited)",
-    cap_ble_adv: "BLE advertisement", btn_clone_sm: "Clone",
-    cap_mfg: "mfg", cap_mfg_rsp: "in scan response",
-    toast_session_cleared: "Session captures cleared",
-    toast_cloning: "Cloning now (interval {itvl}ms)",
-    toast_replaced: ", replaced the least recently used profile",
-    toast_clone_failed: "clone failed",
-    hist_title: "Capture archive (survives reboot)",
-    hist_unavailable: " unavailable", hist_records: " records",
-    hist_no_store: "Storage partition not mounted.",
-    hist_empty: "Empty. One record is written each time you clone.",
-    hist_boot: "boot #",
-    rec_title: "Recorded in this browser", btn_export_recs: "Export JSON", btn_clear_recs: "Clear records",
-    btn_export_csv: "Export CSV", btn_export_raw: "Export raw", toast_exported: "exported",
-    rec_empty: "Nothing recorded yet. Open this page while the board is sniffing.",
-    rec_hint: "Every poll is merged into this browser's local storage, so records survive a board reboot, a page reload and the board's 16-entry table. JSON re-imports cleanly; CSV is for spreadsheets; raw dumps the on-air bytes only. Cloning from an old row still needs the device to be in the board's live table.",
-    rec_full: "browser storage is full - oldest records dropped",
-    rec_now: "just now", rec_seen: "last seen ",
-    toast_archive_cleared: "Archive cleared", err_failed: "failed",
-    confirm_clear_archive: "Clear the capture archive?",
-    confirm_clear_recs: "Clear the records stored in this browser?",
-    prof_title: "Profiles (max 3)", form_edit: "Edit",
-    prof_note: "When all three slots are used, cloning again overwrites the least recently used profile that is not currently on air.",
-    prof_empty: "No profiles yet. Capture a signal and tap Clone.",
-    lb_name: "Name", lb_itvl: "Advertising interval (ms)", lb_tx: "TX power (dBm)",
-    lb_scan: "Scannable", lb_uuid: "UUID", ph_uuid: "32 hex chars, dashes optional",
-    lb_major: "Major", lb_minor: "Minor",
-    raw_note: "Raw bytes (replayed verbatim, cannot be edited):",
-    lb_adv_addr: "Advertised address",
-    ph_adv_addr: "empty = own address, or 12 hex chars",
-    adv_addr_hint: "Empty = the device's own address. Twelve hex chars force this BLE public address on air; it applies from the next boot, so saving while the profile is active reboots the device.",
-    err_adv_addr: "address must be empty or 12 hex chars",
-    btn_save: "Save", btn_cancel: "Cancel",
-    tag_raw: "RAW replay", tag_ibe: "iBeacon", tag_on_air: "on air",
-    tag_pubaddr: "public addr", tag_randaddr: "random addr (rotates)",
-    prof_note_addr: "A profile cloned from a public address sets the BLE address for the whole boot: switching to or from one makes the device reboot once.",
-    btn_stop: "Stop", btn_activate: "Activate", btn_adv_edit: "Advanced edit", btn_delete: "Delete",
-    toast_activated: "Activated #", toast_deleted: "Deleted", toast_saved: "Saved",
-    err_save_failed: "save failed",
-    confirm_del_profile: "Delete profile #{id} \"{name}\"?",
-    card_log: "Event log", lb_seq: "seq ", toast_cleared: "Cleared",
-    card_scan: "Scan parameters", lb_enabled: "Scanning enabled",
-    lb_scan_itvl: "Interval (ms)", lb_scan_win: "Window (ms)",
-    scan_note: "A window above 50% of the interval is capped automatically to keep the SoftAP responsive. 400/500 is a good setting for catching sparse advertisers.",
-    card_softap: "SoftAP", lb_ssid: "SSID", lb_pass: "Password (≥8 chars)",
-    card_rotation: "Rotation (optional)", lb_period: "Period (s)",
-    card_io: "Import / export", btn_export: "Export JSON", btn_import: "Import",
-    card_danger: "Danger zone", btn_factory: "Factory reset", btn_reboot: "Reboot",
-    ota_note: "OTA is not implemented; update over USB-C.",
-    toast_scan_saved: "Scan parameters saved",
-    toast_ap_saved: "Saved - reconnect with the new credentials",
-    toast_imported: "Imported", err_bad_json: "Not valid JSON",
-    confirm_factory: "Factory reset?", confirm_reboot: "Reboot the device?",
-    login_title: "Sign in", lb_ap_pass: "SoftAP password",
-    ph_ap_pass: "beaconXXXX by default (see silkscreen or serial log)",
-    err_wrong_pass: "wrong password", err_net: "Network error: ", toast_mode: "Mode: "
-  },
-  zh: {
-    app_title: "BLE 信标克隆器",
-    btn_lock: "锁定", btn_signin: "登录",
-    nav_status: "状态", nav_capture: "捕获", nav_profiles: "配置", nav_log: "日志", nav_settings: "设置",
-    adv_on: "广播 开", adv_off: "广播 关", clients: "客户端",
-    home_mode: "当前模式",
-    mode_sniff: "嗅探中", mode_clone: "克隆中", mode_idle: "待命（射频关闭）",
-    btn_sniff: "嗅探（捕获）", btn_clone: "克隆（广播）", btn_stop_radio: "关闭射频",
-    mode_hint: "捕获与广播互斥：进入其中一个会停止另一个。",
-    card_runtime: "运行状态", loading: "加载中…",
-    details_legend: "LED 指示 / 按键操作",
-    th_led: "LED", th_meaning: "含义",
-    led_double: "双闪", led_double_m: "嗅探中",
-    led_1hz: "1 Hz 慢闪", led_1hz_m: "克隆 / 广播中",
-    led_triple: "三连快闪", led_triple_m: "克隆中，且有客户端连着本页面",
-    led_3s: "每 3 秒闪一次", led_3s_m: "空闲（有配置，射频关闭）",
-    led_solid: "常亮", led_solid_m: "没有任何配置",
-    led_six: "六连快闪", led_six_m: "射频错误，或正按住按钮即将恢复出厂",
-    th_button: "按键（BOOT）", th_action: "动作",
-    btn1_click: "单击", btn1_act: "广播 开 / 关",
-    btn2_click: "双击", btn2_act: "关闭射频",
-    btn_long: "按住 5 秒 / 8 秒", btn_long_act: "5 秒警告（急闪）· 8 秒恢复出厂；中途松手取消",
-    led_sniff: "双闪", led_clone: "1 Hz 慢闪", led_clone_client: "三连快闪", led_idle: "每 3 秒闪一次",
-    st_board: "开发板", st_version: "版本", st_ip: "IP", st_profile: "配置", st_none: "（无）",
-    st_scan: "扫描", st_packets: "个包", st_detected: "已发现", st_devices: "个设备",
-    st_tx: "发射", st_adv_starts: "广播启动", st_archive: "归档",
-    st_records: "条记录（掉电保留）", st_reset: "复位原因", st_boots: "启动次数",
-    st_memory: "内存", st_min: "最小", st_uptime: "运行时长",
-    pow_warn: "次掉电复位。这是供电不足，不是固件问题：换更短更粗的 USB 线、更好的电源，或在 3V3 并 220 µF 电容。",
-    cap_this_session: "本次会话",
-    btn_refresh: "刷新", btn_clear: "清空", btn_clear_archive: "清空归档",
-    th_signal: "信号", th_rssi: "RSSI", th_itvl: "间隔",
-    cap_note: "此表保存在 RAM，重启即丢失。点 <b>克隆</b> 会同时写入下方掉电保留的归档。",
-    sniff_tmo: "嗅探会在 30 秒后自动停止，再点一次「嗅探」可重新计时。",
-    cap_nothing: "还没有数据。", cap_wait: "正在监听，请稍候…",
-    cap_idle: "未在嗅探：请到「状态」页切换到嗅探。",
-    cap_avg: "均值", cap_ago: "秒前", cap_raw: "原始字节，",
-    cap_rsp: "扫描响应，", form_rsp: "扫描响应（原样重放，不可编辑）",
-    cap_ble_adv: "BLE 广播", btn_clone_sm: "克隆",
-    cap_mfg: "厂商", cap_mfg_rsp: "在扫描响应中",
-    toast_session_cleared: "本次会话捕获已清空",
-    toast_cloning: "正在克隆（间隔 {itvl}ms）",
-    toast_replaced: "，已替换最久未使用的配置",
-    toast_clone_failed: "克隆失败",
-    hist_title: "捕获归档（掉电保留）",
-    hist_unavailable: " 不可用", hist_records: " 条记录",
-    hist_no_store: "存储分区未挂载。",
-    hist_empty: "空。每次克隆会写入一条记录。",
-    hist_boot: "启动#",
-    rec_title: "本机记录（浏览器）", btn_export_recs: "导出 JSON", btn_clear_recs: "清空记录",
-    btn_export_csv: "导出 CSV", btn_export_raw: "导出原始数据", toast_exported: "已导出",
-    rec_empty: "还没有记录。板子在嗅探时打开本页即可。",
-    rec_hint: "每次轮询都会合并进本浏览器的本地存储，所以记录能跨板子重启、跨页面刷新，也不受板子 16 条表限制。JSON 可原样导回；CSV 给表格软件用；raw 只导出空口字节，便于脚本分析。在旧记录上点克隆仍要求目标还在板子的实时表里。",
-    rec_full: "浏览器存储已满，已丢弃最旧记录",
-    rec_now: "刚刚", rec_seen: "最后 ",
-    toast_archive_cleared: "归档已清空", err_failed: "失败",
-    confirm_clear_archive: "确定清空捕获归档？",
-    confirm_clear_recs: "确定清空本浏览器里的记录？",
-    prof_title: "配置（最多 3 个）", form_edit: "编辑",
-    prof_note: "三个槽位用满后，再次克隆会覆盖最久未使用且当前未在广播的那条配置。",
-    prof_empty: "还没有配置。先捕获信号，再点「克隆」。",
-    lb_name: "名称", lb_itvl: "广播间隔（ms）", lb_tx: "发射功率（dBm）",
-    lb_scan: "可扫描", lb_uuid: "UUID", ph_uuid: "32 位十六进制，可带连字符",
-    lb_major: "主值", lb_minor: "次值",
-    raw_note: "原始字节（原样重放，不可编辑）：",
-    lb_adv_addr: "广播地址",
-    ph_adv_addr: "留空 = 本机地址，或 12 位十六进制",
-    adv_addr_hint: "留空则用本机地址；填 12 位十六进制会把该公开地址强制用作广播地址，从下次启动起生效——若该配置正在广播，保存后设备会自动重启一次。",
-    err_adv_addr: "地址需留空或为 12 位十六进制",
-    btn_save: "保存", btn_cancel: "取消",
-    tag_raw: "原始重放", tag_ibe: "iBeacon", tag_on_air: "广播中",
-    tag_pubaddr: "公开地址", tag_randaddr: "随机地址（会轮换）",
-    prof_note_addr: "从公开地址克隆的配置会在启动时占用 BLE 地址：切入或切出这类配置时，设备会自动重启一次。",
-    btn_stop: "停止", btn_activate: "启用", btn_adv_edit: "高级编辑", btn_delete: "删除",
-    toast_activated: "已启用 #", toast_deleted: "已删除", toast_saved: "已保存",
-    err_save_failed: "保存失败",
-    confirm_del_profile: "确定删除配置 #{id}「{name}」？",
-    card_log: "事件日志", lb_seq: "序号 ", toast_cleared: "已清空",
-    card_scan: "扫描参数", lb_enabled: "启用扫描",
-    lb_scan_itvl: "间隔（ms）", lb_scan_win: "窗口（ms）",
-    scan_note: "窗口超过间隔的 50% 会被自动截断，以保证 SoftAP 响应。400/500 是抓稀疏广播的好设置。",
-    card_softap: "软AP", lb_ssid: "SSID", lb_pass: "密码（至少 8 位）",
-    card_rotation: "轮换（可选）", lb_period: "周期（秒）",
-    card_io: "导入 / 导出", btn_export: "导出 JSON", btn_import: "导入",
-    card_danger: "危险操作", btn_factory: "恢复出厂", btn_reboot: "重启",
-    ota_note: "未实现 OTA；请用 USB-C 更新。",
-    toast_scan_saved: "扫描参数已保存",
-    toast_ap_saved: "已保存 - 请用新凭据重连",
-    toast_imported: "已导入", err_bad_json: "不是合法的 JSON",
-    confirm_factory: "恢复出厂设置？", confirm_reboot: "重启设备？",
-    login_title: "登录", lb_ap_pass: "软AP 密码",
-    ph_ap_pass: "默认 beaconXXXX（见板子丝印或串口日志）",
-    err_wrong_pass: "密码错误", err_net: "网络错误：", toast_mode: "模式："
-  }
+/* ------------------------------------------------------------------ state */
+let token = localStorage.getItem("bgw_token") || "";
+let S = {};
+let archive = [], pins = [], profiles = [], logRows = [];
+let ui = {
+  tab: localStorage.getItem("bgw_tab") || "status",
+  sub: localStorage.getItem("bgw_sub") || "archive",
+  kw: "", fDing: false, fPub: false, fFull: false,
+  sort: localStorage.getItem("bgw_sort") || "time",
+  logOpen: false
 };
-const LANGS = ["en", "zh"];
-let lang = localStorage.getItem("bgw_lang");
-if (LANGS.indexOf(lang) < 0) lang = (navigator.language || "").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+const expanded = new Set();
 
-function t(k) {
-  const v = (I18N[lang] || {})[k];
-  return v != null ? v : (I18N.en[k] != null ? I18N.en[k] : k);
-}
-/* Inline values: tf("toast_cloning", {itvl: 100}) */
-function tf(k, o) { return t(k).replace(/\{(\w+)\}/g, (m, n) => (o[n] != null ? o[n] : m)); }
-
-/* Applies the static strings; dynamic lists are re-rendered by boot(). */
-function applyLang() {
-  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
-  document.title = t("app_title");
-  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
-  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
-  document.querySelectorAll("[data-i18n-html]").forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
-  $("lang").value = lang;
-}
-$("lang").onchange = () => {
-  lang = $("lang").value;
-  localStorage.setItem("bgw_lang", lang);
-  applyLang();
-  if (token) boot(); else $("l-pass").focus();
-};
-
+/* ------------------------------------------------------------------ net */
 function toast(msg, isErr) {
-  const t2 = $("toast");
-  t2.textContent = msg;
-  t2.className = "show" + (isErr ? " err" : "");
-  clearTimeout(t2._h);
-  t2._h = setTimeout(() => t2.className = "", 2600);
+  const el = $("toast");
+  el.textContent = msg;
+  el.className = "show" + (isErr ? " err" : "");
+  clearTimeout(el._h);
+  el._h = setTimeout(() => { el.className = ""; }, 2600);
 }
-
 async function api(path, opts) {
   opts = opts || {};
   const h = { "Content-Type": "application/json" };
@@ -519,70 +404,20 @@ const get = p => api(p);
 const post = (p, b) => api(p, { method: "POST", body: b || {} });
 const put = (p, b) => api(p, { method: "PUT", body: b || {} });
 const del = p => api(p, { method: "DELETE" });
+const guard = async fn => { try { await fn(); } catch (e) { if (e.message !== "unauthorized") toast(String(e.message || e), true); } };
 
-/* ---------- formatting ---------- */
+/* ------------------------------------------------------------------ format */
 function fmtDur(s) {
   s = Math.floor(s || 0);
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
   return (h ? h + "h " : "") + (m ? m + "m " : "") + ss + "s";
 }
-function fmtAddr(a) {
-  if (!a || a.length < 12) return a || "";
-  return [0,2,4,6,8,10].map(i => a.slice(i, i + 2)).join(":");
-}
-function fmtUuid(u) {
-  if (!u || u.length !== 32) return u || "";
-  return u.slice(0,8)+"-"+u.slice(8,12)+"-"+u.slice(12,16)+"-"+u.slice(16,20)+"-"+u.slice(20);
-}
-function hexPairs(h) {
-  if (!h) return "";
-  return h.match(/.{1,2}/g).join(" ");
-}
+function fmtAddr(a) { return (!a || a.length < 12) ? (a || "") : [0,2,4,6,8,10].map(i => a.slice(i, i + 2)).join(":"); }
+function fmtUuid(u) { return (!u || u.length !== 32) ? (u || "") : u.slice(0,8)+"-"+u.slice(8,12)+"-"+u.slice(12,16)+"-"+u.slice(16,20)+"-"+u.slice(20); }
+function hexPairs(h) { return h ? h.match(/.{1,2}/g).join(" ") : ""; }
+function shortAddr(a) { return (!a || a.length < 12) ? (a || "") : a.slice(0, 2) + ":" + a.slice(10); }
 
-/* ---------- auth ---------- */
-function showLogin() { $("login").style.display = "flex"; $("l-pass").focus(); }
-function hideLogin() { $("login").style.display = "none"; }
-$("l-btn").onclick = async () => {
-  const pw = $("l-pass").value;
-  if (!pw) return;
-  try {
-    const j = await post("/api/session", { password: pw });
-    if (j.ok && j.token) {
-      token = j.token; localStorage.setItem("bgw_token", token);
-      $("l-msg").textContent = ""; hideLogin(); boot();
-    } else $("l-msg").textContent = j.err || t("err_wrong_pass");
-  } catch (e) { $("l-msg").textContent = t("err_failed"); }
-};
-$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
-$("btn-lock").onclick = () => { token = ""; localStorage.removeItem("bgw_token"); showLogin(); };
-
-/* ---------- navigation ---------- */
-document.querySelectorAll("nav button").forEach(b => {
-  b.onclick = () => {
-    document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
-    document.querySelectorAll("section").forEach(x => x.classList.remove("active"));
-    b.classList.add("active");
-    $("tab-" + b.dataset.tab).classList.add("active");
-    if (b.dataset.tab === "capture") { loadCaptures(); loadHistory(); }
-    if (b.dataset.tab === "log") loadLog(true);
-    if (b.dataset.tab === "profiles") loadProfiles();
-    if (b.dataset.tab === "settings") loadSettings();
-  };
-});
-
-/* ---------- status ---------- */
-const MODE_KEY = { sniff: "mode_sniff", clone: "mode_clone", idle: "mode_idle" };
-const LED_KEY = { sniff: "led_sniff", clone: "led_clone", "clone+client": "led_clone_client", idle: "led_idle" };
-const modeTxt = m => (MODE_KEY[m] ? t(MODE_KEY[m]) : m);
-
-/* Shared by the capture table, the quick list and the record store */
-const capTitle = d => d.ibeacon ? ("iBeacon " + d.major + "/" + d.minor)
-                                : (d.name ? esc(d.name) : t("cap_ble_adv"));
-const capSub = d => d.ibeacon ? fmtUuid(d.uuid) : fmtAddr(d.addr);
-/* Walk the AD structures of a raw hex blob and return the first manufacturer
- * specific block ({company, payload} with payload as a hex string), or null.
- * The SPA does this itself so that records captured before the firmware learned
- * to parse 0xFF (and records imported from a JSON export) still show vendor data. */
+/* first 0xFF AD structure of a raw blob, for rows the firmware did not parse */
 function adMfg(hex) {
   if (!hex || hex.length < 6) return null;
   const b = [];
@@ -600,621 +435,564 @@ function adMfg(hex) {
   }
   return null;
 }
+const CO = { 0x004C:"Apple", 0x0006:"Microsoft", 0x0075:"Samsung", 0x0059:"Nordic", 0x00E0:"Google",
+             0x027D:"Huawei", 0x0157:"Huami", 0x0499:"Ruuvi" };
+const companyName = id => CO[id] || ("0x" + Number(id).toString(16).toUpperCase().padStart(4, "0"));
 
-/* Mirrors blescan_company_name() on the device; unknown ids fall back to 0xXXXX */
-function companyName(id) {
-  const m = {
-    0x004C: "Apple", 0x0006: "Microsoft", 0x0075: "Samsung", 0x0059: "Nordic",
-    0x00E0: "Google", 0x027D: "Huawei", 0x0157: "Huami", 0x0499: "Ruuvi"
-  };
-  return m[id] || ("0x" + id.toString(16).toUpperCase().padStart(4, "0"));
+/* one badge per record: what kind of thing is this */
+function typeTag(d) {
+  if (d.ibeacon) return { txt: "iBeacon", cls: "hi" };
+  const svc = d.svc || "";
+  const cid = (d.mfg_company !== undefined) ? d.mfg_company
+            : (adMfg(d.raw) || adMfg(d.rsp) || {}).company;
+  if (svc === "0xFE3C" || cid === 0x0100) return { txt: "DingTalk", cls: "ding" };
+  if (d.name_vendor) return { txt: d.name_vendor, cls: "" };
+  if (d.svc_name && d.svc_name !== d.svc) return { txt: d.svc_name, cls: "" };
+  if (svc) return { txt: svc, cls: "" };
+  return { txt: "BLE", cls: "" };
 }
+function vendorOf(d) {
+  if (d.mfg_vendor) return d.mfg_vendor;
+  const cid = (d.mfg_company !== undefined) ? d.mfg_company : (adMfg(d.raw) || adMfg(d.rsp) || {}).company;
+  return (cid === undefined || cid === null) ? "" : companyName(cid);
+}
+const rssiCls = r => r >= -60 ? "good" : (r >= -80 ? "mid" : "");
+const modeTxt = m => t(m === "sniff" ? "mode_sniff" : m === "clone" ? "mode_clone" : "mode_idle");
 
-/* manufacturer data line: prefer what the firmware reported, fall back to parsing
- * raw/rsp ourselves, and say whether it came from the scan response */
-const capMfg = d => {
-  if (!d) return "";
-  let company = d.mfg_company, hex = d.mfg, src = d.mfg_src, vendor = d.mfg_vendor;
-  if (company === undefined) {
-    let m = adMfg(d.raw);
-    src = 0;
-    if (!m) { m = adMfg(d.rsp); src = 1; }
-    if (!m) return "";
-    company = m.company; hex = m.payload; vendor = companyName(company);
-  }
-  return "<div class='dim mono' style='margin-top:2px'>" + t("cap_mfg") + " " +
-    esc(vendor || companyName(company)) + (hex ? " · " + hexPairs(hex) : "") +
-    (src ? " · " + t("cap_mfg_rsp") : "") + "</div>";
-};/* addr_type: 0 = public (stable), 1 = random (may rotate) */
-const addrTag = at => " <span class='tag'>" +
-  (at === 1 ? t("tag_randaddr") : t("tag_pubaddr")) + "</span>";
+/* ------------------------------------------------------------------ auth */
+function showLogin() { $("login").style.display = "flex"; $("l-pass").focus(); }
+function hideLogin() { $("login").style.display = "none"; }
+$("l-btn").onclick = () => guard(async () => {
+  const pw = $("l-pass").value;
+  if (!pw) return;
+  const j = await post("/api/session", { password: pw });
+  if (j.ok && j.token) {
+    token = j.token; localStorage.setItem("bgw_token", token);
+    $("l-msg").textContent = ""; hideLogin(); boot();
+  } else $("l-msg").textContent = j.err || t("err_wrong_pass");
+});
+$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
+$("btn-lock").onclick = () => { token = ""; localStorage.removeItem("bgw_token"); showLogin(); };
 
+/* ------------------------------------------------------------------ language */
+function applyLang() {
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $("lang").value = lang;
+  $("kw").placeholder = t("search_ph");
+  $("log-toggle").textContent = ui.logOpen ? t("hide") : t("show");
+  render();
+}
+$("lang").onchange = () => {
+  lang = $("lang").value;
+  localStorage.setItem("bgw_lang", lang);
+  applyLang();
+};
+
+/* ------------------------------------------------------------------ tabs */
+function setTab(tab) {
+  ui.tab = tab;
+  localStorage.setItem("bgw_tab", tab);
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll("main > section").forEach(s => s.classList.toggle("active", s.id === "tab-" + tab));
+  if (tab === "data") loadData();
+  if (tab === "settings") loadSettings();
+  render();
+}
+document.querySelectorAll("nav button").forEach(b => { b.onclick = () => setTab(b.dataset.tab); });
+
+function syncSubUI() {
+  document.querySelectorAll("#sub-seg button").forEach(b => b.classList.toggle("on", b.dataset.sub === ui.sub));
+  $("tools").style.display = ui.sub === "profiles" ? "none" : "flex";
+  $("btn-new").style.display = ui.sub === "profiles" ? "" : "none";
+}
+function setSub(sub) {
+  ui.sub = sub;
+  localStorage.setItem("bgw_sub", sub);
+  syncSubUI();
+  loadData();
+}
+document.querySelectorAll("#sub-seg button").forEach(b => { b.onclick = () => setSub(b.dataset.sub); });
+
+/* ------------------------------------------------------------------ status */
 async function refreshStatus() {
   let j;
   try { j = await get("/api/status"); } catch (e) { return; }
   if (!j.ok) return;
   S = j;
-
-  $("p-mode").textContent = modeTxt(j.mode);
-  $("p-mode").className = "pill " + (j.mode === "idle" ? "off" : "on");
-  $("p-adv").textContent = j.adv ? t("adv_on") : t("adv_off");
-  $("p-adv").className = "pill " + (j.adv ? "on" : "off");
-  $("p-sta").textContent = t("clients") + " " + j.sta;
-  $("p-sta").className = "pill " + (j.sta > 0 ? "on" : "");
-
-  $("mode-title").textContent = modeTxt(j.mode);
-  $("led-hint").textContent = "LED " + (LED_KEY[j.led] ? t(LED_KEY[j.led]) : "—");
-  $("m-sniff").className = "modebtn" + (j.mode === "sniff" ? " on" : "");
-  $("m-clone").className = "modebtn" + (j.mode === "clone" ? " on" : "");
-  $("m-idle").className = "modebtn" + (j.mode === "idle" ? " on" : "");
-
-  const bad = (j.brownouts > 0);
-  $("pow-card").style.display = bad ? "block" : "none";
-  if (bad) $("pow-warn").textContent = "⚠ " + j.brownouts + " " + t("pow_warn");
-
-  const L = (k, v) => t(k) + " : " + v;
-  $("status-body").textContent = [
-    L("st_board", j.board),
-    L("st_version", j.ver) + "    " + L("st_uptime", fmtDur(j.uptime_s)),
-    L("st_ip", j.ip),
-    L("st_profile", j.active < 0 ? t("st_none") : "#" + j.active + " / " + j.count),
-    L("st_scan", j.scan_win_ms + "ms / " + j.scan_itvl_ms + "ms, " + j.scan_pkts + " " + t("st_packets") +
-      (j.scan_running_ms ? " (" + fmtDur(j.scan_running_ms / 1000) + ")" : "")),
-    L("st_detected", j.detected + " " + t("st_devices")) + "    " +
-      L("st_tx", j.tx_dbm + " dBm (" + t("st_adv_starts") + " " + j.adv_starts + ")"),
-    L("st_archive", (j.storage || "?") + " " + t("st_records")),
-    L("st_reset", j.reset_reason + ", " + t("st_boots") + " " + j.boots),
-    L("st_memory", j.heap + " B (" + t("st_min") + " " + j.min_heap + " B)")
-  ].join("\n");
-
-  return j;
+  renderStatus();
 }
+function renderStatus() {
+  const m = S.mode || "idle";
+  document.querySelectorAll("#mode-seg button").forEach(b => {
+    b.classList.toggle("on", b.dataset.mode === m);
+    b.classList.toggle("sniff", b.dataset.mode === "sniff");
+    b.classList.toggle("clone", b.dataset.mode === "clone");
+  });
+  $("p-mode").textContent = modeTxt(m);
+  $("p-mode").className = "pill " + (m === "idle" ? "off" : "on");
+  $("p-adv").textContent = S.adv ? "adv on" : "adv off";
+  $("p-adv").className = "pill " + (S.adv ? "on" : "off");
+  $("p-sta").textContent = "sta " + (S.sta || 0);
+  $("p-sta").className = "pill " + ((S.sta || 0) > 0 ? "on" : "");
+
+  /* mode-specific panel */
+  let h = "";
+  if (m === "sniff") {
+    const dur = Math.max(1, S.scan_duration_s || 120);
+    const ran = Math.min(dur, Math.round((S.scan_running_ms || 0) / 1000));
+    const pct = Math.min(100, Math.round(ran * 100 / dur));
+    const pps = ran > 0 ? Math.round((S.scan_pkts || 0) / ran) : 0;
+    h += '<div class="bar sniff"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="stats">' +
+      stat(ran + "/" + dur + "s", t("k_left")) +
+      stat(S.scan_pkts || 0, t("k_packets")) +
+      stat(S.scan_filtered || 0, t("k_filtered")) +
+      stat(pps, "pkt/s") +
+      stat(S.detected || 0, t("k_devices")) +
+      '</div><div class="hint">' + esc(t("sniff_hint")) + "</div>";
+  } else if (m === "clone") {
+    const p = (profiles.length && S.active >= 0) ? profiles.find(x => x.id === S.active) : null;
+    h += '<div class="stats">' +
+      stat(p ? esc(p.name) : ("#" + (S.active >= 0 ? S.active : "-")), t("k_profile")) +
+      stat(p ? (p.kind === 1 ? (p.raw || "").length / 2 + " B" : "iBeacon") : "—", t("k_len")) +
+      stat(p ? p.adv_itvl_ms + " ms" : "—", t("k_itvl")) +
+      stat(p ? p.radio_dbm + " dBm" : "—", t("k_tx")) +
+      stat(S.adv_starts || 0, t("k_starts")) +
+      '</div>' +
+      (S.rotation ? '<div class="hint">' + esc(t("k_rotation")) + ": " + S.rotation_s + "s</div>" : "") +
+      '<div class="hint">' + esc(t("clone_hint")) + "</div>";
+  } else {
+    h += '<div class="hint">' + esc(t("idle_hint")) + "</div>";
+  }
+  $("mode-panel").innerHTML = h;
+
+  /* runtime */
+  const ledKey = "led_" + (S.led || "idle").replace("+", "_").replace("-", "_");
+  const rows = [
+    [t("r_board"), esc(S.board || "—")],
+    [t("r_ver"), esc(S.ver || "—")],
+    [t("r_uptime"), esc(fmtDur(S.uptime_s))],
+    [t("r_ip"), '<span class="mono">' + esc(S.ip || "—") + "</span>"],
+    [t("r_archive"), esc(S.storage || "—")],
+    [t("r_clients"), esc(S.sta || 0)],
+    [t("r_led"), esc(t(ledKey) === ledKey ? (S.led || "—") : t(ledKey))],
+    [t("r_heap"), esc((S.heap || 0) + " / " + (S.min_heap || 0) + " B")],
+    [t("r_boots"), esc((S.boots || 0) + " · " + (S.reset_reason || ""))]
+  ];
+  $("runtime").innerHTML = rows.map(r => "<dt>" + r[0] + "</dt><dd>" + r[1] + "</dd>").join("");
+
+  const bad = (S.brownouts || 0) > 0;
+  $("pow-card").style.display = bad ? "" : "none";
+  if (bad) $("pow-warn").textContent = "⚠ " + S.brownouts + " " + t("pow_warn");
+}
+const stat = (v, k) => '<div class="stat"><b>' + v + "</b><span>" + esc(k) + "</span></div>";
 
 async function setMode(mode) {
-  const r = await post("/api/mode", { mode });
-  toast(r.ok ? t("toast_mode") + modeTxt(r.mode) : (r.err || t("err_failed")), !r.ok);
-  refreshStatus();
-  if (mode === "clone") loadProfiles();
-}
-
-/* ---------- capture ---------- */
-async function clearCapture() {
-  const r = await del("/api/scan");
-  toast(r.ok ? t("toast_session_cleared") : t("err_failed"), !r.ok);
-  loadCaptures();
-}
-async function loadCaptures() {
-  let j;
-  try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
-  if (!j.ok) return;
-  caps = j.items || [];
-  recMerge(caps);
-  renderRecs();
-  $("cap-stat").textContent = caps.length + " / " + (S.scan_pkts || 0) + " " + t("st_packets");
-  renderCaps();
-}
-function renderCaps() {
-  const tb = $("cap-body");
-  tb.innerHTML = "";
-  let list = caps.slice().sort((a, b) => b.rssi - a.rssi);
-
-  if (!list.length) {
-    tb.innerHTML = "<tr><td colspan='4' class='dim'></td></tr>";
-    tb.firstChild.firstChild.textContent = esc(t("cap_nothing") + " " +
-      (S.mode === "sniff" ? t("cap_wait") : t("cap_idle")));
-    return;
-  }
-  list.forEach(d => {
-    const title = capTitle(d) + addrTag(d.addr_type);
-    const sub = capSub(d);
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      "<td><div>" + title + "</div><div class='mono dim'>" + sub + "</div>" +
-        "<div class='dim mono'>" + fmtAddr(d.addr) + "</div>" + capMfg(d) +
-        "<details style='margin-top:4px'><summary>" + t("cap_raw") + d.adv_len + "B</summary>" +
-        "<div class='hexbox'>" + hexPairs(d.raw) + "</div></details>" +
-        (d.rsp_len ? "<details style='margin-top:2px'><summary>" + t("cap_rsp") + d.rsp_len + "B</summary>" +
-          "<div class='hexbox'>" + hexPairs(d.rsp) + "</div></details>" : "") + "</td>" +
-      "<td>" + d.rssi + "<div class='dim' style='font-size:11px'>" + t("cap_avg") + " " + d.rssi_avg + "</div></td>" +
-      "<td>" + (d.itvl_ms ? d.itvl_ms + "ms" : "—") + "<div class='dim' style='font-size:11px'>" + Math.round(d.age_ms / 1000) + t("cap_ago") + "</div></td>" +
-      "<td><button class='btn pri sm'>" + t("btn_clone_sm") + "</button></td>";
-    tr.querySelector("button").onclick = () => cloneSignal(d.addr, tr.querySelector("button"));
-    tb.appendChild(tr);
-  });
-}
-
-async function cloneSignal(addr, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = "…"; }
-  const r = await post("/api/clone", { addr });
-  if (!r.ok) {
-    if (btn) { btn.disabled = false; btn.textContent = t("btn_clone_sm"); }
-    toast(r.err || t("toast_clone_failed"), true);
-    return;
-  }
-  toast(tf("toast_cloning", { itvl: r.adv_itvl_ms }) + (r.replaced ? t("toast_replaced") : ""));
-  await refreshStatus();
-  document.querySelector('nav button[data-tab="profiles"]').click();
-}
-
-/* ---------- browser-side capture store ----------
- * The board's table is 16 entries of RAM, cleared on reboot. Everything the page sees is
- * merged into localStorage, so records survive reboots, reloads and LRU eviction. */
-const REC_KEY = "bgw_recs_v1";
-const REC_MAX = 2000;                  /* hard cap on records kept here */
-const REC_BYTES = 3.5e6;                /* soft cap on the serialised size */
-let recs = {};                          /* address -> record */
-
-function recLoad() {
+  document.querySelectorAll("#mode-seg button").forEach(b => { b.disabled = true; });
   try {
-    const j = JSON.parse(localStorage.getItem(REC_KEY) || "{}");
-    recs = (j && typeof j === "object" && !Array.isArray(j)) ? j : {};
-  } catch (e) { recs = {}; }
-}
-
-function recSave() {
-  const trim = n => {
-    const ks = Object.keys(recs).sort((a, b) => (recs[a].l || 0) - (recs[b].l || 0));
-    ks.slice(0, Math.max(1, Math.ceil(ks.length * n))).forEach(k => delete recs[k]);
-  };
-  let s = JSON.stringify(recs);
-  if (s.length > REC_BYTES) { trim(0.25); s = JSON.stringify(recs); toast(t("rec_full"), true); }
-  try {
-    localStorage.setItem(REC_KEY, s);
-  } catch (e) {
-    trim(0.5);
-    try { localStorage.setItem(REC_KEY, JSON.stringify(recs)); } catch (e2) { /* give up quietly */ }
-    toast(t("rec_full"), true);
+    const r = await post("/api/mode", { mode });
+    if (!r.ok) toast(r.err || t("err_failed"), true);
+    else toast(t("mode_set") + modeTxt(r.mode));
+    if (mode === "clone" && !profiles.length) await loadProfiles();
+  } finally {
+    document.querySelectorAll("#mode-seg button").forEach(b => { b.disabled = false; });
+    refreshStatus();
   }
 }
+document.querySelectorAll("#mode-seg button").forEach(b => { b.onclick = () => guard(() => setMode(b.dataset.mode)); });
 
-/* Merge one /api/scan page into the store. Returns how many devices were new. */
-function recMerge(items) {
-  if (!items || !items.length) return 0;
-  const now = Date.now();
-  let added = 0;
-  items.forEach(d => {
-    if (!d || !d.addr) return;
-    let r = recs[d.addr];
-    if (!r) { r = { f: now, rmax: -127, c: 0 }; recs[d.addr] = r; added++; }
-    r.t = d.adv_type;
-    r.at = d.addr_type;
-    r.r = d.rssi;
-    r.rmax = Math.max(r.rmax, d.rssi);
-    r.c = Math.max(r.c || 0, d.count || 0);
-    r.i = d.itvl_ms;
-    r.l = now;
-    if (d.raw) r.raw = d.raw;
-    if (d.rsp) r.rsp = d.rsp;
-    if (d.name) r.name = d.name;
-    if (d.mfg_company !== undefined) {
-      r.mf = d.mfg; r.mc = d.mfg_company; r.mv = d.mfg_vendor; r.ms = d.mfg_src;
-    } else if (r.mc === undefined) {
-      /* pre-parse firmware, or a record imported without mfg: derive it once from raw */
-      let m = adMfg(d.raw), src = 0;
-      if (!m) { m = adMfg(d.rsp); src = 1; }
-      if (m) { r.mf = m.payload; r.mc = m.company; r.mv = companyName(m.company); r.ms = src; }
-    }
-    if (d.ibeacon) { r.ib = 1; r.uuid = d.uuid; r.maj = d.major; r.min = d.minor; }
-  });
-  const ks = Object.keys(recs);
-  if (ks.length > REC_MAX) {
-    ks.sort((a, b) => (recs[a].l || 0) - (recs[b].l || 0));
-    ks.slice(0, ks.length - REC_MAX).forEach(k => delete recs[k]);
-  }
-  recSave();
-  return added;
-}
-
-function fmtAgo(ms) {
-  if (!ms) return "—";
-  const s = Math.round((Date.now() - ms) / 1000);
-  if (s < 5) return t("rec_now");
-  return s + t("cap_ago");
-}
-
-function renderRecs() {
-  const box = $("rec-body");
-  if (!box) return;
-  const ks = Object.keys(recs);
-  const kb = Math.round(((localStorage.getItem(REC_KEY) || "").length) / 1024);
-  $("rec-stat").textContent = " " + ks.length + " · " + kb + " KB";
-  if (!ks.length) {
-    box.innerHTML = "<span class='dim'>" + esc(t("rec_empty")) + "</span>";
-    return;
-  }
-  ks.sort((a, b) => (recs[b].l || 0) - (recs[a].l || 0));
-  box.innerHTML = "";
-  ks.slice(0, 30).forEach(a => {
-    const r = recs[a];
-    const title = r.ib ? ("iBeacon " + r.maj + "/" + r.min)
-                       : (r.name ? esc(r.name) : t("cap_ble_adv"));
-    const row = document.createElement("div");
-    row.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0";
-    row.innerHTML =
-      "<div>" + title + " <span class='dim mono'>" + fmtAddr(a) + "</span></div>" +
-      "<div class='mono dim'>" + (r.r || 0) + "dBm · " + (r.c || 0) + " " + t("st_packets") + " · " +
-        (r.i || "?") + "ms · " + t("rec_seen") + fmtAgo(r.l) + "</div>" +
-      capMfg({ raw: r.raw, rsp: r.rsp, mfg: r.mf, mfg_company: r.mc, mfg_vendor: r.mv, mfg_src: r.ms }) +
-      (r.raw ? "<details style='margin-top:4px'><summary>" + t("cap_raw") +
-        (r.raw.length / 2) + "B</summary><div class='hexbox'>" + hexPairs(r.raw) + "</div>" +
-        (r.rsp ? "<div class='dim' style='margin-top:6px'>" + esc(t("form_rsp")) +
-          "</div><div class='hexbox'>" + hexPairs(r.rsp) + "</div>" : "") + "</details>" : "") +
-      "<div class='row' style='margin-top:6px'><button class='btn pri sm'>" + t("btn_clone_sm") + "</button></div>";
-    row.querySelector("button").onclick = () => cloneSignal(a, row.querySelector("button"));
-    box.appendChild(row);
-  });
-}
-
-function stamp() {
-  return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-}
-function download(name, text, mime) {
-  const b = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(b);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-function csvCell(v) {
-  const s = (v === undefined || v === null) ? "" : String(v);
-  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-/* One normalised view per record: same fields the rows show, with the manufacturer
- * block derived from raw/rsp when the record predates the firmware parser. */
-function recView(addr, r) {
-  let company = r.mc, payload = r.mf, src = r.ms, vendor = r.mv;
-  if (company === undefined) {
-    let m = adMfg(r.raw), s = 0;
-    if (!m) { m = adMfg(r.rsp); s = 1; }
-    if (m) { company = m.company; payload = m.payload; vendor = companyName(company); src = s; }
-  }
-  return {
-    addr: addr,
-    addr_type: (r.at === undefined ? "" : (r.at === 1 ? "random" : "public")),
-    kind: r.ib ? "ibeacon" : "ble",
-    uuid: r.uuid || "",
-    major: (r.maj === undefined ? "" : r.maj),
-    minor: (r.min === undefined ? "" : r.min),
-    name: r.name || "",
-    rssi_last: (r.r === undefined ? "" : r.r),
-    rssi_max: (r.rmax === undefined ? "" : r.rmax),
-    packets: (r.c || 0),
-    itvl_ms: (r.i === undefined ? "" : r.i),
-    adv_type: (r.t === undefined ? "" : r.t),
-    mfg_company: (company === undefined ? "" : "0x" + company.toString(16).toUpperCase().padStart(4, "0")),
-    mfg_vendor: vendor || "",
-    mfg_src: (src === 1 ? "scan_rsp" : (company === undefined ? "" : "adv")),
-    mfg_payload: payload || "",
-    raw: r.raw || "",
-    rsp: r.rsp || "",
-    first_seen: r.f ? new Date(r.f).toISOString() : "",
-    last_seen: r.l ? new Date(r.l).toISOString() : ""
-  };
-}
-function recViews() {
-  return Object.keys(recs)
-    .sort((a, b) => (recs[b].l || 0) - (recs[a].l || 0))
-    .map(a => recView(a, recs[a]));
-}
-
-/* Structured JSON: what Import expects back (the raw store, plus a derived view) */
-function exportRecs() {
-  const payload = { ver: 1, exported: new Date().toISOString(), records: recs, view: recViews() };
-  download("beacon-captures-" + stamp() + ".json", JSON.stringify(payload, null, 1), "application/json");
-}
-
-/* Spreadsheet friendly: one row per device, hex payloads included */
-function exportCsv() {
-  const cols = ["addr", "addr_type", "kind", "uuid", "major", "minor", "name",
-                "rssi_last", "rssi_max", "packets", "itvl_ms", "adv_type",
-                "mfg_company", "mfg_vendor", "mfg_src", "mfg_payload",
-                "raw", "rsp", "first_seen", "last_seen"];
-  const rows = recViews();
-  const lines = [cols.join(",")];
-  rows.forEach(v => lines.push(cols.map(c => csvCell(v[c])).join(",")));
-  // BOM so Excel opens UTF-8 names correctly
-  download("beacon-captures-" + stamp() + ".csv", "\ufeff" + lines.join("\r\n"), "text/csv");
-  toast(t("toast_exported") + " " + rows.length);
-}
-
-/* Raw dump: only the on-air bytes, tab separated, easy to diff or pipe into a script */
-function exportRaw() {
-  const rows = recViews();
-  const out = [];
-  out.push("# beacon-gw raw dump");
-  out.push("# exported: " + new Date().toISOString());
-  out.push("# records: " + rows.length);
-  out.push("# columns: addr<TAB>adv_hex<TAB>scan_rsp_hex<TAB>rssi<TAB>packets");
-  rows.forEach(v => {
-    out.push([v.addr, v.raw || "-", v.rsp || "-", v.rssi_last, v.packets].join("\t"));
-  });
-  download("beacon-raw-" + stamp() + ".txt", out.join("\n") + "\n");
-  toast(t("toast_exported") + " " + rows.length);
-}
-
-async function importRecs(inp) {
-  const f = inp.files[0];
-  inp.value = "";
-  if (!f) return;
+/* ------------------------------------------------------------------ log */
+async function loadLog() {
   let j;
-  try { j = JSON.parse(await f.text()); } catch (e) { toast(t("err_bad_json"), true); return; }
-  const src = (j && j.records) ? j.records : j;
-  let n = 0;
-  for (const k in src) {
-    if (!src[k] || !/^[0-9a-f]{12}$/i.test(k)) continue;
-    const old = recs[k];
-    if (!old || (src[k].l || 0) > (old.l || 0)) { recs[k] = src[k]; n++; }
-  }
-  recSave();
-  renderRecs();
-  toast(t("toast_imported") + " " + n);
-}
-
-function clearRecs() {
-  if (!confirm(t("confirm_clear_recs"))) return;
-  recs = {};
-  recSave();
-  renderRecs();
-}
-
-/* Poll without rendering, so recording continues on any tab */
-async function recPoll() {
-  let j;
-  try { j = await get("/api/scan?limit=16"); } catch (e) { return; }
-  if (!j || !j.ok) return;
-  if (recMerge(j.items || [])) renderRecs();
-}
-
-/* ---------- archive ---------- */
-async function loadHistory() {
-  let j;
-  try { j = await get("/api/history"); } catch (e) { return; }
+  try { j = await get("/api/log?since=0&limit=30"); } catch (e) { return; }
   if (!j.ok) return;
-  $("hist-stat").textContent = j.available ? (" " + j.count + t("hist_records")) : t("hist_unavailable");
-  const box = $("hist-body");
-  if (!j.available) { box.innerHTML = "<span class='dim'>" + esc(t("hist_no_store")) + "</span>"; return; }
-  if (!j.count) { box.innerHTML = "<span class='dim'>" + esc(t("hist_empty")) + "</span>"; return; }
-  box.innerHTML = "";
-  (j.items || []).forEach(it => {
-    const div = document.createElement("div");
-    div.style.cssText = "border-bottom:1px solid #1d222b;padding:8px 0";
-    div.innerHTML =
-      "<div>" + (it.ibeacon ? ("iBeacon " + it.major + "/" + it.minor) : t("cap_ble_adv")) +
-        " <span class='dim mono'>" + it.rssi + "dBm · " + it.itvl_ms + "ms</span></div>" +
-      "<div class='mono dim'>" + fmtAddr(it.addr) + " · " + t("hist_boot") + it.boot_seq + " +" + fmtDur(it.uptime_s) + "</div>" +
-      capMfg(it) +
-      "<div class='hexbox'>" + hexPairs(it.raw) + "</div>";
-    box.appendChild(div);
-  });
+  logRows = (j.items || []).slice(-30).reverse();
+  renderLog();
 }
-async function clearHistory() {
-  if (!confirm(t("confirm_clear_archive"))) return;
-  const r = await del("/api/history");
-  toast(r.ok ? t("toast_archive_cleared") : t("err_failed"), !r.ok);
-  loadHistory();
+function renderLog() {
+  $("log-toggle").textContent = ui.logOpen ? t("hide") : t("show");
+  $("log-list").style.display = ui.logOpen ? "" : "none";
+  if (!ui.logOpen) return;
+  if (!logRows.length) { $("log-list").innerHTML = '<div class="empty">—</div>'; return; }
+  /* items are {seq, up_ms, type, rssi, msg} and arrive oldest-first */
+  $("log-list").innerHTML = logRows.map(r =>
+    '<div class="logrow"><span class="tm mono">' + esc(fmtDur(Math.round((r.up_ms || 0) / 1000))) +
+    '</span><span class="ty">' + esc(r.type || "") + '</span><span class="tx">' + esc(r.msg || "") + "</span></div>"
+  ).join("");
 }
-
-/* ---------- profiles ---------- */
-async function loadProfiles() {
-  const j = await get("/api/profiles");
-  if (!j.ok) return;
-  profiles = j.profiles || [];
-  const box = $("prof-body");
-  box.innerHTML = "";
-  if (!profiles.length) { box.innerHTML = "<span class='dim'>" + esc(t("prof_empty")) + "</span>"; return; }
-
-  profiles.forEach((p, i) => {
-    const active = (i === j.active);
-    const card = document.createElement("div");
-    card.style.cssText = "border:1px solid " + (active ? "#1e5a44" : "#262b36") +
-      ";background:" + (active ? "#101c17" : "#141821") + ";border-radius:10px;padding:10px;margin-bottom:8px";
-    const kind = p.kind === 1
-      ? "<span class='tag raw'>" + t("tag_raw") + "</span>"
-      : "<span class='tag ibe'>" + t("tag_ibe") + "</span>";
-    const rawSum = p.raw ? hexPairs(p.raw.slice(0, 16)) + (p.raw.length > 16 ? " …" : "") : "";
-    card.innerHTML =
-      "<div class='row' style='justify-content:space-between'>" +
-        "<div><b>" + esc(p.name) + "</b> " + kind +
-        (p.clone_public_addr ? " <span class='tag'>" + t("tag_pubaddr") + "</span>"
-                             : (p.use_rand_addr ? " <span class='tag'>" + t("tag_randaddr") + "</span>" : "")) +
-        (active ? " <span class='tag on'>" + t("tag_on_air") + "</span>" : "") + "</div>" +
-        "<span class='dim mono'>#" + i + "</span></div>" +
-      "<div class='mono dim' style='margin-top:6px'>" +
-        (p.kind === 1 ? rawSum + "<br>" : fmtUuid(p.uuid) + "<br>" + p.major + "/" + p.minor + "<br>") +
-        p.adv_itvl_ms + "ms · tx " + p.radio_dbm + "dBm" + (p.src ? " · src " + fmtAddr(p.src) : "") +
-      "</div>" +
-      "<div class='row' style='margin-top:8px'>" +
-        (active ? "<button class='btn sm' data-a='stop'>" + t("btn_stop") + "</button>"
-                : "<button class='btn pri sm' data-a='act'>" + t("btn_activate") + "</button>") +
-        "<button class='btn sm' data-a='edit'>" + t("btn_adv_edit") + "</button>" +
-        "<button class='btn sm dan' data-a='del'>" + t("btn_delete") + "</button>" +
-      "</div>";
-    card.querySelectorAll("[data-a]").forEach(b => {
-      b.onclick = () => {
-        const a = b.dataset.a;
-        if (a === "act")   activate(i);
-        if (a === "stop")  setMode("idle");
-        if (a === "edit")  openForm(i);
-        if (a === "del")   removeProfile(i);
-      };
-    });
-    box.appendChild(card);
-  });
-
-  const hint = $("hint-limit");
-  if (hint) hint.style.display = profiles.length >= 3 ? "block" : "none";
-}
-async function activate(i) {
-  const r = await post("/api/active", { id: i });
-  toast(r.ok ? t("toast_activated") + i : (r.err || t("err_failed")), !r.ok);
-  refreshStatus(); loadProfiles();
-}
-async function removeProfile(i) {
-  if (!confirm(tf("confirm_del_profile", { id: i, name: profiles[i].name }))) return;
-  const r = await del("/api/profiles/" + i);
-  toast(r.ok ? t("toast_deleted") : (r.err || t("err_failed")), !r.ok);
-  refreshStatus(); loadProfiles();
-}
-function openForm(i) {
-  editId = i;
-  const p = profiles[i];
-  $("form-card").style.display = "block";
-  $("form-title").textContent = t("form_edit") + " #" + i + " " + p.name;
-  $("f-name").value = p.name;
-  $("f-itvl").value = p.adv_itvl_ms;
-  $("f-tx").value = p.radio_dbm;
-  $("f-scan").checked = !!p.scannable;
-  const isRaw = p.kind === 1;
-  $("form-ibe").style.display = isRaw ? "none" : "block";
-  $("form-raw").style.display = isRaw ? "block" : "none";
-  $("form-addr").style.display = isRaw ? "block" : "none";
-  $("f-addr").value = (isRaw && p.clone_public_addr && p.src) ? fmtAddr(p.src) : "";
-  if (isRaw) {
-    $("form-raw").innerHTML = esc(t("raw_note")) + "<div class='hexbox'>" + hexPairs(p.raw) + "</div>" +
-      (p.rsp ? "<div class='dim' style='margin-top:8px'>" + esc(t("form_rsp")) + "</div>" +
-        "<div class='hexbox'>" + hexPairs(p.rsp) + "</div>" : "");
-  } else {
-    $("f-uuid").value = fmtUuid(p.uuid);
-    $("f-major").value = p.major;
-    $("f-minor").value = p.minor;
-  }
-  $("form-card").scrollIntoView({ behavior: "smooth" });
-}
-function closeForm() { $("form-card").style.display = "none"; }
-async function saveForm() {
-  const o = profiles[editId];
-  const body = {
-    kind: o.kind, name: $("f-name").value.trim(),
-    adv_itvl_ms: +$("f-itvl").value, radio_dbm: +$("f-tx").value,
-    scannable: $("f-scan").checked, enabled: true
-  };
-  if (o.kind === 1) {
-    body.raw = o.raw;
-    if (o.rsp) body.rsp = o.rsp;
-    if (o.src) { body.src = o.src; body.src_adv_type = o.src_adv_type; }
-    /* Advertised address: empty keeps the device's own, 12 hex chars force a public one.
-     * The backend treats a missing field as "off", so both cases must be spelled out. */
-    const a = $("f-addr").value.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
-    if (a.length === 12) {
-      body.src = a; body.clone_public_addr = true;
-    } else if (a.length === 0) {
-      body.clone_public_addr = false;
-      if (o.use_rand_addr && o.rand_addr) { body.rand_addr = o.rand_addr; body.use_rand_addr = true; }
-    } else {
-      $("form-msg").textContent = t("err_adv_addr"); return;
-    }
-  }
-  else {
-    body.uuid = $("f-uuid").value.trim();
-    body.major = +$("f-major").value; body.minor = +$("f-minor").value;
-    body.ref_rssi = o.ref_rssi;
-  }
-  const r = await put("/api/profiles/" + editId, body);
-  if (!r.ok) { $("form-msg").textContent = r.err || t("err_save_failed"); return; }
-  toast(t("toast_saved")); closeForm(); loadProfiles(); refreshStatus();
-}
-
-/* ---------- log ---------- */
-async function loadLog(reset) {
-  if (reset) { logSeq = 0; $("log-body").innerHTML = ""; }
-  let j;
-  try { j = await get("/api/log?since=" + logSeq + "&limit=200"); } catch (e) { return; }
-  if (!j.ok) return;
-  logSeq = j.last_seq || logSeq;
-  const box = $("log-body");
-  (j.items || []).forEach(r => {
-    const d = document.createElement("div");
-    d.className = "t-" + r.type;
-    d.textContent = "[" + r.up_ms + "ms] " + r.type.padEnd(6) + " " + r.msg;
-    box.appendChild(d);
-  });
-  box.scrollTop = box.scrollHeight;
-  $("log-hint").textContent = t("lb_seq") + logSeq;
-}
-async function clearLog() { const r = await del("/api/log"); toast(r.ok ? t("toast_cleared") : t("err_failed"), !r.ok); loadLog(true); }
-
-/* ---------- settings ---------- */
-async function loadSettings() {
-  const j = await get("/api/profiles");
-  if (!j.ok) return;
-  $("s-itvl").value = j.scan ? j.scan.itvl_ms : 300;
-  $("s-win").value = j.scan ? j.scan.win_ms : 60;
-  $("s-ssid").value = j.ap ? j.ap.ssid : "";
-  $("s-pass").value = j.ap ? j.ap.pass : "";
-  $("s-rot").checked = !!(j.rotation && j.rotation.enabled);
-  $("s-rot-s").value = (j.rotation && j.rotation.seconds) || 30;
-}
-async function saveScan() {
-  const r = await post("/api/scan", { itvl_ms: +$("s-itvl").value, win_ms: +$("s-win").value });
-  toast(r.ok ? t("toast_scan_saved") : (r.err || t("err_failed")), !r.ok);
-  refreshStatus();
-}
-async function saveAp() {
-  const r = await post("/api/ap", { ssid: $("s-ssid").value.trim(), pass: $("s-pass").value });
-  toast(r.ok ? t("toast_ap_saved") : (r.err || t("err_failed")), !r.ok);
-}
-async function saveRotation() {
-  const r = await post("/api/rotation", { enabled: $("s-rot").checked, seconds: +$("s-rot-s").value });
-  toast(r.ok ? t("toast_saved") : (r.err || t("err_failed")), !r.ok);
-}
-async function doExport() {
-  const r = await fetch("/api/export", { headers: { "Authorization": "Bearer " + token } });
-  const b = await r.blob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(b); a.download = "beacon-config.json"; a.click();
-  URL.revokeObjectURL(a.href);
-}
-async function doImport(inp) {
-  const f = inp.files[0]; if (!f) return;
-  let body;
-  try { body = JSON.parse(await f.text()); } catch (e) { toast(t("err_bad_json"), true); return; }
-  const r = await post("/api/import", body);
-  toast(r.ok ? t("toast_imported") : (r.err || t("err_failed")), !r.ok);
-  inp.value = ""; loadProfiles(); refreshStatus();
-}
-function factoryReset() {
-  if (!confirm(t("confirm_factory"))) return;
-  post("/api/factory", {}).then(() => post("/api/reboot", {}));
-}
-function rebootNow() {
-  if (!confirm(t("confirm_reboot"))) return;
-  post("/api/reboot", {});
-}
-
-/* ---------- boot ---------- */
-async function boot() {
-  const j = await refreshStatus();
-  if (!j) return;
-  recLoad();
-  renderRecs();
-  const cur = document.querySelector("nav button.active").dataset.tab;
-  if (cur === "capture") { loadCaptures(); loadHistory(); }
-  if (cur === "profiles") loadProfiles();
-  if (cur === "log") loadLog(true);
-  if (timer) clearInterval(timer);
-  timer = setInterval(tick, 2500);
-}
-
-/* One poll: only what the current tab shows, and nothing while the page is hidden or while
- * the radio is parked (the capture table cannot change then). */
-function tick() {
-  if (document.hidden) return;
-  refreshStatus();
-  const cur = document.querySelector("nav button.active").dataset.tab;
-  if (cur === "capture") loadCaptures();
-  else if (S.mode === "sniff") recPoll();
-  if (cur === "log") loadLog(false);
-}
-
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden || !token) return;
-  refreshStatus();
-  recPoll();
+$("log-toggle").onclick = () => { ui.logOpen = !ui.logOpen; if (ui.logOpen) loadLog(); else renderLog(); };
+$("log-refresh").onclick = () => guard(loadLog);
+$("log-clear").onclick = () => guard(async () => {
+  const r = await del("/api/log");
+  toast(r.ok ? t("deleted") : (r.err || t("err_failed")), !r.ok);
+  logRows = []; renderLog();
 });
 
-applyLang();
-if (token) { hideLogin(); boot(); } else { showLogin(); }
+/* ------------------------------------------------------------------ data */
+async function loadData() {
+  if (ui.sub === "profiles") await loadProfiles();
+  else if (ui.sub === "pins") await loadPins();
+  else { await loadArchive(); await loadProfiles(); }
+  renderList();
+}
+async function loadArchive() {
+  let j; try { j = await get("/api/history"); } catch (e) { return; }
+  if (j.ok) archive = j.items || [];
+}
+async function loadPins() {
+  let j; try { j = await get("/api/pins"); } catch (e) { return; }
+  if (j.ok) pins = j.items || [];
+}
+/* /api/profiles returns the whole config (profiles + scan + ap + rotation); keep it in CFG
+ * so the settings page needs one request instead of chasing fields off /api/status. */
+let CFG = {};
+async function loadProfiles() {
+  let j; try { j = await get("/api/profiles"); } catch (e) { return; }
+  if (!j.ok) return;
+  CFG = j;
+  profiles = (j.profiles || []).map(p => Object.assign({}, p, { active: p.id === j.active }));
+}
+
+function visibleRecs(src) {
+  const kw = ui.kw.trim().toLowerCase();
+  const fullMin = Math.max(10, Math.round((S.scan_duration_s || 120) / 2));
+  let out = src.filter(d => {
+    if (ui.fDing && typeTag(d).txt !== "DingTalk") return false;
+    if (ui.fPub && d.addr_type !== 0) return false;
+    if (ui.fFull && (d.packets || 0) < fullMin) return false;
+    if (kw) {
+      const hay = [d.name, d.addr, vendorOf(d), d.svc, d.svc_name, fmtAddr(d.addr)].join(" ").toLowerCase();
+      if (hay.indexOf(kw) < 0) return false;
+    }
+    return true;
+  });
+  if (ui.sort === "rssi") out = out.slice().sort((a, b) => (b.rssi || -127) - (a.rssi || -127));
+  else if (ui.sort === "pkt") out = out.slice().sort((a, b) => (b.packets || 0) - (a.packets || 0));
+  else if (ui.sort === "name") out = out.slice().sort((a, b) =>
+    String(a.name || vendorOf(a) || a.addr).localeCompare(String(b.name || vendorOf(b) || b.addr)));
+  return out;
+}
+
+function renderList() {
+  const box = $("list");
+  if (ui.sub === "profiles") { box.innerHTML = ""; renderProfiles(box); return; }
+  const src = ui.sub === "pins" ? pins : archive;
+  const list = visibleRecs(src);
+  box.innerHTML = "";
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">' + esc(t(ui.sub === "pins" ? "empty_pins" : "empty_archive")) + "</div>";
+    return;
+  }
+  list.forEach((d, i) => box.appendChild(recCard(d, ui.sub, i)));
+}
+
+function recCard(d, kind, i) {
+  const key = kind + ":" + (d.addr || i) + ":" + (d.rssi || 0) + ":" + (d.packets || 0);
+  const tg = typeTag(d);
+  const vd = vendorOf(d);
+  const el = document.createElement("div");
+  el.className = "rec" + (expanded.has(key) ? " open" : "");
+  const name = d.name ? esc(d.name) : esc(t("unnamed"));
+  const sub = [vd, shortAddr(d.addr), (d.packets || 0) + " " + t("pkt")].filter(Boolean).join(" · ");
+  el.innerHTML =
+    '<div class="h"><span class="rssi ' + rssiCls(d.rssi || -127) + '">' + (d.rssi || "—") + "</span>" +
+    '<div class="t"><div class="n">' + name + ' <span class="tag ' + tg.cls + '">' + esc(tg.txt) + "</span></div>" +
+    '<div class="s mono">' + esc(sub) + "</div></div>" +
+    '<div class="x">' + (expanded.has(key) ? "▾" : "▸") + "</div></div>" +
+    '<div class="b">' + recBody(d, kind, i) + "</div>";
+  el.querySelector(".h").onclick = () => {
+    if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+    el.classList.toggle("open");
+    el.querySelector(".x").textContent = el.classList.contains("open") ? "▾" : "▸";
+  };
+  el.querySelectorAll("[data-copy]").forEach(b => {
+    b.onclick = ev => {
+      ev.stopPropagation();
+      navigator.clipboard && navigator.clipboard.writeText(b.dataset.copy);
+      toast(t("copied"));
+    };
+  });
+  el.querySelectorAll("[data-act]").forEach(b => {
+    b.onclick = ev => { ev.stopPropagation(); guard(() => recAction(b.dataset.act, d, i)); };
+  });
+  return el;
+}
+
+function recBody(d, kind, i) {
+  const tg = typeTag(d);
+  const kv = [
+    ["addr", '<span class="mono">' + esc(fmtAddr(d.addr)) + "</span>"],
+    ["addr_type", (d.addr_type === 0 ? "public" : "random")],
+    ["adv_type", "0x" + Number(d.adv_type || 0).toString(16).padStart(2, "0")],
+    ["type", esc(tg.txt)],
+    ["vendor", esc(vendorOf(d) || "—")],
+    ["svc", esc((d.svc_name && d.svc_name !== d.svc) ? d.svc_name + " ( " + d.svc + " )" : (d.svc || "—"))],
+    ["rssi avg/max", (d.rssi_avg != null ? d.rssi_avg : "—") + " / " + (d.rssi_max != null ? d.rssi_max : "—")],
+    ["packets", (d.packets || 0) + "  ·  itvl " + (d.itvl_ms || 0) + " ms  ·  dwell " + (d.dwell_ms || 0) + " ms"],
+    ["boot/uptime", (d.boot_seq || 0) + " / " + (d.uptime_s || 0) + " s"]
+  ];
+  if (d.ibeacon) kv.push(["uuid", '<span class="mono">' + esc(fmtUuid(d.uuid)) + "</span>"], ["major/minor", d.major + " / " + d.minor]);
+  let h = '<dl class="kv">' + kv.map(r => "<dt>" + r[0] + "</dt><dd>" + r[1] + "</dd>").join("") + "</dl>";
+  if (d.raw) h += '<div class="dim" style="font-size:11px;margin-top:8px">raw · ' + d.raw.length / 2 + " B" +
+    '<button class="copy" data-copy="' + esc(d.raw) + '">' + t("copy") + "</button>" +
+    '<div class="hex">' + esc(hexPairs(d.raw)) + "</div></div>";
+  if (d.rsp) h += '<div class="dim" style="font-size:11px">rsp · ' + d.rsp.length / 2 + " B" +
+    '<button class="copy" data-copy="' + esc(d.rsp) + '">' + t("copy") + "</button>" +
+    '<div class="hex">' + esc(hexPairs(d.rsp)) + "</div></div>";
+  if (d.mfg) h += '<div class="dim" style="font-size:11px">mfg · ' + esc(d.mfg_vendor || companyName(d.mfg_company || 0)) +
+    (d.mfg_src ? " (from scan response)" : "") +
+    '<button class="copy" data-copy="' + esc(d.mfg) + '">' + t("copy") + "</button>" +
+    '<div class="hex">' + esc(hexPairs(d.mfg)) + "</div></div>";
+  h += '<div class="row" style="margin-top:10px">';
+  if (kind === "archive") h += '<button class="btn ok sm" data-act="pin">' + t("act_pin") + "</button>";
+  else h += '<button class="btn bad sm" data-act="unpin">' + t("act_unpin") + "</button>";
+  h += "</div>";
+  return h;
+}
+
+async function recAction(act, d, i) {
+  if (act === "pin") {
+    /* the archive listing order is what /api/pins expects: the index in the unfiltered array */
+    const idx = archive.indexOf(d);
+    const r = await post("/api/pins", { index: idx >= 0 ? idx : i });
+    toast(r.ok ? t("saved") : (r.err || t("err_failed")), !r.ok);
+    if (r.ok) await loadPins();
+  } else if (act === "unpin") {
+    const r = await del("/api/pins/" + (d.id != null ? d.id : i));
+    toast(r.ok ? t("deleted") : (r.err || t("err_failed")), !r.ok);
+    if (r.ok) await loadPins();
+    renderList();
+  }
+}
+
+/* ------------------------------------------------------------------ profiles */
+function renderProfiles(box) {
+  if (!profiles.length) { box.innerHTML = '<div class="empty">' + esc(t("empty_profiles")) + "</div>"; return; }
+  profiles.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "rec";
+    const isRaw = p.kind === 1;
+    const len = isRaw ? ((p.raw || "").length / 2) : "";
+    const sub = [isRaw ? t("kind_raw") : t("kind_ib"), isRaw ? len + " B" : fmtUuid(p.uuid),
+                 p.adv_itvl_ms + " ms", p.radio_dbm + " dBm", p.enabled ? "" : t("off")].filter(Boolean).join(" · ");
+    el.innerHTML = '<div class="h"><span class="rssi ' + (p.enabled ? "" : "mid") + '">#' + p.id + "</span>" +
+      '<div class="t"><div class="n">' + esc(p.name) +
+      (p.active ? ' <span class="tag ding">' + t("active") + "</span>" : "") +
+      ' <span class="tag">' + esc(isRaw ? t("kind_raw") : t("kind_ib")) + "</span></div>" +
+      '<div class="s mono">' + esc(sub) + "</div></div></div>" +
+      '<div class="b" style="display:block">' +
+      (isRaw && p.raw ? '<div class="dim" style="font-size:11px">raw · ' + len + " B" +
+        '<button class="copy" data-copy="' + esc(p.raw) + '">' + t("copy") + "</button>" +
+        '<div class="hex">' + esc(hexPairs(p.raw)) + "</div></div>" : "") +
+      '<div class="row" style="margin-top:8px">' +
+      '<button class="btn pri sm" data-pact="activate">' + t("act_activate") + "</button>" +
+      '<button class="btn sm" data-pact="edit">' + t("act_edit") + "</button>" +
+      '<button class="btn bad sm" data-pact="delete">' + t("act_delete") + "</button></div></div>";
+    el.querySelectorAll("[data-copy]").forEach(b => {
+      b.onclick = ev => { ev.stopPropagation(); navigator.clipboard && navigator.clipboard.writeText(b.dataset.copy); toast(t("copied")); };
+    });
+    el.querySelectorAll("[data-pact]").forEach(b => {
+      b.onclick = ev => {
+        ev.stopPropagation();
+        const a = b.dataset.pact;
+        if (a === "edit") { openDialog(p); return; }
+        guard(async () => {
+          if (a === "activate") {
+            const r = await post("/api/active", { id: p.id });
+            toast(r.ok ? t("saved") : (r.err || t("err_failed")), !r.ok);
+            await refreshStatus(); await loadProfiles();
+          } else {
+            if (!confirm(t("confirm_del"))) return;
+            const r = await del("/api/profiles/" + p.id);
+            toast(r.ok ? t("deleted") : (r.err || t("err_failed")), !r.ok);
+            await loadProfiles(); await refreshStatus();
+          }
+          renderList();
+        });
+      };
+    });
+    box.appendChild(el);
+  });
+}
+
+let dlgKind = 1, dlgId = null;
+function openDialog(p) {
+  dlgId = p ? p.id : null;
+  dlgKind = p ? p.kind : 1;
+  $("dlg-title").textContent = p ? t("dlg_edit") : t("dlg_new");
+  $("d-name").value = p ? p.name : "";
+  $("d-raw").value = (p && p.kind === 1) ? (p.raw || "") : "";
+  $("d-rsp").value = (p && p.rsp) ? p.rsp : "";
+  $("d-uuid").value = p ? (p.uuid || "") : "";
+  $("d-major").value = p ? p.major : 0;
+  $("d-minor").value = p ? p.minor : 0;
+  $("d-ref").value = p ? p.ref_rssi : -59;
+  $("d-itvl").value = p ? p.adv_itvl_ms : 100;
+  $("d-tx").value = p ? p.radio_dbm : 9;
+  $("d-scannable").checked = p ? !!p.scannable : false;
+  $("d-enabled").checked = p ? !!p.enabled : true;
+  syncKind();
+  $("dlg").classList.add("show");
+}
+function syncKind() {
+  document.querySelectorAll("#d-kind button").forEach(b => b.classList.toggle("on", Number(b.dataset.kind) === dlgKind));
+  $("d-rawbox").style.display = dlgKind === 1 ? "" : "none";
+  $("d-ibox").style.display = dlgKind === 0 ? "" : "none";
+}
+document.querySelectorAll("#d-kind button").forEach(b => { b.onclick = () => { dlgKind = Number(b.dataset.kind); syncKind(); }; });
+$("d-cancel").onclick = () => $("dlg").classList.remove("show");
+
+function hexOk(s, min, max) {
+  if (s === "") return min === 0;
+  if (!/^[0-9a-fA-F]+$/.test(s) || s.length % 2) return false;
+  const b = s.length / 2;
+  return b >= min && b <= max;
+}
+$("d-save").onclick = () => guard(async () => {
+  const name = $("d-name").value.trim();
+  if (!name) { toast("name required", true); return; }
+  const body = {
+    name, kind: dlgKind,
+    adv_itvl_ms: Number($("d-itvl").value) || 100,
+    radio_dbm: Number($("d-tx").value),
+    scannable: $("d-scannable").checked,
+    enabled: $("d-enabled").checked
+  };
+  if (dlgKind === 1) {
+    const raw = $("d-raw").value.trim(), rsp = $("d-rsp").value.trim();
+    if (!hexOk(raw, 2, 31)) { toast(t("bad_hex"), true); return; }
+    body.raw = raw;
+    if (rsp) { if (!hexOk(rsp, 1, 31)) { toast(t("bad_hex"), true); return; } body.rsp = rsp; }
+  } else {
+    const uuid = $("d-uuid").value.trim().toLowerCase();
+    if (!hexOk(uuid, 16, 16)) { toast(t("bad_uuid"), true); return; }
+    body.uuid = uuid;
+    body.major = Number($("d-major").value) || 0;
+    body.minor = Number($("d-minor").value) || 0;
+    body.ref_rssi = Number($("d-ref").value) || -59;
+  }
+  const r = dlgId == null ? await post("/api/profiles", body) : await put("/api/profiles/" + dlgId, body);
+  if (!r.ok) { toast(r.err || t("err_failed"), true); return; }
+  $("dlg").classList.remove("show");
+  toast(t("saved"));
+  await loadProfiles(); await refreshStatus(); renderList();
+});
+$("btn-new").onclick = () => openDialog(null);
+$("btn-refresh").onclick = () => guard(loadData);
+document.querySelectorAll(".chip").forEach(c => {
+  c.onclick = () => {
+    const f = c.dataset.filter;
+    if (f === "ding") ui.fDing = !ui.fDing;
+    if (f === "pub") ui.fPub = !ui.fPub;
+    if (f === "full") ui.fFull = !ui.fFull;
+    c.classList.toggle("on");
+    renderList();
+  };
+});
+$("kw").oninput = e => { ui.kw = e.target.value; renderList(); };
+$("sort").onchange = e => { ui.sort = e.target.value; localStorage.setItem("bgw_sort", ui.sort); renderList(); };
+
+/* ------------------------------------------------------------------ settings */
+async function loadSettings() {
+  await refreshStatus();
+  if (!CFG.scan) await loadProfiles();
+  const sc = CFG.scan || {}, ap = CFG.ap || {}, rot = CFG.rotation || {};
+  $("s-itvl").value = sc.itvl_ms || 300;
+  $("s-win").value = sc.win_ms || 60;
+  $("s-dur").value = sc.duration_s || 120;
+  $("s-duty").checked = !!sc.full_duty;
+  $("s-filter").checked = !!sc.filter_noise;
+  $("s-clear").checked = !!sc.clear_each_round;
+  $("s-rot-on").checked = !!rot.enabled;
+  $("s-rot-s").value = rot.seconds || 30;
+  $("s-ssid").value = ap.ssid || "";
+  $("maint-kv").innerHTML =
+    "<dt>" + t("r_ver") + "</dt><dd>" + esc(S.ver || "—") + "</dd>" +
+    "<dt>" + t("r_board") + "</dt><dd>" + esc(S.board || "—") + "</dd>" +
+    "<dt>" + t("r_uptime") + "</dt><dd>" + esc(fmtDur(S.uptime_s)) + "</dd>" +
+    "<dt>" + t("r_archive") + "</dt><dd>" + esc(S.storage || "—") + "</dd>";
+}
+$("save-scan").onclick = () => guard(async () => {
+  const body = {
+    itvl_ms: Number($("s-itvl").value), win_ms: Number($("s-win").value),
+    duration_s: Number($("s-dur").value), full_duty: $("s-duty").checked,
+    filter_noise: $("s-filter").checked, clear_each_round: $("s-clear").checked
+  };
+  const r = await post("/api/scan", body);
+  toast(r.ok ? t("saved") : (r.err || t("err_failed")), !r.ok);
+});
+$("save-ap").onclick = () => guard(async () => {
+  const r = await post("/api/ap", { ssid: $("s-ssid").value, pass: $("s-pass").value });
+  toast(r.ok ? t("saved") : (r.err || t("err_failed")), !r.ok);
+});
+$("save-rot").onclick = () => guard(async () => {
+  const r = await post("/api/rotation", { enabled: $("s-rot-on").checked, seconds: Number($("s-rot-s").value) });
+  toast(r.ok ? t("saved") : (r.err || t("err_failed")), !r.ok);
+});
+$("btn-export").onclick = () => guard(async () => {
+  const r = await get("/api/export");
+  const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "beacon-gw-config.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast(t("exported"));
+});
+$("btn-import").onclick = () => $("file-import").click();
+$("file-import").onchange = e => guard(async () => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const txt = await f.text();
+  let body;
+  try { body = JSON.parse(txt); } catch (err) { toast("bad json", true); return; }
+  const r = await post("/api/import", body);
+  toast(r.ok ? t("imported") : (r.err || t("err_failed")), !r.ok);
+  e.target.value = "";
+});
+$("btn-reboot").onclick = () => guard(async () => {
+  if (!confirm(t("set_reboot") + "?")) return;
+  await post("/api/reboot", {});
+  toast("rebooting…");
+});
+$("btn-factory").onclick = () => guard(async () => {
+  if (!confirm(t("confirm_factory"))) return;
+  await post("/api/factory", {});
+  toast("factory reset…");
+});
+
+/* ------------------------------------------------------------------ render */
+function render() {
+  if (ui.tab === "status") renderStatus();
+  if (ui.tab === "data") renderList();
+  if (ui.tab === "settings") { /* static fields already loaded */ }
+  applyChips();
+}
+function applyChips() {
+  document.querySelectorAll(".chip").forEach(c => {
+    const f = c.dataset.filter;
+    const on = f === "ding" ? ui.fDing : f === "pub" ? ui.fPub : ui.fFull;
+    c.classList.toggle("on", on);
+  });
+  $("sort").value = ui.sort;
+}
+
+/* ------------------------------------------------------------------ boot */
+let pollTimer = null;
+async function boot() {
+  await refreshStatus();
+  await loadProfiles();
+  applyLang();
+  syncSubUI();
+  setTab(ui.tab);
+  if (!pollTimer) pollTimer = setInterval(() => { if (ui.tab === "status") refreshStatus(); }, 2000);
+}
+document.addEventListener("DOMContentLoaded", () => {
+  if (ui.sub === "profiles") { $("tools").style.display = "none"; $("btn-new").style.display = ""; }
+  if (token) { boot(); }
+  else { applyLang(); showLogin(); }
+});
 </script>
 </body>
 </html>

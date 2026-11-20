@@ -11,8 +11,14 @@ main/www/index.html.gz
 tools/*.log
 tools/*.err
 
+# python bytecode from tools/*.py
+__pycache__/
+
 # editors / OS
 .vscode/
 .idea/
 .DS_Store
 *.swp
+
+# scratch workspace for plan execution (superpowers sdd)
+.superpowers/

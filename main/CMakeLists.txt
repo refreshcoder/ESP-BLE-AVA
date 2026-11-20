@@ -5,13 +5,17 @@ idf_component_register(
          "radio.c"
          "beacon_adv.c"
          "beacon_scan.c"
+         "clone_op.c"
          "net_ap.c"
          "web_server.c"
          "storage.c"
          "status_led.c"
          "btn.c"
+         "usb_console.c"
     INCLUDE_DIRS "."
     EMBED_FILES "www/index.html.gz"
+    # `driver` re-exports esp_driver_usb_serial_jtag (>= 5.3) and the legacy usb_serial_jtag
+    # driver (5.2), so the USB console builds on both without a version check.
     REQUIRES nvs_flash esp_wifi esp_netif esp_event esp_http_server esp_timer bt json driver fatfs wear_levelling
 )
 
