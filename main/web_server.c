@@ -147,24 +147,61 @@ static const char *led_state_name(rmode_t m, uint8_t sta)
 #define APP_UI_ETAG "dev"
 #endif
 
+/* Two sources, fixed order: the uploaded file when it is usable, otherwise the blob that
+ * lives in the firmware. The embedded copy is never removed, so a truncated upload, a failed
+ * mount or `records format` can only cost the override -- never the ability to open the page. */
 static esp_err_t h_index(httpd_req_t *req)
 {
-    static const char etag[] = "\"" APP_UI_ETAG "\"";
+    static const char build_etag[] = "\"" APP_UI_ETAG "\"";
+    char etag[24];
     char inm[48];
-    bool fresh = httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof(inm)) == ESP_OK &&
-                 strcmp(inm, etag) == 0;
+    const uint8_t *blob = index_html_gz_start;
+    size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
+    uint32_t crc = 0;
+    size_t flen = 0;
+    /* The read session opens before the ETag is chosen: stat() answering OK does not mean the
+     * file is still readable (an upload may replace it between the two calls), and the page
+     * must be labelled with the source that actually sends the body -- else a later 304 would
+     * revalidate the embedded copy as if it were the uploaded one. */
+    bool from_fs = storage_ui_stat(&crc, &flen) == ESP_OK && storage_ui_read_begin() == ESP_OK;
+
+    if (from_fs) {
+        snprintf(etag, sizeof(etag), "\"ui-%08x\"", (unsigned)crc);
+        len = flen;
+    } else {
+        snprintf(etag, sizeof(etag), "%s", build_etag);
+    }
 
     httpd_resp_set_hdr(req, "ETag", etag);
-    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+    /* The uploaded file can be replaced without a reboot, so the browser must revalidate;
+     * the embedded one only changes with the firmware, so it can be cached. */
+    httpd_resp_set_hdr(req, "Cache-Control", from_fs ? "no-cache" : "public, max-age=86400");
+    bool fresh = httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof(inm)) == ESP_OK &&
+                 strcmp(inm, etag) == 0;
     if (fresh) {
+        if (from_fs) storage_ui_read_end();   /* begin() is exclusive: only the holder releases */
         httpd_resp_set_status(req, "304 Not Modified");
         return httpd_resp_send(req, NULL, 0);
     }
 
-    size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-    return httpd_resp_send(req, (const char *)index_html_gz_start, (ssize_t)len);
+
+    if (!from_fs) return httpd_resp_send(req, (const char *)blob, (ssize_t)len);
+
+    /* stream the file in 4 KB chunks: no whole-page allocation while the AP is serving.
+     * The buffer is static because storage_ui_read_begin() is exclusive, so only one request
+     * at a time reaches this loop (4 KB on the 7 KB httpd stack would be the alternative). */
+    static uint8_t buf[4096];
+    int n;
+    esp_err_t err = ESP_OK;
+    while ((n = storage_ui_read_chunk(buf, sizeof(buf))) > 0) {
+        if (httpd_resp_send_chunk(req, (const char *)buf, n) != ESP_OK) { err = ESP_FAIL; break; }
+    }
+    if (n < 0) err = ESP_FAIL;
+    storage_ui_read_end();
+    if (err != ESP_OK) return err;
+    return httpd_resp_send_chunk(req, NULL, 0);   /* terminate the chunked body */
 }
 
 /* ------------------------- session ------------------------- */
