@@ -297,25 +297,52 @@ static esp_err_t h_status(httpd_req_t *req)
 
 /* ------------------------- uploaded SPA ------------------------- */
 
+/* recv_wait_timeout is 10 s, so two timeouts in a row mean the peer is gone rather than slow.
+ * The budget matters: esp_http_server serves every URI from one task, so a read loop that
+ * re-arms forever does not just leak the UI session, it stops the whole server. */
+#define UI_IO_TIMEOUTS 2
+
 /* An error response leaves the request body unread; on a keep-alive socket that would desync
- * the next request, so swallow it in 512 B steps. */
-static void ui_drain(httpd_req_t *req, size_t want)
+ * the next request, so swallow it in 512 B steps. False = some of it stayed behind, and the
+ * response that follows must close the connection. */
+static bool ui_drain(httpd_req_t *req, size_t want)
 {
     uint8_t junk[512];
+    int timeouts = 0;
     while (want > 0) {
         int r = httpd_req_recv(req, (char *)junk, want > sizeof(junk) ? sizeof(junk) : want);
-        if (r == HTTPD_SOCK_ERR_TIMEOUT || r <= 0) break;
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= UI_IO_TIMEOUTS) return false;
+            continue;
+        }
+        if (r <= 0) return false;
+        timeouts = 0;
         want -= (size_t)r;
     }
+    return true;
+}
+
+/* Refuse after swallowing what is left of the body; close when it could not be swallowed. */
+static esp_err_t ui_refuse(httpd_req_t *req, size_t want, const char *status, const char *msg)
+{
+    if (!ui_drain(req, want)) httpd_resp_set_hdr(req, "Connection", "close");
+    return fail(req, status, msg);
+}
+
+/* The peer stopped sending mid-upload: give the session back instead of waiting for a reboot. */
+static esp_err_t ui_stall(httpd_req_t *req)
+{
+    storage_ui_upload_abort();
+    httpd_resp_set_hdr(req, "Connection", "close");
+    return fail(req, "408 Request Timeout", "upload stalled");
 }
 
 /* The upload is dead either way (the caller aborts it): drop what is left of the body, then
  * say why -- a size verdict is the client's fault, anything else is the device's. */
 static esp_err_t ui_chunk_fail(httpd_req_t *req, esp_err_t e, size_t left)
 {
-    ui_drain(req, left);
-    if (e == ESP_ERR_INVALID_SIZE) return fail(req, "413 Payload Too Large", "body larger than 64 KB");
-    return fail(req, "500 Internal Server Error", "write failed");
+    if (e == ESP_ERR_INVALID_SIZE) return ui_refuse(req, left, "413 Payload Too Large", "body larger than 64 KB");
+    return ui_refuse(req, left, "500 Internal Server Error", "write failed");
 }
 
 /* GET /api/ui -- which copy would / serve, and under which ETag */
@@ -344,40 +371,39 @@ static esp_err_t h_ui_post(httpd_req_t *req)
 
     /* refusals happen before any of the body is written, so the live file stays intact */
     size_t total = req->content_len;
-    if (total < UI_MIN_BYTES) {
-        ui_drain(req, total);
-        return fail(req, "400 Bad Request", "body smaller than 1 KB");
-    }
-    if (total > UI_MAX_BYTES) {
-        ui_drain(req, total);
-        return fail(req, "413 Payload Too Large", "body larger than 64 KB");
-    }
-    if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
+    if (total < UI_MIN_BYTES) return ui_refuse(req, total, "400 Bad Request", "body smaller than 1 KB");
+    if (total > UI_MAX_BYTES) return ui_refuse(req, total, "413 Payload Too Large", "body larger than 64 KB");
+    if (!storage_ready()) return ui_refuse(req, total, "503 Service Unavailable", "archive unavailable");
 
-    if (storage_ui_upload_begin() != ESP_OK) {
-        ui_drain(req, total);
-        /* begin() never waits for the mutex, so a failure while storage is up means a peer
-         * holds it: either its own upload or a slow / stream. Retryable, not a bad payload. */
-        if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
-        return fail(req, "409 Conflict", "upload or stream in progress, retry");
+    esp_err_t e = storage_ui_upload_begin();
+    if (e != ESP_OK) {
+        /* begin() never waits for the mutex, so the failure is about the device, never the body:
+         * storage down, no room/read-only /data for ui.tmp, or a peer holding the UI */
+        if (!storage_ready()) return ui_refuse(req, total, "503 Service Unavailable", "archive unavailable");
+        if (e == ESP_ERR_NO_MEM) return ui_refuse(req, total, "507 Insufficient Storage", "cannot create ui.tmp");
+        return ui_refuse(req, total, "409 Conflict", "upload or stream in progress, retry");
     }
 
-    /* 2 KB, not the 4 KB that h_index avoids putting on this stack either: the httpd task
-     * runs on 7 KB and the write path has to fit next to the server's own frames */
-    uint8_t buf[2048];
+    /* static for the same reason as h_index: upload_begin() is exclusive, so exactly one request
+     * at a time reaches this loop -- and 4 KB has no business on the 7 KB httpd stack */
+    static uint8_t buf[4096];
     size_t got = 0;
+    int timeouts = 0;
     /* gzip magic is the only check the device can do; read both bytes first so a short first
      * recv is not mistaken for a foreign body */
     while (got < 2) {
         int r = httpd_req_recv(req, (char *)buf + got, 2 - got);
-        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= UI_IO_TIMEOUTS) return ui_stall(req);
+            continue;
+        }
+        timeouts = 0;
         if (r <= 0) { storage_ui_upload_abort(); return fail(req, "400 Bad Request", "short body"); }
         got += (size_t)r;
     }
     if (buf[0] != 0x1f || buf[1] != 0x8b) {
         storage_ui_upload_abort();
-        ui_drain(req, total - got);
-        return fail(req, "400 Bad Request", "not gzip");
+        return ui_refuse(req, total - got, "400 Bad Request", "not gzip");
     }
     esp_err_t ce = storage_ui_upload_chunk(buf, got);
     if (ce != ESP_OK) { storage_ui_upload_abort(); return ui_chunk_fail(req, ce, total - got); }
@@ -386,7 +412,11 @@ static esp_err_t h_ui_post(httpd_req_t *req)
         size_t want = total - got;
         if (want > sizeof(buf)) want = sizeof(buf);
         int r = httpd_req_recv(req, (char *)buf, want);
-        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= UI_IO_TIMEOUTS) return ui_stall(req);
+            continue;
+        }
+        timeouts = 0;
         if (r <= 0) { storage_ui_upload_abort(); return fail(req, "400 Bad Request", "short body"); }
         ce = storage_ui_upload_chunk(buf, (size_t)r);
         if (ce != ESP_OK) { storage_ui_upload_abort(); return ui_chunk_fail(req, ce, total - got - (size_t)r); }
@@ -396,28 +426,36 @@ static esp_err_t h_ui_post(httpd_req_t *req)
     /* the whole body is in by now, so a commit failure leaves nothing to drain */
     if (storage_ui_upload_commit() != ESP_OK) return fail(req, "500 Internal Server Error", "commit failed");
 
+    /* name the committed file only if it can still be read back, as h_ui_get does: a stat that
+     * fails must not turn into "size 0, etag ui-00000000" for a good upload */
     uint32_t crc = 0;
     size_t len = 0;
-    storage_ui_stat(&crc, &len);
+    bool have = storage_ui_stat(&crc, &len) == ESP_OK;
     cJSON *o = cJSON_CreateObject();
     cJSON_AddBoolToObject(o, "ok", true);
-    cJSON_AddNumberToObject(o, "size", (double)len);
-    char et[24];
-    snprintf(et, sizeof(et), "ui-%08x", (unsigned)crc);
-    cJSON_AddStringToObject(o, "etag", et);
+    if (have) {
+        cJSON_AddNumberToObject(o, "size", (double)len);
+        char et[24];
+        snprintf(et, sizeof(et), "ui-%08x", (unsigned)crc);
+        cJSON_AddStringToObject(o, "etag", et);
+    }
     return send_json(req, o);
 }
 
 /* DELETE /api/ui -- drop the override, back to the embedded page */
 static esp_err_t h_ui_delete(httpd_req_t *req)
 {
+    /* a body on DELETE is unexpected, but it still has to go before the response does */
+    if (!ui_drain(req, req->content_len)) httpd_resp_set_hdr(req, "Connection", "close");
     if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+
     esp_err_t e = storage_ui_remove();
     /* nothing uploaded is the same end state as a successful revert */
     if (e == ESP_OK || e == ESP_ERR_NOT_FOUND) return ok_msg(req, "reverted to the embedded UI");
-    /* remove() never waits for the mutex: unlinking under an open stream would truncate the
-     * page in flight, so report busy and let the client retry */
     if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
+    if (e == ESP_ERR_NO_MEM) return fail(req, "503 Service Unavailable", "UI storage unavailable");
+    /* the remaining INVALID_STATE means a peer holds the UI: remove() never waits, because an
+     * unlink under an open stream would truncate the page in flight */
     return fail(req, "409 Conflict", "a request is streaming /, retry");
 }
 

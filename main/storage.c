@@ -500,7 +500,8 @@ esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len)
 
 esp_err_t storage_ui_remove(void)
 {
-    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    if (!s_ready) return ESP_ERR_INVALID_STATE;   /* storage down: the caller answers 503 */
+    if (!s_ui_mtx) return ESP_ERR_NO_MEM;         /* mutex creation failed at init -- not "busy" */
     /* an unlink under an open s_ui_rd ends the response at EOF with no error, i.e. as a
      * cleanly-terminated corrupt page: never wait, report "busy" and let the client retry */
     if (xSemaphoreTake(s_ui_mtx, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;

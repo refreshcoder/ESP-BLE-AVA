@@ -94,6 +94,8 @@ esp_err_t   storage_format(void);
 
 void      storage_ui_prepare(void);
 esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len);
+/* ESP_OK, or ESP_ERR_NOT_FOUND when nothing is uploaded; ESP_ERR_INVALID_STATE while a stream
+ * holds the UI or storage is down, ESP_ERR_NO_MEM when the UI mutex never came up. */
 esp_err_t storage_ui_remove(void);
 
 esp_err_t storage_ui_read_begin(void);
