@@ -16,3 +16,6 @@ tools/*.err
 .idea/
 .DS_Store
 *.swp
+
+# scratch workspace for plan execution (superpowers sdd)
+.superpowers/
