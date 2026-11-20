@@ -11,6 +11,9 @@ main/www/index.html.gz
 tools/*.log
 tools/*.err
 
+# python bytecode from tools/*.py
+__pycache__/
+
 # editors / OS
 .vscode/
 .idea/

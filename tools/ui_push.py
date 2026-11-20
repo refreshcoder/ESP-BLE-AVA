@@ -10,6 +10,7 @@ The file is gzipped here (Windows has no gzip CLI) because the device never infl
 
 import argparse
 import gzip
+import http.client
 import json
 import pathlib
 import sys
@@ -18,6 +19,11 @@ import urllib.request
 
 MAX_BYTES = 64 * 1024
 MIN_BYTES = 1024
+
+
+def size_ok(n):
+    """The device refuses anything outside this inclusive range (400 / 413)."""
+    return MIN_BYTES <= n <= MAX_BYTES
 
 
 def as_json(raw, http):
@@ -38,7 +44,8 @@ def call(base, path, method="GET", body=None, token=None, ctype="application/jso
             return as_json(r.read().decode("utf-8", "replace"), r.status)
     except urllib.error.HTTPError as e:            # a refusal still carries the JSON reason
         return as_json(e.read().decode("utf-8", "replace"), e.code)
-    except (urllib.error.URLError, OSError) as e:  # nothing listening, bad host, or timeout
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+        # nothing listening, bad host, timeout -- or a body cut short mid-response
         sys.exit("cannot reach %s: %s" % (base, getattr(e, "reason", e)))
 
 
@@ -62,9 +69,12 @@ def main():
     ap.add_argument("file", nargs="?", help="index.html to upload")
     ap.add_argument("--host", default="192.168.4.1")
     ap.add_argument("--pass", dest="password", required=True, help="SoftAP password or API token")
-    ap.add_argument("--revert", action="store_true", help="drop the uploaded UI, back to the firmware copy")
-    ap.add_argument("--status", action="store_true", help="report which copy is being served")
+    how = ap.add_mutually_exclusive_group()
+    how.add_argument("--revert", action="store_true", help="drop the uploaded UI, back to the firmware copy")
+    how.add_argument("--status", action="store_true", help="report which copy is being served")
     args = ap.parse_args()
+    if args.file and (args.revert or args.status):
+        ap.error("--status and --revert take no file: drop it, or drop the flag")
 
     base = "http://" + args.host
     sess = call(base, "/api/session", "POST", json.dumps({"password": args.password}).encode())
@@ -87,7 +97,7 @@ def main():
     raw = path.read_bytes()
     blob = gzip.compress(raw, 9)
     print("raw %d -> gzip %d bytes" % (len(raw), len(blob)))
-    if not (MIN_BYTES <= len(blob) <= MAX_BYTES):
+    if not size_ok(len(blob)):
         sys.exit("refusing: gzip must be %d..%d bytes" % (MIN_BYTES, MAX_BYTES))
 
     print("source before: " + source(call(base, "/api/ui", token=token)))
