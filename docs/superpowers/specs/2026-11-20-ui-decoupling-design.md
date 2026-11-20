@@ -54,12 +54,13 @@ void      storage_ui_upload_abort(void);                             /* fclose +
 `h_index` 改为两态，**顺序固定**：
 
 1. 尝试 `storage_ui_read()`：拿到 `>=1 KB` 且首两字节 `1f 8b` → 用它；
-   - `ETag: "ui-<crc32>"`（`esp_rom_crc32_le`），`Cache-Control: no-cache`
-     （上传后必须让浏览器重新校验，304 很便宜）；
+   - `ETag: "ui-<crc32>"`（`esp_rom_crc32_le`）；
 2. 否则回落到内置 `index_html_gz`：
-   - `ETag: "<APP_UI_ETAG>"`（构建常量），`Cache-Control: public, max-age=86400`（维持现状）。
+   - `ETag: "<APP_UI_ETAG>"`（构建常量）。
 
 两种情况都支持 `If-None-Match` → 304，都设 `Content-Encoding: gzip`。
+
+**`Cache-Control: no-cache` 对所有路径生效**（不区分来源）：`max-age` 明确禁止重新校验，一台加载过内置版 UI 的设备会 24 小时都看不到上传的新 UI —— 这个特性等于对它不可见。304 很便宜，没有必要为了省一次校验牺牲可更新性。
 
 发送用 `httpd_resp_send_chunk` **分块流式**（4 KB/块），不为整页分配堆：FATFS 读一块发一块。
 
