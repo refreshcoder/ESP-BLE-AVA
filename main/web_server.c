@@ -140,9 +140,8 @@ static const char *led_state_name(rmode_t m, uint8_t sta)
 
 /* ------------------------- static page ------------------------- */
 
-/* ETag from the build (main/CMakeLists.txt): the SPA changes only with the firmware, so the
- * browser cache survives across page loads and is invalidated by a flash instead of by an
- * arbitrary max-age. */
+/* ETag from the build (main/CMakeLists.txt): stable for a given firmware, so a revalidating
+ * browser answers 304 instead of downloading the page again. */
 #ifndef APP_UI_ETAG
 #define APP_UI_ETAG "dev"
 #endif
@@ -158,24 +157,22 @@ static esp_err_t h_index(httpd_req_t *req)
     const uint8_t *blob = index_html_gz_start;
     size_t len = (size_t)(index_html_gz_end - index_html_gz_start);
     uint32_t crc = 0;
-    size_t flen = 0;
     /* The read session opens before the ETag is chosen: stat() answering OK does not mean the
      * file is still readable (an upload may replace it between the two calls), and the page
      * must be labelled with the source that actually sends the body -- else a later 304 would
      * revalidate the embedded copy as if it were the uploaded one. */
-    bool from_fs = storage_ui_stat(&crc, &flen) == ESP_OK && storage_ui_read_begin() == ESP_OK;
+    bool from_fs = storage_ui_stat(&crc, NULL) == ESP_OK && storage_ui_read_begin() == ESP_OK;
 
     if (from_fs) {
         snprintf(etag, sizeof(etag), "\"ui-%08x\"", (unsigned)crc);
-        len = flen;
     } else {
         snprintf(etag, sizeof(etag), "%s", build_etag);
     }
 
     httpd_resp_set_hdr(req, "ETag", etag);
-    /* The uploaded file can be replaced without a reboot, so the browser must revalidate;
-     * the embedded one only changes with the firmware, so it can be cached. */
-    httpd_resp_set_hdr(req, "Cache-Control", from_fs ? "no-cache" : "public, max-age=86400");
+    /* Always revalidate: a browser that cached the embedded page for a day would never see an
+     * upload without a manual cache flush. */
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
     bool fresh = httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof(inm)) == ESP_OK &&
                  strcmp(inm, etag) == 0;
     if (fresh) {
@@ -296,6 +293,132 @@ static esp_err_t h_status(httpd_req_t *req)
     }
     cJSON_AddStringToObject(o, "ip", ip);
     return send_json(req, o);
+}
+
+/* ------------------------- uploaded SPA ------------------------- */
+
+/* An error response leaves the request body unread; on a keep-alive socket that would desync
+ * the next request, so swallow it in 512 B steps. */
+static void ui_drain(httpd_req_t *req, size_t want)
+{
+    uint8_t junk[512];
+    while (want > 0) {
+        int r = httpd_req_recv(req, (char *)junk, want > sizeof(junk) ? sizeof(junk) : want);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT || r <= 0) break;
+        want -= (size_t)r;
+    }
+}
+
+/* The upload is dead either way (the caller aborts it): drop what is left of the body, then
+ * say why -- a size verdict is the client's fault, anything else is the device's. */
+static esp_err_t ui_chunk_fail(httpd_req_t *req, esp_err_t e, size_t left)
+{
+    ui_drain(req, left);
+    if (e == ESP_ERR_INVALID_SIZE) return fail(req, "413 Payload Too Large", "body larger than 64 KB");
+    return fail(req, "500 Internal Server Error", "write failed");
+}
+
+/* GET /api/ui -- which copy would / serve, and under which ETag */
+static esp_err_t h_ui_get(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    uint32_t crc = 0;
+    size_t len = 0;
+    bool fs = storage_ui_stat(&crc, &len) == ESP_OK;
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddStringToObject(o, "source", fs ? "fs" : "embedded");
+    if (fs) {
+        cJSON_AddNumberToObject(o, "size", (double)len);
+        char e[24];
+        snprintf(e, sizeof(e), "ui-%08x", (unsigned)crc);
+        cJSON_AddStringToObject(o, "etag", e);
+    }
+    return send_json(req, o);
+}
+
+/* POST /api/ui -- replace the uploaded SPA with a gzipped index.html */
+static esp_err_t h_ui_post(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+
+    /* refusals happen before any of the body is written, so the live file stays intact */
+    size_t total = req->content_len;
+    if (total < UI_MIN_BYTES) {
+        ui_drain(req, total);
+        return fail(req, "400 Bad Request", "body smaller than 1 KB");
+    }
+    if (total > UI_MAX_BYTES) {
+        ui_drain(req, total);
+        return fail(req, "413 Payload Too Large", "body larger than 64 KB");
+    }
+    if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
+
+    if (storage_ui_upload_begin() != ESP_OK) {
+        ui_drain(req, total);
+        /* begin() never waits for the mutex, so a failure while storage is up means a peer
+         * holds it: either its own upload or a slow / stream. Retryable, not a bad payload. */
+        if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
+        return fail(req, "409 Conflict", "upload or stream in progress, retry");
+    }
+
+    /* 2 KB, not the 4 KB that h_index avoids putting on this stack either: the httpd task
+     * runs on 7 KB and the write path has to fit next to the server's own frames */
+    uint8_t buf[2048];
+    size_t got = 0;
+    /* gzip magic is the only check the device can do; read both bytes first so a short first
+     * recv is not mistaken for a foreign body */
+    while (got < 2) {
+        int r = httpd_req_recv(req, (char *)buf + got, 2 - got);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r <= 0) { storage_ui_upload_abort(); return fail(req, "400 Bad Request", "short body"); }
+        got += (size_t)r;
+    }
+    if (buf[0] != 0x1f || buf[1] != 0x8b) {
+        storage_ui_upload_abort();
+        ui_drain(req, total - got);
+        return fail(req, "400 Bad Request", "not gzip");
+    }
+    esp_err_t ce = storage_ui_upload_chunk(buf, got);
+    if (ce != ESP_OK) { storage_ui_upload_abort(); return ui_chunk_fail(req, ce, total - got); }
+
+    while (got < total) {
+        size_t want = total - got;
+        if (want > sizeof(buf)) want = sizeof(buf);
+        int r = httpd_req_recv(req, (char *)buf, want);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r <= 0) { storage_ui_upload_abort(); return fail(req, "400 Bad Request", "short body"); }
+        ce = storage_ui_upload_chunk(buf, (size_t)r);
+        if (ce != ESP_OK) { storage_ui_upload_abort(); return ui_chunk_fail(req, ce, total - got - (size_t)r); }
+        got += (size_t)r;
+    }
+
+    /* the whole body is in by now, so a commit failure leaves nothing to drain */
+    if (storage_ui_upload_commit() != ESP_OK) return fail(req, "500 Internal Server Error", "commit failed");
+
+    uint32_t crc = 0;
+    size_t len = 0;
+    storage_ui_stat(&crc, &len);
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddNumberToObject(o, "size", (double)len);
+    char et[24];
+    snprintf(et, sizeof(et), "ui-%08x", (unsigned)crc);
+    cJSON_AddStringToObject(o, "etag", et);
+    return send_json(req, o);
+}
+
+/* DELETE /api/ui -- drop the override, back to the embedded page */
+static esp_err_t h_ui_delete(httpd_req_t *req)
+{
+    if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    esp_err_t e = storage_ui_remove();
+    /* nothing uploaded is the same end state as a successful revert */
+    if (e == ESP_OK || e == ESP_ERR_NOT_FOUND) return ok_msg(req, "reverted to the embedded UI");
+    /* remove() never waits for the mutex: unlinking under an open stream would truncate the
+     * page in flight, so report busy and let the client retry */
+    if (!storage_ready()) return fail(req, "503 Service Unavailable", "archive unavailable");
+    return fail(req, "409 Conflict", "a request is streaming /, retry");
 }
 
 /* ------------------------- profiles CRUD ------------------------- */
@@ -1005,6 +1128,9 @@ esp_err_t web_start(void)
     REG("/api/ap",             HTTP_POST, h_ap);
     REG("/api/reboot",         HTTP_POST, h_reboot);
     REG("/api/factory",        HTTP_POST, h_factory);
+    REG("/api/ui",             HTTP_GET,    h_ui_get);
+    REG("/api/ui",             HTTP_POST,   h_ui_post);
+    REG("/api/ui",             HTTP_DELETE, h_ui_delete);
 
     ESP_LOGI(TAG, "http server on :80");
     return ESP_OK;

@@ -500,8 +500,13 @@ esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len)
 
 esp_err_t storage_ui_remove(void)
 {
-    if (!s_ready) return ESP_ERR_INVALID_STATE;
-    return remove(UI_FILE) == 0 ? ESP_OK : ESP_ERR_NOT_FOUND;
+    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    /* an unlink under an open s_ui_rd ends the response at EOF with no error, i.e. as a
+     * cleanly-terminated corrupt page: never wait, report "busy" and let the client retry */
+    if (xSemaphoreTake(s_ui_mtx, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;
+    esp_err_t ret = remove(UI_FILE) == 0 ? ESP_OK : ESP_ERR_NOT_FOUND;
+    xSemaphoreGive(s_ui_mtx);
+    return ret;
 }
 
 esp_err_t storage_ui_read_begin(void)

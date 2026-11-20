@@ -98,6 +98,8 @@ esp_err_t storage_ui_remove(void);
 
 esp_err_t storage_ui_read_begin(void);
 int       storage_ui_read_chunk(uint8_t *buf, size_t cap);
+/* read_end() and upload_abort() release a session: call them only after a *successful*
+ * read_begin()/upload_begin() -- they key on global session state, not on the caller. */
 void      storage_ui_read_end(void);
 
 esp_err_t storage_ui_upload_begin(void);
