@@ -38,7 +38,8 @@ esp_err_t storage_ui_remove(void);
 约束：
 
 - **只接受 gzip**（首两字节 `1f 8b`），因为服务端不做压缩也不解压；
-- 大小上限 **256 KB**（实测内置版 15.7 KB，留 16 倍余量），下限 1 KB（挡住空文件）；
+- 大小上限 **64 KB**（实测内置版 15.7 KB，留 4 倍余量；`/data` 那 832 KB 还要和
+  归档 21.5 KB + 收藏 5.4 KB 共用，静态资源不该占住 1/3），下限 1 KB（挡住空文件）；
 - 写入走 `.tmp` + `rename`，绝不出现半截文件；
 - `storage_init()` 挂载成功后 `mkdir("/data/www")`，失败只记日志（UI 走内置兜底）。
 
@@ -73,7 +74,7 @@ esp_err_t storage_ui_remove(void);
 | 无 token | `401` |
 | body 为空 / <1 KB | `400 small body` |
 | 不是 gzip（无 `1f 8b`） | `400 not gzip` |
-| >256 KB | `413 too large` |
+| >64 KB | `413 too large` |
 | 归档分区没挂载 | `503 archive unavailable` |
 | 写盘失败 | `500 write failed` |
 
@@ -96,6 +97,7 @@ Windows 没有 gzip CLI，所以用 Python 的 `gzip` 模块，不依赖外部�
 ## 6. 失败与安全
 
 - 上传中途断电：只有 `.tmp` 被截断，旧的 `index.html.gz` 仍完整 → 页面照常；
+- 上传前客户端先量一次 gz 体积，超限直接给笑脸错误，不浪费一次 AP 往返；
 - 上传了坏 gzip：设备不解压，浏览器收到坏内容，**下一次 `DELETE /api/ui` 或 `records format`
   即可恢复**（内置兜底永远在固件里）；
 - gzip 炸弹：设备从不 gunzip，风险为零（体积上限只约束 flash 占用）；
