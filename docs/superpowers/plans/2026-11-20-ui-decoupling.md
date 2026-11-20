@@ -326,7 +326,7 @@ Expected: CI 全绿。
 
 ```bash
 curl -s http://192.168.4.1/api/ui                 # 期望 {"source":"embedded",...}
-curl -sI http://192.168.4.1/ | grep -i "etag\|cache-control\|content-encoding"
+curl -s -D - -o /dev/null http://192.168.4.1/ | grep -i "etag\|cache-control\|content-encoding"
 # 期望：ETag: "ui-…" 仅在上传后出现；此时应为构建常量 + max-age=86400
 ```
 
@@ -477,23 +477,35 @@ Expected: CI 全绿。
 ```bash
 TK=<token>
 gzip -9c main/www/index.html > ui.gz          # Windows 用 python 代替，见 Task 4
-curl -s -H "Authorization: Bearer $TK" --data-binary @ui.gz \
+curl -s -H "Authorization: Bearer $TK" -H "Expect:" --data-binary @ui.gz \
      -H "Content-Type: application/gzip" http://192.168.4.1/api/ui
 # 期望 {"ok":true,"size":15662,"etag":"ui-xxxxxxxx"}
 curl -s -H "Authorization: Bearer $TK" http://192.168.4.1/api/ui
 # 期望 {"source":"fs", ...}
-curl -sI http://192.168.4.1/ | grep -i "etag\|cache-control"
+curl -s -D - -o /dev/null http://192.168.4.1/ | grep -i "etag\|cache-control"
 # 期望 ETag: "ui-xxxxxxxx" 且 Cache-Control: no-cache
-printf 'hello' | curl -s -H "Authorization: Bearer $TK" --data-binary @- \
+printf 'hello' | curl -s -H "Authorization: Bearer $TK" -H "Expect:" --data-binary @- \
      -H "Content-Type: application/gzip" http://192.168.4.1/api/ui
 # 期望 400 "body smaller than 1 KB"
-head -c 3000 /dev/zero | curl -s -H "Authorization: Bearer $TK" --data-binary @- \
+head -c 3000 /dev/zero | curl -s -H "Authorization: Bearer $TK" -H "Expect:" --data-binary @- \
      -H "Content-Type: application/gzip" http://192.168.4.1/api/ui
 # 期望 400 "not gzip"
 curl -s -X DELETE -H "Authorization: Bearer $TK" http://192.168.4.1/api/ui
 curl -s -H "Authorization: Bearer $TK" http://192.168.4.1/api/ui
 # 期望回到 {"source":"embedded"}
 ```
+
+> 两个 curl 注意事项（P2-8，已踩过）：`-d/--data-binary` 默认带 `Expect: 100-continue`，而
+> esp_http_server 不应答它，上传会白等约 1 秒 —— 一律加 `-H "Expect:"`；`/` 只注册了
+> `HTTP_GET`，所以看响应头要用 `curl -s -D - -o /dev/null`（`curl -I` 会 404）。
+>
+> P1-1 的验收：上传限速后中途 Ctrl-C，然后立刻请求 `/` 必须马上有响应（修复前会卡到重启）。
+>
+> ```bash
+> curl --limit-rate 4k -H "Authorization: Bearer $TK" -H "Expect:" --data-binary @ui.gz \
+>      -H "Content-Type: application/gzip" http://192.168.4.1/api/ui   # 中途 Ctrl-C
+> curl -s -D - -o /dev/null http://192.168.4.1/                        # 必须立即响应
+> ```
 
 ---
 
