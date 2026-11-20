@@ -76,6 +76,33 @@ static bool auth_ok(httpd_req_t *req)
     return false;
 }
 
+/* recv_wait_timeout is 10 s, so two timeouts in a row mean the peer is gone rather than slow.
+ * The budget matters: esp_http_server serves every URI from one task, so a read loop that
+ * re-arms forever does not just leak a session, it stops the whole server. */
+#define BODY_RECV_TIMEOUTS 2
+
+/* An error response leaves the request body unread; on a keep-alive socket that would desync
+ * the next request, so swallow it in 512 B steps. False = some of it stayed behind, and the
+ * response that follows must close the connection. */
+static bool body_drain(httpd_req_t *req, size_t want)
+{
+    uint8_t junk[512];
+    int timeouts = 0;
+    while (want > 0) {
+        int r = httpd_req_recv(req, (char *)junk, want > sizeof(junk) ? sizeof(junk) : want);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= BODY_RECV_TIMEOUTS) return false;
+            continue;
+        }
+        if (r <= 0) return false;
+        timeouts = 0;
+        want -= (size_t)r;
+    }
+    return true;
+}
+
+/* Body of a JSON request: NULL on anything unexpected (too large, allocation failure, or a peer
+ * that stopped sending), which every caller answers with a 400. */
 static char *read_body(httpd_req_t *req, size_t *out_len)
 {
     int total = req->content_len;
@@ -83,10 +110,21 @@ static char *read_body(httpd_req_t *req, size_t *out_len)
     char *buf = malloc((size_t)total + 1);
     if (!buf) return NULL;
     int off = 0;
+    int timeouts = 0;
     while (off < total) {
         int r = httpd_req_recv(req, buf + off, (size_t)(total - off));
-        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            /* the peer is silent: waiting it out here would stall every other URI, so give up
+             * after the budget and drop what it still owes before the 400 goes out */
+            if (++timeouts >= BODY_RECV_TIMEOUTS) {
+                free(buf);
+                body_drain(req, (size_t)(total - off));
+                return NULL;
+            }
+            continue;
+        }
         if (r <= 0) { free(buf); return NULL; }
+        timeouts = 0;
         off += r;
     }
     buf[total] = '\0';
@@ -297,35 +335,10 @@ static esp_err_t h_status(httpd_req_t *req)
 
 /* ------------------------- uploaded SPA ------------------------- */
 
-/* recv_wait_timeout is 10 s, so two timeouts in a row mean the peer is gone rather than slow.
- * The budget matters: esp_http_server serves every URI from one task, so a read loop that
- * re-arms forever does not just leak the UI session, it stops the whole server. */
-#define UI_IO_TIMEOUTS 2
-
-/* An error response leaves the request body unread; on a keep-alive socket that would desync
- * the next request, so swallow it in 512 B steps. False = some of it stayed behind, and the
- * response that follows must close the connection. */
-static bool ui_drain(httpd_req_t *req, size_t want)
-{
-    uint8_t junk[512];
-    int timeouts = 0;
-    while (want > 0) {
-        int r = httpd_req_recv(req, (char *)junk, want > sizeof(junk) ? sizeof(junk) : want);
-        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
-            if (++timeouts >= UI_IO_TIMEOUTS) return false;
-            continue;
-        }
-        if (r <= 0) return false;
-        timeouts = 0;
-        want -= (size_t)r;
-    }
-    return true;
-}
-
 /* Refuse after swallowing what is left of the body; close when it could not be swallowed. */
 static esp_err_t ui_refuse(httpd_req_t *req, size_t want, const char *status, const char *msg)
 {
-    if (!ui_drain(req, want)) httpd_resp_set_hdr(req, "Connection", "close");
+    if (!body_drain(req, want)) httpd_resp_set_hdr(req, "Connection", "close");
     return fail(req, status, msg);
 }
 
@@ -394,7 +407,7 @@ static esp_err_t h_ui_post(httpd_req_t *req)
     while (got < 2) {
         int r = httpd_req_recv(req, (char *)buf + got, 2 - got);
         if (r == HTTPD_SOCK_ERR_TIMEOUT) {
-            if (++timeouts >= UI_IO_TIMEOUTS) return ui_stall(req);
+            if (++timeouts >= BODY_RECV_TIMEOUTS) return ui_stall(req);
             continue;
         }
         timeouts = 0;
@@ -413,7 +426,7 @@ static esp_err_t h_ui_post(httpd_req_t *req)
         if (want > sizeof(buf)) want = sizeof(buf);
         int r = httpd_req_recv(req, (char *)buf, want);
         if (r == HTTPD_SOCK_ERR_TIMEOUT) {
-            if (++timeouts >= UI_IO_TIMEOUTS) return ui_stall(req);
+            if (++timeouts >= BODY_RECV_TIMEOUTS) return ui_stall(req);
             continue;
         }
         timeouts = 0;
@@ -445,9 +458,10 @@ static esp_err_t h_ui_post(httpd_req_t *req)
 /* DELETE /api/ui -- drop the override, back to the embedded page */
 static esp_err_t h_ui_delete(httpd_req_t *req)
 {
-    /* a body on DELETE is unexpected, but it still has to go before the response does */
-    if (!ui_drain(req, req->content_len)) httpd_resp_set_hdr(req, "Connection", "close");
     if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
+    /* a body on DELETE is unexpected, but it still has to go before the response does -- and
+     * only after auth, so an unauthenticated client cannot make us wait on a body it never sends */
+    if (!body_drain(req, req->content_len)) httpd_resp_set_hdr(req, "Connection", "close");
 
     esp_err_t e = storage_ui_remove();
     /* nothing uploaded is the same end state as a successful revert */
