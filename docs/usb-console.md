@@ -110,5 +110,6 @@ accepts the AP password, which it trades for a token. The body must be gzip, 1..
 never inflates it. The tool prints the served copy before and after the upload (`embedded` →
 `fs`, with the new size and ETag) and exits non-zero when the board refuses.
 
-The embedded copy stays in the firmware as the fallback, so a broken upload -- or
-`records format`, which wipes the whole FATFS partition -- cannot leave the page blank.
+The embedded copy stays in the firmware as the fallback, so a broken upload cannot leave the page
+blank; `DELETE /api/ui` is how you get back to it. `records format` is not an option on a running
+board -- `storage_format()` refuses while the archive is mounted.

@@ -4,7 +4,7 @@
 
 **Goal:** 让 SPA 可以从 `/data/www/index.html.gz` 提供并支持单独上传，改 UI 不必重编重刷固件，且任何上传失败都回落到内置版本。
 
-**Architecture:** 复用已挂载的 FATFS（`/data`，分区 `storage`），新增 `/data/www` 目录存一个原样 gzip 的 `index.html.gz`。`h_index` 变成两态：文件可用就用它（`ETag: "ui-<crc32>"`、`Cache-Control: no-cache`、分块流式发送），否则用内置的 `index_html_gz`（构建常量 ETag、`max-age=86400`）。上传走 `POST /api/ui`，按 4 KB 块直接落盘到 `.tmp` 再 `rename`，设备从不解压。
+**Architecture:** 复用已挂载的 FATFS（`/data`，分区 `storage`），新增 `/data/www` 目录存一个原样 gzip 的 `index.html.gz`。`h_index` 变成两态：文件可用就用它（`ETag: "ui-<crc32>"`、`Cache-Control: no-cache`、分块流式发送），否则用内置的 `index_html_gz`（构建常量 ETag、同样 `no-cache`）。上传走 `POST /api/ui`，按 4 KB 块直接落盘到 `.tmp` 再 `rename`，设备从不解压。
 
 **Tech Stack:** ESP-IDF `esp_http_server`（`httpd_resp_send_chunk` / `httpd_req_recv`）、FATFS + `esp_vfs_fat_spiflash`、`esp_rom_crc32_le`；PC 侧 `tools/ui_push.py`（标准库 `gzip`/`urllib`）。
 

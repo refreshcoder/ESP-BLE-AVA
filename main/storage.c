@@ -446,7 +446,9 @@ esp_err_t storage_pin_clear(void)
 #define UI_FILE  UI_DIR "/index.html.gz"
 #define UI_TMP   UI_DIR "/ui.tmp"
 
-static SemaphoreHandle_t s_ui_mtx;    /* one upload and one reader at a time */
+static SemaphoreHandle_t s_ui_mtx;    /* one upload and one reader at a time; NULL when creation
+                                       * failed at init, which the accessors report as ESP_ERR_NO_MEM
+                                       * (a retry cannot create it) rather than "busy" */
 static FILE *s_ui_up;
 static bool  s_ui_up_ok;              /* false once a chunk failed: such a .tmp must not be promoted */
 static size_t s_ui_up_len;
@@ -470,7 +472,8 @@ static bool ui_is_gzip(const uint8_t *b, size_t n)
 
 esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len)
 {
-    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    if (!s_ready) return ESP_ERR_INVALID_STATE;
+    if (!s_ui_mtx) return ESP_ERR_NO_MEM;
     if (xSemaphoreTake(s_ui_mtx, pdMS_TO_TICKS(500)) != pdTRUE) return ESP_ERR_TIMEOUT;
 
     esp_err_t ret = ESP_ERR_NOT_FOUND;
@@ -501,7 +504,7 @@ esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len)
 esp_err_t storage_ui_remove(void)
 {
     if (!s_ready) return ESP_ERR_INVALID_STATE;   /* storage down: the caller answers 503 */
-    if (!s_ui_mtx) return ESP_ERR_NO_MEM;         /* mutex creation failed at init -- not "busy" */
+    if (!s_ui_mtx) return ESP_ERR_NO_MEM;
     /* an unlink under an open s_ui_rd ends the response at EOF with no error, i.e. as a
      * cleanly-terminated corrupt page: never wait, report "busy" and let the client retry */
     if (xSemaphoreTake(s_ui_mtx, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;
@@ -512,7 +515,8 @@ esp_err_t storage_ui_remove(void)
 
 esp_err_t storage_ui_read_begin(void)
 {
-    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    if (!s_ready) return ESP_ERR_INVALID_STATE;
+    if (!s_ui_mtx) return ESP_ERR_NO_MEM;
     if (xSemaphoreTake(s_ui_mtx, pdMS_TO_TICKS(500)) != pdTRUE) return ESP_ERR_TIMEOUT;
     s_ui_rd = fopen(UI_FILE, "rb");
     if (!s_ui_rd) { xSemaphoreGive(s_ui_mtx); return ESP_ERR_NOT_FOUND; }
@@ -539,7 +543,8 @@ void storage_ui_read_end(void)
 
 esp_err_t storage_ui_upload_begin(void)
 {
-    if (!s_ready || !s_ui_mtx) return ESP_ERR_INVALID_STATE;
+    if (!s_ready) return ESP_ERR_INVALID_STATE;
+    if (!s_ui_mtx) return ESP_ERR_NO_MEM;
     /* non-blocking: a second concurrent upload is a client bug, not something to queue */
     if (xSemaphoreTake(s_ui_mtx, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;
     s_ui_up = fopen(UI_TMP, "wb");

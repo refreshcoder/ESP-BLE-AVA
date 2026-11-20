@@ -254,7 +254,7 @@ All endpoints except `POST /api/session` require `Authorization: Bearer <token>`
 | POST | `/api/active` | `{"id":0}` activate, `{"id":-1}` stop |
 | POST | `/api/rotation` | `{"enabled":bool,"seconds":n}` |
 | GET/DELETE | `/api/log` | incremental event log (`since`, `limit`) |
-| GET | `/api/ui` | which copy is being served (`embedded`\|`fs`) + its size and `etag` |
+| GET | `/api/ui` | which copy is being served (`embedded`\|`fs`), plus `size` and `etag` when it is `fs` (`etag` is unquoted here, the `ETag:` header is quoted) |
 | POST | `/api/ui` | upload a gzipped `index.html` (1..64 KB, raw body, `Content-Type: application/gzip`) |
 | DELETE | `/api/ui` | drop the uploaded copy, back to the one inside the firmware |
 | GET/POST | `/api/export` `/api/import` | whole config JSON |

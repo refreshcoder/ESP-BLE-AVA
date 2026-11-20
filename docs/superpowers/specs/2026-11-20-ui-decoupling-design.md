@@ -68,9 +68,9 @@ void      storage_ui_upload_abort(void);                             /* fclose +
 
 | 方法 | 路径 | 作用 |
 |---|---|---|
-| `POST` | `/api/ui` | body = 原始 gzip 字节流（`Content-Type: application/gzip`）；校验魔数+大小 → 落盘 → 返回 `{ok, size, etag}` |
-| `DELETE` | `/api/ui` | 删除上传文件，回到内置版本；返回 `{ok, source:"embedded"}` |
-| `GET` | `/api/ui` | `{ok, source:"fs"\|"embedded", size, etag}`，用于确认当前生效的是哪个 |
+| `POST` | `/api/ui` | body = 原始 gzip 字节流（`Content-Type: application/gzip`）；校验魔数+大小 → 落盘 → 返回 `{ok, size, etag}`（`size`/`etag` 只在提交后 `storage_ui_stat()` 成功时出现） |
+| `DELETE` | `/api/ui` | 删除上传文件，回到内置版本；返回 `{"ok":true,"msg":"reverted to the embedded UI"}` |
+| `GET` | `/api/ui` | `{ok, source:"fs"\|"embedded"}`，用于确认当前生效的是哪个；`source` 为 `fs` 时另有 `size` 与 `etag`。JSON 里的 `etag` **不带引号**，响应头 `ETag:` 带引号 —— 粘进 `If-None-Match` 要把引号补上 |
 
 全部要求 `auth_ok()`（`Authorization: Bearer <token>`，与其它端点一致）。
 
@@ -79,14 +79,18 @@ void      storage_ui_upload_abort(void);                             /* fclose +
 | 情况 | 返回 |
 |---|---|
 | 无 token | `401` |
-| body 为空 / <1 KB | `400 small body` |
+| body 为空 / <1 KB | `400 body smaller than 1 KB` |
 | 不是 gzip（无 `1f 8b`） | `400 not gzip` |
-| >64 KB | `413 too large` |
-| 归档分区没挂载 | `503 archive unavailable` |
-| 写盘失败 | `500 write failed` |
+| body 中途停顿（连续两次 `recv` 超时，约 20 s） | `408 upload stalled` |
+| 有上传或整页流式发送进行中（可重试） | `409 upload or stream in progress` |
+| >64 KB | `413 body larger than 64 KB` |
+| 写盘失败 | `500 write failed` / `500 commit failed` |
+| 分区没挂载 | `503 archive unavailable` |
+| 建不出 `ui.tmp`（分区满 / 只读），或 UI 互斥量在启动时没建起来 | `507 cannot create ui.tmp` |
 
-`records format`（USB 命令台）会格式化整个 FATFS → UI 文件随之消失，**自动回落内置版**，
-所以这不是丢功能的路径，只是丢一次自定义。
+恢复内置版走 `DELETE /api/ui`（`storage_ui_stat()` 随即 `NOT_FOUND` → 回落）。`records format`
+格式化整个 FATFS 也能删掉 UI 文件，但它只在该分区**本来就挂载失败**时可用：归档已挂载时
+`storage_format()` 返回 `ESP_ERR_INVALID_STATE`，所以正常启动的板子上它不是恢复手段。
 
 ## 5. 上传流程（PC 侧）
 
@@ -105,8 +109,7 @@ Windows 没有 gzip CLI，所以用 Python 的 `gzip` 模块，不依赖外部�
 
 - 上传中途断电：只有 `.tmp` 被截断，旧的 `index.html.gz` 仍完整 → 页面照常；替换路径在 remove+rename 之间有毫秒级窗口，期间断电只会回落到内置版；
 - 上传前客户端先量一次 gz 体积，超限直接给笑脸错误，不浪费一次 AP 往返；
-- 上传了坏 gzip：设备不解压，浏览器收到坏内容，**下一次 `DELETE /api/ui` 或 `records format`
-  即可恢复**（内置兜底永远在固件里）；
+- 上传了坏 gzip：设备不解压，浏览器收到坏内容，**下一次 `DELETE /api/ui` 即可恢复**（内置兜底永远在固件里）；
 - gzip 炸弹：设备从不 gunzip，风险为零（体积上限只约束 flash 占用）；
 - 鉴权：与其它端点同一 token；热点本身是 WPA2。
 
@@ -136,5 +139,6 @@ Windows 没有 gzip CLI，所以用 Python 的 `gzip` 模块，不依赖外部�
    - `DELETE /api/ui` → `GET /api/ui` 回到 `embedded`，页面仍是旧（内置）版；
    - 故意上传非 gzip：5 字节的 body → `400 body smaller than 1 KB`，3 KB 零字节 →
      `400 not gzip`（上传命令见 plan Task 3 Step 4，一律带 `-H "Expect:"`）；
-   - `records format` 后再 `GET /api/ui` → `embedded`（UI 文件被格式化掉）；
+   - 上传坏 gzip 后再 `DELETE /api/ui` → `GET /api/ui` 回到 `embedded`（恢复只走这个端点；
+     `records format` 在已挂载的板子上会被 `ESP_ERR_INVALID_STATE` 拒绝）；
 3. **回归**：记录/收藏/profile 相关功能不受影响（存储层只加了文件名，没动 record 结构）。
