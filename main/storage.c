@@ -444,16 +444,19 @@ esp_err_t storage_pin_clear(void)
 
 #define UI_DIR   MOUNT_POINT "/www"
 #define UI_FILE  UI_DIR "/index.html.gz"
-#define UI_TMP   UI_DIR "/.ui.tmp"
+#define UI_TMP   UI_DIR "/ui.tmp"
 
 static SemaphoreHandle_t s_ui_mtx;    /* one upload and one reader at a time */
 static FILE *s_ui_up;
+static bool  s_ui_up_ok;              /* false once a chunk failed: such a .tmp must not be promoted */
+static size_t s_ui_up_len;
 static FILE *s_ui_rd;
 
 void storage_ui_prepare(void)
 {
     if (!s_ready) return;
     if (!s_ui_mtx) s_ui_mtx = xSemaphoreCreateMutex();
+    remove(UI_TMP);     /* an upload cut short by a reboot leaves only its tmp behind */
     if (mkdir(UI_DIR, 0775) != 0 && errno != EEXIST) {
         ESP_LOGW(TAG, "mkdir %s failed (errno %d) -- the UI stays embedded", UI_DIR, errno);
     }
@@ -482,6 +485,7 @@ esp_err_t storage_ui_stat(uint32_t *out_crc, size_t *out_len)
             crc = esp_rom_crc32_le(crc, tmp, (uint32_t)n);
             total += n;
         }
+        if (ferror(f)) total = 0;   /* a CRC over a prefix is no ETag: treat a read error as absent */
         fclose(f);
         if (gz && total >= UI_MIN_BYTES && total <= UI_MAX_BYTES) {
             if (out_crc) *out_crc = crc;
@@ -517,10 +521,14 @@ int storage_ui_read_chunk(uint8_t *buf, size_t cap)
     return (int)n;
 }
 
+/* Only the holder releases: begin() already gives the mutex on its own failure paths,
+ * so read_end() must stay a no-op unless a read session is actually open. */
 void storage_ui_read_end(void)
 {
-    if (s_ui_rd) { fclose(s_ui_rd); s_ui_rd = NULL; }
-    if (s_ui_mtx) xSemaphoreGive(s_ui_mtx);
+    if (!s_ui_rd) return;
+    fclose(s_ui_rd);
+    s_ui_rd = NULL;
+    xSemaphoreGive(s_ui_mtx);
 }
 
 esp_err_t storage_ui_upload_begin(void)
@@ -530,13 +538,18 @@ esp_err_t storage_ui_upload_begin(void)
     if (xSemaphoreTake(s_ui_mtx, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;
     s_ui_up = fopen(UI_TMP, "wb");
     if (!s_ui_up) { xSemaphoreGive(s_ui_mtx); return ESP_ERR_NO_MEM; }
+    s_ui_up_ok  = true;
+    s_ui_up_len = 0;
     return ESP_OK;
 }
 
 esp_err_t storage_ui_upload_chunk(const void *buf, size_t len)
 {
     if (!s_ui_up || !buf || len == 0) return ESP_ERR_INVALID_ARG;
-    if (fwrite(buf, 1, len, s_ui_up) != len) return ESP_ERR_NO_MEM;
+    /* the partition is shared with the archive: an upload must never eat it */
+    if (len > UI_MAX_BYTES - s_ui_up_len) { s_ui_up_ok = false; return ESP_ERR_INVALID_SIZE; }
+    if (fwrite(buf, 1, len, s_ui_up) != len) { s_ui_up_ok = false; return ESP_ERR_NO_MEM; }
+    s_ui_up_len += len;
     return ESP_OK;
 }
 
@@ -547,7 +560,11 @@ esp_err_t storage_ui_upload_commit(void)
     int rc = fflush(s_ui_up);
     if (fclose(s_ui_up) != 0) rc = -1;
     s_ui_up = NULL;
-    if (rc != 0) { remove(UI_TMP); xSemaphoreGive(s_ui_mtx); return ESP_FAIL; }
+    /* a .tmp that some chunk failed to write is still >= 1 KB of valid-looking gzip, so:
+     * never promote it, or stat() accepts it and the device serves a broken page */
+    bool ok = s_ui_up_ok && rc == 0;
+    s_ui_up_ok = false;
+    if (!ok) { remove(UI_TMP); xSemaphoreGive(s_ui_mtx); return ESP_FAIL; }
     esp_err_t ret = ESP_OK;
     if (rename(UI_TMP, UI_FILE) != 0) {
         /* FatFs rename refuses an existing destination: drop the old file and retry */
@@ -559,9 +576,13 @@ esp_err_t storage_ui_upload_commit(void)
     return ret;
 }
 
+/* No-op without an open session, for the same reason as storage_ui_read_end(). */
 void storage_ui_upload_abort(void)
 {
-    if (s_ui_up) { fclose(s_ui_up); s_ui_up = NULL; }
+    if (!s_ui_up) return;
+    fclose(s_ui_up);
+    s_ui_up = NULL;
+    s_ui_up_ok = false;
     remove(UI_TMP);
-    if (s_ui_mtx) xSemaphoreGive(s_ui_mtx);
+    xSemaphoreGive(s_ui_mtx);
 }
