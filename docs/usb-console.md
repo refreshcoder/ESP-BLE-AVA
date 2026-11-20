@@ -90,3 +90,21 @@ status            -> verify mode=clone, adv=true
   whole table: window timeout, triple click, `mode idle`, web UI), never per packet. Favourites
   live in `/data/pin.bin`, untouched by scans. A double click starts a blind
   scan precisely so the result can be read out here after unplugging.
+
+## Uploading a new UI
+
+The SPA normally comes from the firmware image. To replace it without reflashing:
+
+```bash
+python tools/ui_push.py --pass <AP password> main/www/index.html   # upload
+python tools/ui_push.py --pass <AP password> --status              # which copy is served
+python tools/ui_push.py --pass <AP password> --revert              # back to the embedded one
+```
+
+`--host` defaults to `192.168.4.1`, so this one needs the SoftAP (or a route to it); `--pass`
+accepts the AP password, which it trades for a token. The body must be gzip, 1..64 KB; the device
+never inflates it. The tool prints the served copy before and after the upload (`embedded` →
+`fs`, with the new size and ETag) and exits non-zero when the board refuses.
+
+The embedded copy stays in the firmware as the fallback, so a broken upload -- or
+`records format`, which wipes the whole FATFS partition -- cannot leave the page blank.

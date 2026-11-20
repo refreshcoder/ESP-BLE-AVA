@@ -353,6 +353,7 @@ tools/                 flash.sh / flash.bat / flash.ps1 / merge.sh helpers
                        check_i18n.js - key/attribute/syntax check for the SPA
                        ble_watch.py  - judge a clone on air from a Windows PC (bleak/WinRT)
                        usb_cli.py    - drive the USB console from the host (pyserial)
+                       ui_push.py    - upload a new SPA over the AP, gzipped (no reflash)
 .github/workflows      CI: builds both board presets on ESP-IDF v5.5
 ```
 

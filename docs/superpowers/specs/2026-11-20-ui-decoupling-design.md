@@ -130,8 +130,10 @@ Windows 没有 gzip CLI，所以用 Python 的 `gzip` 模块，不依赖外部�
    - `GET /api/ui` → `source:"embedded"`；
    - `ui_push.py` 上传 → 返回 `etag:"ui-xxxx"`，浏览器硬刷新后 `GET /` 的响应头
      `Cache-Control: no-cache` 且内容是**新** UI；
-   - `curl -sI` 两次：第二次带 `If-None-Match` 应回 `304`；
+   - `curl -s -D - -o /dev/null http://192.168.4.1/` 两次：第二次带 `If-None-Match: "ui-xxxx"`
+     应回 `304`（`/` 只注册了 `HTTP_GET`，`curl -I` 会 404）；
    - `DELETE /api/ui` → `GET /api/ui` 回到 `embedded`，页面仍是旧（内置）版；
-   - 故意上传非 gzip（`curl -d 'hello'`）→ `400 not gzip`；
+   - 故意上传非 gzip：5 字节的 body → `400 body smaller than 1 KB`，3 KB 零字节 →
+     `400 not gzip`（上传命令见 plan Task 3 Step 4，一律带 `-H "Expect:"`）；
    - `records format` 后再 `GET /api/ui` → `embedded`（UI 文件被格式化掉）；
 3. **回归**：记录/收藏/profile 相关功能不受影响（存储层只加了文件名，没动 record 结构）。
