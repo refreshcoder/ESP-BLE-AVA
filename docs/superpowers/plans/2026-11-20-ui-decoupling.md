@@ -76,6 +76,8 @@ void      storage_ui_upload_abort(void);
 #include "esp_rom_crc.h"
 ```
 
+> **Superseded by commit `3ec17cf`** — the snippets in this task are the first draft. Review found six defects in them and the merged code differs in five places: the temp file is `ui.tmp` (a leading dot is not a valid FAT 8.3 name), `upload_chunk` caps the session at `UI_MAX_BYTES`, a per-session `s_ui_up_ok` flag gates `upload_commit`, `stat` treats `ferror` as absent, and `prepare` removes a stale temp file. Read `main/storage.c` as the source of truth; only re-apply these snippets if you are rebuilding the section from scratch.
+
 - [ ] **Step 3: 在 `main/storage.c` 末尾实现**
 
 ```c
