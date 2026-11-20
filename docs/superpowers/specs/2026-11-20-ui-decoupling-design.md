@@ -131,7 +131,7 @@ Windows 没有 gzip CLI，所以用 Python 的 `gzip` 模块，不依赖外部�
    - `ui_push.py` 上传 → 返回 `etag:"ui-xxxx"`，浏览器硬刷新后 `GET /` 的响应头
      `Cache-Control: no-cache` 且内容是**新** UI；
    - `curl -s -D - -o /dev/null http://192.168.4.1/` 两次：第二次带 `If-None-Match: "ui-xxxx"`
-     应回 `304`（`/` 只注册了 `HTTP_GET`，`curl -I` 会 404）；
+     应回 `304`（`/` 只注册了 `HTTP_GET`；`curl -I` 拿到的是 405 或 404，取决于 IDF 版本，所以用 `-D - -o /dev/null` 看头）；
    - `DELETE /api/ui` → `GET /api/ui` 回到 `embedded`，页面仍是旧（内置）版；
    - 故意上传非 gzip：5 字节的 body → `400 body smaller than 1 KB`，3 KB 零字节 →
      `400 not gzip`（上传命令见 plan Task 3 Step 4，一律带 `-H "Expect:"`）；

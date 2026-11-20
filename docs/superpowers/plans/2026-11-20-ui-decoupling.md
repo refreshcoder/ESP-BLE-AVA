@@ -325,9 +325,12 @@ Expected: CI 全绿。
 - [ ] **Step 5: 上板验证（板子在谁那儿就在谁那儿做；先不动文件，验证回落路径）**
 
 ```bash
-curl -s http://192.168.4.1/api/ui                 # 期望 {"source":"embedded",...}
+TK=<token>          # 先 POST /api/session {"password":"<AP 密码>"} 取 token
+# /api/ui 要鉴权：不带 Authorization 直接 401，而不是"文件不存在"
+curl -s -H "Authorization: Bearer $TK" http://192.168.4.1/api/ui   # 期望 {"source":"embedded",...}
 curl -s -D - -o /dev/null http://192.168.4.1/ | grep -i "etag\|cache-control\|content-encoding"
-# 期望：ETag: "ui-…" 仅在上传后出现；此时应为构建常量 + max-age=86400
+# 期望：ETag 为构建常量，Cache-Control: no-cache（无条件）。
+# 若看到 max-age=86400，说明固件是加这个特性之前的旧版。
 ```
 
 ---
