@@ -278,6 +278,15 @@ section.active{display:block}
       <div class="field"><label data-i18n="d_ref">Reference RSSI</label><input type="number" id="d-ref" min="-100" max="0"></div>
     </div>
     <div class="field two">
+      <div><label data-i18n="d_addrmode">Advertised address</label>
+        <select id="d-addrmode">
+          <option value="own" data-i18n="d_addr_own">device's own</option>
+          <option value="rand" data-i18n="d_addr_rand">static random</option>
+          <option value="pub" data-i18n="d_addr_pub">forced public</option>
+        </select></div>
+      <div><label data-i18n="d_addr">Address (12 hex)</label><input type="text" id="d-addr" class="mono" maxlength="17" placeholder="02:11:22:33:44:55"></div>
+    </div>
+    <div class="field two">
       <div><label data-i18n="d_itvl">Interval (ms)</label><input type="number" id="d-itvl" min="20" max="10240"></div>
       <div><label data-i18n="d_tx">TX (dBm)</label><input type="number" id="d-tx" min="-12" max="21"></div>
     </div>
@@ -342,6 +351,10 @@ const T = {
   d_major:["Major","Major"], d_minor:["Minor","Minor"], d_ref:["Reference RSSI","参考 RSSI"],
   d_itvl:["Interval (ms)","广播间隔(ms)"], d_tx:["TX (dBm)","发射功率(dBm)"],
   d_scannable:["Answer scan requests","响应扫描请求"], d_enabled:["Enabled","启用"],
+  d_addrmode:["Advertised address","广播地址"], d_addr:["Address (12 hex)","地址（12 位十六进制）"],
+  d_addr_own:["device's own","设备自身"], d_addr_rand:["static random","静态随机"],
+  d_addr_pub:["forced public","强制公开"],
+  bad_addr:["address must be 12 hex characters","地址必须是 12 位十六进制"],
   set_scan:["Scan parameters","扫描参数"], set_itvl:["Interval (ms)","扫描间隔(ms)"], set_win:["Window (ms)","扫描窗口(ms)"],
   set_dur:["Capture window (s)","采集窗口(秒)"], set_duty:["Full duty when no client is connected","无客户端时 100% 占空比"],
   set_filter:["Drop phones, watches, earbuds, Windows PCs","过滤手机/手表/耳机/Windows 电脑"],
@@ -832,9 +845,20 @@ function openDialog(p) {
   $("d-tx").value = p ? p.radio_dbm : 9;
   $("d-scannable").checked = p ? !!p.scannable : false;
   $("d-enabled").checked = p ? !!p.enabled : true;
+  $("d-addrmode").value = !p || (!p.clone_public_addr && !p.use_rand_addr) ? "own"
+                        : (p.clone_public_addr ? "pub" : "rand");
+  $("d-addr").value = !p ? "" : (p.clone_public_addr && p.src ? fmtAddr(p.src)
+                        : (p.use_rand_addr && p.rand_addr ? fmtAddr(p.rand_addr) : ""));
+  syncAddr();
   syncKind();
   $("dlg").classList.add("show");
 }
+function syncAddr() {
+  const own = $("d-addrmode").value === "own";
+  $("d-addr").disabled = own;
+  if (own) $("d-addr").value = "";
+}
+$("d-addrmode").onchange = syncAddr;
 function syncKind() {
   document.querySelectorAll("#d-kind button").forEach(b => b.classList.toggle("on", Number(b.dataset.kind) === dlgKind));
   $("d-rawbox").style.display = dlgKind === 1 ? "" : "none";
@@ -871,6 +895,21 @@ $("d-save").onclick = () => guard(async () => {
     body.major = Number($("d-major").value) || 0;
     body.minor = Number($("d-minor").value) || 0;
     body.ref_rssi = Number($("d-ref").value) || -59;
+  }
+  const cur = dlgId == null ? null : profiles.find(x => x.id === dlgId);
+  /* the address rides on the same JSON the backend already parses (cfg_profile_from_json),
+   * so no C change is needed: "own" just sends every address flag off */
+  const mode = $("d-addrmode").value;
+  const addr = $("d-addr").value.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+  if (mode !== "own" && addr.length !== 12) { toast(t("bad_addr"), true); return; }
+  if (cur && cur.src) { body.src = cur.src; body.src_adv_type = cur.src_adv_type; }
+  if (mode === "own") {
+    body.clone_public_addr = false; body.use_rand_addr = false;
+  } else if (mode === "rand") {
+    body.rand_addr = addr; body.use_rand_addr = true; body.clone_public_addr = false;
+  } else {
+    body.src = addr; body.src_adv_type = 0;
+    body.clone_public_addr = true; body.use_rand_addr = false;
   }
   const r = dlgId == null ? await post("/api/profiles", body) : await put("/api/profiles/" + dlgId, body);
   if (!r.ok) { toast(r.err || t("err_failed"), true); return; }

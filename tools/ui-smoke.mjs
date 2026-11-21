@@ -58,7 +58,7 @@ const dom = new JSDOM(html, { runScripts:"dangerously", url:"http://192.168.4.1/
   beforeParse(w) {
     w.localStorage.setItem("bgw_token", "tok");
     w.fetch = (p, o) => {
-      calls.push(((o && o.method) || "GET") + " " + p);
+      calls.push(((o && o.method) || "GET") + " " + p + (o && o.body ? " " + o.body : ""));
       const body = routes[p] !== undefined ? routes[p] : { ok:true };
       return Promise.resolve({ ok:true, status:200, text:() => Promise.resolve(JSON.stringify(body)) });
     };
@@ -138,9 +138,20 @@ ok($("d-name").value === "DingTalk M1Pro", "dialog prefill name");
 ok($("d-raw").value.length === 62, "dialog prefill raw (" + $("d-raw").value.length + ")");
 $("d-raw").value = "zz"; $("d-save").click(); await wait(60);
 ok($("dlg").classList.contains("show"), "bad hex keeps dialog open");
-$("d-raw").value = CFG.profiles[1].raw; $("d-save").click(); await wait(150);
+
+/* the advertised address: only the JSON that reaches the API matters */
+ok($("d-addr").disabled, "address input disabled while it is the device's own");
+$("d-addrmode").value = "rand"; $("d-addrmode").onchange();
+ok(!$("d-addr").disabled, "address input enabled for a static random address");
+$("d-raw").value = CFG.profiles[1].raw; $("d-addr").value = "";
+$("d-save").click(); await wait(60);
+ok($("dlg").classList.contains("show"), "random without an address keeps the dialog open");
+$("d-addr").value = "faa89ac1ab65"; $("d-save").click(); await wait(150);
 ok(!$("dlg").classList.contains("show"), "good save closes dialog");
 ok(calls.some(c => c.indexOf("PUT /api/profiles/1") === 0), "PUT sent");
+const randPut = calls.filter(c => c.indexOf("PUT /api/profiles/1") === 0).pop() || "";
+ok(/"use_rand_addr":true/.test(randPut) && randPut.indexOf("faa89ac1ab65") > 0,
+   "rand_addr reaches the API (" + randPut + ")");
 
 $("btn-new").click(); await wait(60);
 ok($("dlg").classList.contains("show"), "new dialog opens");
