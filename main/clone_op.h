@@ -31,3 +31,15 @@ esp_err_t clone_op_from_addr(const uint8_t addr[6], int *out_id, uint16_t *out_i
 esp_err_t clone_op_from_raw(const uint8_t *raw, uint8_t raw_len, const uint8_t *rsp, uint8_t rsp_len,
                             int *out_id, uint16_t *out_itvl, bool *out_replaced,
                             char *msg, size_t msglen);
+
+/*
+ * Delete profile <id> and close the gap, keeping `active` pointing at the same profile.
+ * Shared by HTTP `DELETE /api/profiles/<id>` and the USB console (`del <id>`) for the same
+ * reason the clone op is shared: one behaviour, two front ends.
+ *
+ * `out_stopped` is true when the deleted profile was the one on air; the caller then stops
+ * the radio (this layer does not own mode transitions).
+ *
+ * Errors: ESP_ERR_NOT_FOUND when the id does not exist.
+ */
+esp_err_t profile_delete(int id, bool *out_stopped);

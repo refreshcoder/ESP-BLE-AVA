@@ -176,3 +176,27 @@ esp_err_t clone_op_from_raw(const uint8_t *raw, uint8_t raw_len, const uint8_t *
     if (out_replaced) *out_replaced = replaced;
     return ESP_OK;
 }
+
+esp_err_t profile_delete(int id, bool *out_stopped)
+{
+    if (out_stopped) *out_stopped = false;
+
+    cfg_lock();
+    beacon_cfg_t *c = cfg_get();
+    if (id < 0 || id >= c->count) {
+        cfg_unlock();
+        return ESP_ERR_NOT_FOUND;
+    }
+    for (int i = id; i < c->count - 1; i++) c->p[i] = c->p[i + 1];
+    c->count--;
+
+    bool stop = false;
+    if (c->active == id)     { c->active = -1; stop = true; }
+    else if (c->active > id) c->active--;
+    cfg_save();
+    cfg_unlock();
+
+    applog_add(LOG_T_CFG, 0, "profile %d deleted", id);
+    if (out_stopped) *out_stopped = stop;
+    return ESP_OK;
+}

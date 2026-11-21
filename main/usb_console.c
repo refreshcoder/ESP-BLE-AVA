@@ -82,6 +82,7 @@ static void cmd_help(void)
            "# logs [since_seq]              - JSONL: ring log records\n"
            "# mode sniff|clone|idle         - switch the radio (arbitrated by radio.c)\n"
            "# use <id>|-1                   - activate a profile / broadcast nothing\n"
+           "# del <id>                       - delete a profile (stops advertising if it was on air)\n"
            "# clone <addr 12 hex>           - copy a row of the capture table into a profile\n"
            "# adv <hex 4..62>               - build/update the `usb-raw` profile from hex and broadcast\n"
            "# clear                         - empty the capture table\n"
@@ -460,6 +461,31 @@ static void cmd_use(const char *arg)
     end_ok();
 }
 
+static void cmd_del(const char *arg)
+{
+    if (!arg) { end_err("del <id>"); return; }
+    char *endp = NULL;
+    long id = strtol(arg, &endp, 10);
+    if (endp == arg) { end_err("del <id>"); return; }
+
+    bool stopped = false;
+    if (profile_delete((int)id, &stopped) != ESP_OK) { end_err("no such profile"); return; }
+    if (stopped) radio_stop();
+
+    cfg_lock();
+    int count = cfg_get()->count;
+    cfg_unlock();
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", true);
+    cJSON_AddNumberToObject(o, "id", (int)id);
+    cJSON_AddNumberToObject(o, "count", count);
+    cJSON_AddBoolToObject(o, "stopped", stopped);
+    cJSON_AddStringToObject(o, "mode", radio_mode_str(radio_mode()));
+    emit(o);
+    end_ok();
+}
+
 static void cmd_clone(const char *arg)
 {
     uint8_t addr[6];
@@ -554,6 +580,7 @@ static void handle_line(char *line)
     else if (!strcmp(cmd, "logs"))                      cmd_logs(a1);
     else if (!strcmp(cmd, "mode"))                      { if (a1) cmd_mode(a1); else end_err("mode sniff|clone|idle"); }
     else if (!strcmp(cmd, "use"))                       cmd_use(a1);
+    else if (!strcmp(cmd, "del"))                       cmd_del(a1);
     else if (!strcmp(cmd, "clone"))                     cmd_clone(a1);
     else if (!strcmp(cmd, "adv"))                       cmd_adv(a1);
     else if (!strcmp(cmd, "clear"))                     { blescan_clear(); applog_add(LOG_T_SCAN, 0, "usb: table cleared"); end_ok(); }

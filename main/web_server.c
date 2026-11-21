@@ -565,21 +565,9 @@ static esp_err_t h_profiles_put(httpd_req_t *req)
 static esp_err_t h_profiles_delete(httpd_req_t *req)
 {
     if (!auth_ok(req)) return fail(req, "401 Unauthorized", "token required");
-    int id = uri_last_id(req->uri);
-    cfg_lock();
-    beacon_cfg_t *c = cfg_get();
-    bool found = (id >= 0 && id < c->count);
     bool stop = false;
-    if (found) {
-        for (int i = id; i < c->count - 1; i++) c->p[i] = c->p[i + 1];
-        c->count--;
-        if (c->active == id) { c->active = -1; stop = true; }
-        else if (c->active > id) c->active--;
-        cfg_save();
-        applog_add(LOG_T_CFG, 0, "profile %d deleted", id);
-    }
-    cfg_unlock();
-    if (!found) return fail(req, "404 Not Found", "no such profile");
+    if (profile_delete(uri_last_id(req->uri), &stop) != ESP_OK)
+        return fail(req, "404 Not Found", "no such profile");
     if (stop) radio_stop();
     return ok_msg(req, "deleted");
 }

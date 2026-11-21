@@ -35,6 +35,7 @@ status
 | `logs [since_seq]` | JSONL: ring log records |
 | `mode sniff\|clone\|idle` | switch the radio (arbitrated by `radio.c`, same as the UI) |
 | `use <id>` / `use -1` | activate profile `id` / broadcast nothing |
+| `del <id>` | delete profile `id` (the other ids shift down, like the HTTP `DELETE`); deleting the one on air stops advertising |
 | `clone <addr>` | copy one row of the capture table into a profile and start advertising |
 | `adv <hex>` | Build/update the `usb-raw` profile from a hex payload and start broadcasting — no capture table entry needed, so a payload captured earlier can be restored anywhere |
 | `clear` | empty the capture table |
